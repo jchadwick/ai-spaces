@@ -1,0 +1,41 @@
+{
+  "name": "@openclaw/ai-spaces",
+  "version": "0.1.0",
+  "description": "Share portions of your AI agent's workspace with collaborators",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "openclaw": {
+    "extensions": ["./dist/index.js"],
+    "setupEntry": "./dist/setup-entry.js"
+  },
+  "keywords": [
+    "openclaw",
+    "plugin",
+    "spaces",
+    "collaboration"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jchadwick/ai-spaces.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jchadwick/ai-spaces/issues"
+  },
+  "homepage": "https://github.com/jchadwick/ai-spaces#readme",
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.2"
+  },
+  "dependencies": {
+    "openclaw": "^2026.3.28"
+  }
+}

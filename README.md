@@ -50,26 +50,11 @@ The agent's private files (`AGENTS.md`, `MEMORY.md`, `Private/`) are never expos
 
 ### 1. You create a space
 
-Add a `.space/spaces.json` to any folder in your agent's workspace:
-
-```json5
-// Vacations/.space/spaces.json
-{
-  name: "Family Vacations",
-  description: "Vacation planning with the family",
-  collaborators: [
-    { email: "spouse@example.com", role: "editor" },
-    { email: "teen@example.com", role: "viewer" },
-  ],
-}
-```
+Add a `.space/` directory with configuration to any folder in your agent's workspace. The configuration defines who can access and what they can do.
 
 ### 2. You generate a share link
 
-```bash
-openclaw spaces share create Vacations --role editor --expires 7d
-# Output: https://spaces.example.com/vacations?share=abc123
-```
+A share link is created that can be sent to collaborators. Links can have expiration times and can be revoked.
 
 ### 3. Collaborators open the link
 
@@ -86,8 +71,8 @@ The agent responds with knowledge scoped to that space. It can't see your other 
 
 AI Spaces is an **OpenClaw plugin** that:
 
-1. **Discovers spaces** by scanning for `.space/spaces.json` files in agent workspaces
-2. **Validates share links** (managed by AI Spaces, not OpenClaw)
+1. **Discovers spaces** by scanning for `.space/` directories in agent workspaces
+2. **Validates share links** (managed byAI Spaces, not OpenClaw)
 3. **Enforces path restrictions** via tool hooks — the same agent serves requests, but file access is scoped
 4. **Serves a web UI** for collaborators to browse, edit, and chat
 
@@ -164,7 +149,7 @@ AI Spaces is an **OpenClaw plugin** that:
 | Share a Google Doc | Your agent can't see it or edit it |
 | Share a Notion page | Your agent can't see it or edit it |
 | Forward agent messages | No interactivity, collaborators can't ask follow-ups |
-| Give agent access to collaborators | Security nightmare, private dataexposure |
+| Give agent access to collaborators | Security nightmare, private data exposure |
 | **AI Spaces** | Agent can collaborate, but only in the designated space |
 
 ---
@@ -173,36 +158,11 @@ AI Spaces is an **OpenClaw plugin** that:
 
 | Document | Description |
 |----------|-------------|
-| [`docs/README.md`](./docs/README.md) | This file (detailed overview) |
+| [`docs/README.md`](./docs/README.md) | Detailed overview |
 | [`docs/architecture.md`](./docs/architecture.md) | Technical architecture |
 | [`docs/openclaw-reference.md`](./docs/openclaw-reference.md) | OpenClaw concepts relevant to AI Spaces |
 | [`docs/security.md`](./docs/security.md) | Security model deep-dive |
 | [`docs/use-cases.md`](./docs/use-cases.md) | Practical scenarios |
-
----
-
-## Quick Start
-
-```bash
-# Create a space in your agent's workspace
-cd ~/.openclaw/workspace
-mkdir -p Vacations/.space
-
-# Define who can access
-cat > Vacations/.space/spaces.json << 'EOF'
-{
-  name: "Family Vacations",
-  collaborators: [
-    { email: "family@example.com", role: "editor" }
-  ]
-}
-EOF
-
-# Generate a share link
-openclaw spaces share create Vacations --expires 7d
-
-# Send the link to your family
-```
 
 ---
 

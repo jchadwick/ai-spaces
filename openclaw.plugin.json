@@ -1,0 +1,14 @@
+{
+  "id": "ai-spaces",
+  "name": "AI Spaces",
+  "description": "Share portions of your agent workspace with collaborators",
+  "kind": "channel",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "enabled": { "type": "boolean", "default": true },
+      "basePath": { "type": "string", "default": "/spaces" }
+    }
+  }
+}

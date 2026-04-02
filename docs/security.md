@@ -1,6 +1,6 @@
 # AI Spaces Security
 
-**Security model and implementation details.**
+**Security model for AI Spaces.**
 
 ---
 
@@ -46,55 +46,15 @@ Share links are managed entirely by AI Spaces, NOT OpenClaw. This isolation is i
 - AI Spaces maintains its own token database
 - Links are short-lived and revocable
 
-### Share Link Generation
+### How Share Links Work
 
-```bash
-# Owner generates a share link
-openclaw spaces share create Vacations --role editor --expires 7d
-```
-
-```json5
-// Output stored in ~/.openclaw/data/ai-spaces/shares.json
-{
-  shares: {
-    "7f3a9b2c": {
-      spaceId: "vacations",
-      spacePath: "/Users/me/.openclaw/workspace/Vacations",
-      agentId: "main",
-      role: "editor",
-      created: "2026-03-26T00:00:00Z",
-      expires: "2026-04-02T00:00:00Z",
-      label: "Family share link",
-    },
-  },
-}
-```
-
-### Share Link Validation
-
-```typescript
-// AI Spaces plugin validates on WebSocket connect
-async function validateShare(shareToken: string): Promise<ShareContext | null> {
-  const share = await loadShare(shareToken);
-  
-  if (!share) return null;
-  if (share.expires < Date.now()) return null;
-  if (share.revoked) return null;
-  
-  // Verify space still exists and config is valid
-  const spaceConfig = await loadSpaceConfig(share.spacePath);
-  if (!spaceConfig) return null;
-  
-  return {
-    spaceId: share.spaceId,
-    spacePath: share.spacePath,
-    agentId: share.agentId,
-    role: share.role,
-    allowedTools: spaceConfig.agent?.capabilities || ["read", "write"],
-    deniedTools: spaceConfig.agent?.denied || ["exec", "messaging"],
-  };
-}
-```
+1. Owner creates a space and defines who can access it
+2. Owner generates a share link with role and expiration
+3. Link is stored in AI Spaces' data (not OpenClaw config)
+4. Collaborator opens link in browser
+5. Space UI connects to Gateway with share token
+6. Plugin validates token and creates scoped session
+7. All subsequent operations are scoped to that space
 
 ### Role Permissions
 
@@ -113,57 +73,23 @@ async function validateShare(shareToken: string): Promise<ShareContext | null> {
 
 ## Filesystem Isolation
 
-### Implementation
+### Path Validation
 
-The scoped context's file operations are intercepted by tool hooks in the AI Spaces plugin:
+When a collaborator's tool call accesses a file:
 
-```typescript
-// AI Spaces plugin - tool hook
-api.on("before_tool_call", async (ctx) => {
-  const spaceContext = ctx.sessionMetadata?.spaceContext;
-  if (!spaceContext) return; // Not a space session
-  
-  // Only intercept file operations
-  if (ctx.toolName === "read" || ctx.toolName === "write") {
-    const requestedPath = ctx.params.path;
-    const spaceRoot = spaceContext.spacePath;
-    
-    // Resolve to absolute paths
-    const resolved = path.resolve(spaceRoot, requestedPath);
-    const resolvedRoot = path.resolve(spaceRoot);
-    
-    // Check if path is within space
-    if (!resolved.startsWith(resolvedRoot + path.sep)) {
-      throw new SecurityError(`Path escapes space: ${requestedPath}`);
-    }
-    
-    // Inject resolved path back into params
-    ctx.params.path = resolved;
-  }
-  
-  // Block denied tools
-  if (spaceContext.deniedTools.includes(ctx.toolName)) {
-    throw new SecurityError(`Tool not allowed in space: ${ctx.toolName}`);
-  }
-});
-```
+1. Resolve the requested path to an absolute path
+2. Resolve the space root to an absolute path
+3. Verify the requested path starts with the space root
+4. Reject if path escapes the space (including `..`, symlinks)
 
-### Blocked Patterns
+### What Must Be Blocked
 
-```typescript
-// Path traversal attempts
-"../Private/secrets.md"        // ❌ Blocked (resolves outside space)
-"../../.openclaw/MEMORY.md"    // ❌ Blocked
-"/etc/passwd"                  // ❌ Blocked (absolute path)
-
-// Symlink attacks
-symlink_to_private_file        // ❌ Blocked (resolves outside space)
-
-// Valid paths
-"Maine.md"                     // ✓ Allowed
-"./Maine.md"                   // ✓ Allowed
-"subdir/file.md"               // ✓ Allowed
-```
+| Pattern | Why It's Blocked |
+|---------|------------------|
+| `../Private/secrets.md` | Path traversal outside space |
+| `/etc/passwd` | Absolute path outside space |
+| Symlink to external file | Resolves outside space |
+| `.private/` files | Convention for private files within space |
 
 ---
 
@@ -172,33 +98,6 @@ symlink_to_private_file        // ❌ Blocked (resolves outside space)
 ### What the Scoped Context Sees
 
 When a collaborator chats in a space, the agent context is loaded differently:
-
-```typescript
-// Memory loading for scoped context
-async function loadScopedContext(spacePath: string): Promise<MemoryContext> {
-  const context = new MemoryContext();
-  
-  // Load space-specific memory (if exists)
-  const spaceMemory = path.join(spacePath, ".space", "SPACE.md");
-  if (await fs.exists(spaceMemory)) {
-    context.loadFile(spaceMemory);
-  }
-  
-  // Load current session context (ephemeral)
-  context.loadSessionContext();
-  
-  // Explicitly NOT loading:
-  // - AGENTS.md (agent's private instructions)
-  // - MEMORY.md (agent's long-term memory)
-  // - USER.md (user profile)
-  // - memory/YYYY-MM-DD.md (daily logs)
-  // - ../anything
-  
-  return context;
-}
-```
-
-### Memory Boundary Enforcement
 
 | File | Full Agent | Scoped Context |
 |------|------------|----------------|
@@ -209,6 +108,10 @@ async function loadScopedContext(spacePath: string): Promise<MemoryContext> {
 | `.space/SPACE.md` | Optional | ✓ Loaded (if exists) |
 | Space files | ✓ All | ✓ Only within space |
 
+### Why This Matters
+
+The agent's `AGENTS.md` might contain sensitive instructions. The agent's `MEMORY.md` might contain private notes. These are never loaded for scoped contexts.
+
 ---
 
 ## Tool Restrictions
@@ -217,45 +120,22 @@ async function loadScopedContext(spacePath: string): Promise<MemoryContext> {
 
 | Tool | Full Agent | Scoped Context |
 |------|------------|----------------|
-| `read` | ✅ All files in workspace | ✅ Only within space |
-| `write` | ✅ All files in workspace | ✅ Only within space (editor) |
-| `exec` | ✅ Shell commands | ❌ Blocked |
-| `messaging` | ✅ Email, SMS, etc. | ❌ Blocked |
-| `spawn_agents` | ✅ Create subagents | ❌ Blocked |
-| `web_search` | ✅ | ⚠️ Configurable per space |
-| `browser` | ✅ | ❌ Blocked |
-| `credentials` | ✅ | ❌ Blocked |
+| `read` | ✓ All files in workspace | ✓ Only within space |
+| `write` | ✓ All files in workspace | ✓ Only within space (editor) |
+| `exec` | ✓ Shell commands | ✗ Blocked |
+| `messaging` | ✓ Email, SMS, etc. | ✗ Blocked |
+| `spawn_agents` | ✓ Create subagents | ✗ Blocked |
+| `web_search` | ✓ | ⚠️ Configurable per space |
+| `browser` | ✓ | ✗ Blocked |
+| `credentials` | ✓ | ✗ Blocked |
 
-### Tool Filtering Implementation
+### Enforcing Tool Restrictions
 
-```typescript
-// Tool filtering in space config
-{
-  agent: {
-    capabilities: ["read", "write", "web_search"],
-    denied: ["exec", "messaging", "spawn_agents", "browser", "credentials"],
-  },
-}
-```
+Tool hooks intercept each call:
 
-Tool hooks enforce these restrictions:
-
-```typescript
-api.on("before_tool_call", async (ctx) => {
-  const spaceContext = ctx.sessionMetadata?.spaceContext;
-  if (!spaceContext) return;
-  
-  // Check if tool is explicitly denied
-  if (spaceContext.deniedTools.includes(ctx.toolName)) {
-    throw new SecurityError(`Tool denied: ${ctx.toolName}`);
-  }
-  
-  // Check if tool is in allowed list (if specified)
-  if (spaceContext.allowedTools && !spaceContext.allowedTools.includes(ctx.toolName)) {
-    throw new SecurityError(`Tool not allowed: ${ctx.toolName}`);
-  }
-});
-```
+- Is the tool in the denied list? → Block
+- Is the tool in the allowed list (if specified)? → Check
+- Does the operation involve file paths? → Validate path is within space
 
 ---
 
@@ -269,11 +149,7 @@ Each collaborator gets a unique session key scoped to the space:
 space:<spaceId>:<agentId>:<collaboratorId>
 ```
 
-Examples:
-- `space:vacations:main:spouse@example.com`
-- `space:newcar:main:teen@example.com`
-
-### Session Properties
+### Properties
 
 | Property | Behavior |
 |----------|----------|
@@ -290,35 +166,12 @@ Examples:
 
 | Event | Fields |
 |-------|--------|
-| Share link created | timestamp, spaceId, role, expires, label |
+| Share link created | timestamp, spaceId, role, expires |
 | Share link accessed | timestamp, shareToken, spaceId, remoteIP |
 | Share link revoked | timestamp, spaceId, shareId |
 | File read | timestamp, shareToken, spaceId, path |
-| File written | timestamp, shareToken, spaceId, path, diffHash |
+| File written | timestamp, shareToken, spaceId, path |
 | Tool call blocked | timestamp, shareToken, spaceId, toolName, reason |
-
-### Log Format
-
-```json
-{
-  "timestamp": "2026-03-26T14:30:00Z",
-  "event": "file_write",
-  "spaceId": "vacations",
-  "shareToken": "7f3a9b2c",
-  "path": "Maine.md",
-  "diffHash": "sha256:abc123...",
-  "remoteIP": "192.168.1.100"
-}
-```
-
-### Log Storage
-
-```
-~/.openclaw/data/ai-spaces/logs/
-├── shares.log          # Share link events
-├── access.log          # Access events
-└── audit.log           # All security events
-```
 
 ---
 
@@ -330,32 +183,13 @@ Examples:
 - Use Let's Encrypt for automatic TLS
 - Or use Tailscale Funnel/Serve for zero-config HTTPS
 
-### CORS Policy
-
-```json5
-{
-  gateway: {
-    controlUi: {
-      allowedOrigins: [
-        "https://spaces.yourdomain.com",
-      ],
-    },
-  },
-}
-```
-
 ### Rate Limiting
 
-```json5
-{
-  rateLimits: {
-    "space:chat": "30/minute",
-    "space:file_read": "100/minute",
-    "space:file_write": "20/minute",
-    "share:validate": "10/minute",
-  },
-}
-```
+Appropriate rate limits should be configured for:
+- Chat messages per minute
+- File read operations per minute
+- File write operations per minute
+- Share link validations per minute
 
 ---
 
@@ -392,25 +226,18 @@ Examples:
 
 ### If a Share Link is Compromised
 
-1. **Revoke immediately:** `openclaw spaces share revoke <spaceId> <shareId>`
-2. **Generate new link:** `openclaw spaces share create <spaceId>`
-3. **Audit logs:** Check access log for unauthorized access
-4. **Review content:** Check if files were modified unexpectedly
-5. **Notify collaborators:** Send new link to legitimate users
+1. **Revoke immediately**
+2. Generate new link
+3. Audit logs for unauthorized access
+4. Check if files were modified unexpectedly
+5. Notify collaborators with new link
 
 ### If a Scoped Context Escapes
 
-1. **Immediate:** Revoke all share links for the space
-2. **Assess:** Check audit logs for what was accessed
-3. **Patch:** Fix the isolation bug
-4. **Notify:** Alert all space owners with active shares
-
-### If OpenClaw Config is Exposed
-
-1. **Rotate tokens:** Regenerate all share tokens
-2. **Review logs:** Check for unauthorized access
-3. **Update config:** Change any exposed secrets
-4. **Notify:** Alert all affected collaborators
+1. Revoke all share links for the space
+2. Check audit logs for what was accessed
+3. Fix the isolation bug
+4. Alert all space owners with active shares
 
 ---
 

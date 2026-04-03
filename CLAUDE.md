@@ -13,15 +13,14 @@ When writing specifications for AI Spaces, follow these conventions:
 ### Formats
 
 - **Diagrams**: Use Mermaid (not ASCII art)
-- **Acceptance Criteria**: Use Given/When/Then format (Gherkin)
 - **JSON Examples**: Include for illustration (keep minimal)
 - **Schemas/Contracts**: Use Zod v4 schemas (not TypeScript interfaces)
 
 ### Documentation Structure
 
-- `specs/stories/` - User stories organized by epic
-- `specs/flows/` - User interaction flows
-- `specs/models/` - Data models and schemas
+- `docs/stories/` - User stories organized by epic
+- `docs/flows/` - User interaction flows
+- `docs/models/` - Data models and schemas
 
 ### File Organization
 
@@ -64,4 +63,12 @@ Per the interview decisions:
 6. **File Browser**: Full tree view
 7. **Link Expiry**: Configurable (7 days default, revokable)
 8. **Error Handling**: Graceful error messages in UI and chat
-9. **UI Stack**: React + Vite + shadcn/ui
+9. **UI Stack**: React + Vite + shadcn/ui# Agent Instructions
+
+## Git Workflow
+
+**Commit and push frequently.** After completing meaningful units of work:
+- Commit with descriptive messages
+- Push to the remote repository immediately
+
+This ensures work is backed up and progress is visible.

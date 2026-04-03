@@ -5,9 +5,9 @@
     "moduleResolution": "bundler",
     "esModuleInterop": true,
     "strict": true,
-    "outDir": "dist",
-    "rootDir": "src",
-    "skipLibCheck": true
-  },
-  "include": ["src/**/*", "index.ts", "setup-entry.ts"]
+    "skipLibCheck": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
+  }
 }

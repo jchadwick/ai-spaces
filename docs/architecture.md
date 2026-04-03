@@ -1,305 +1,465 @@
 # AI Spaces Architecture
 
-**How AI Spaces integrates with OpenClaw to share portions of an agent's workspace with collaborators.**
+**Canonical architecture document.**
 
 ---
 
-## The Core Concept
+## Core Principle
 
-**A Space is a subdirectory of an agent's existing workspace that can be shared with collaborators.**
-
-```
-Agent Workspace                    # Owned by the agent
-├── AGENTS.md                      # Agent's operating instructions (PRIVATE)
-├── MEMORY.md                      # Agent's long-term memory (PRIVATE)
-├── Private/                       # Never shared
-│   └── secrets.md
-│
-├── Vacations/                     # ← SPACE (shared with family)
-│   ├── .space/
-│   │   └── spaces.json            # Who can access
-│   ├── Maine.md
-│   └── CostaRica.md
-│
-└── Research/
-    └── NewCar/                    # ← SPACE (shared with spouse)
-        ├── .space/
-        │   └── spaces.json
-        ├── RAV4.md
-        └── CX-5.md
-```
-
-**The agent shares a slice of its knowledge**, not a separate workspace.
+> A Space is a subdirectory of an agent's workspace that can be shared with collaborators. The Spaces Service owns users, authentication, and permissions. The Agent Adapter manages all agent communication. The Agent owns files and computation.
 
 ---
 
-## Why This Matters
-
-| Wrong Approach | Right Approach |
-|----------------|----------------|
-| Create new workspace per space | Share subdirectory of existing workspace |
-| Spawn separate agent per space | Same agent with scoped tool access |
-| Diverging state between agent and space | Agent already knows the content |
-| Complex sync between workspaces | Single source of truth |
-
----
-
-## Core Components
-
-### 1. Agent's Workspace (OpenClaw)
-
-The agent already has a workspace at `~/.openclaw/workspace/` (or custom path). This is the source of truth. AI Spaces does not create new workspaces.
-
-### 2. Space Definition (Self-Registration)
-
-Spaces are defined by the presence of a config file in a directory. The format is flexible, but the concept is:
-
-- A `.space/` subdirectory indicates "this folder is a Space"
-- The config specifies who can access and what they can do
-- Can also be defined centrally at workspace root
-
-### 3. AI Spaces Plugin (OpenClaw Extension)
-
-An OpenClaw plugin that:
-- Discovers spaces by scanning for config files
-- Validates share links for collaborator access
-- Intercepts agent tool calls to enforce scoping
-- Serves the Space UI
-
-### 4. Space UI (Web Interface)
-
-A web interface that:
-- Connects to OpenClaw Gateway via WebSocket
-- Authenticates via share links
-- Displays files, markdown editor, chat interface
-
-### 5. Share Links (Auth Mechanism)
-
-Share links are managed entirely by AI Spaces:
-- OpenClaw knows nothing about collaborators
-- Links are short-lived and revocable
-- Links map to specific spaces and roles
-
----
-
-## Architecture Diagram
+## System Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                           OpenClaw Gateway                               │
-│                     (WebSocket on :18789)                                │
+│                           Spaces Service                                 │
 │                                                                          │
-│  ┌────────────────────────────────────────────────────────────────────┐ │
-│  │                         Plugins                                     │ │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────────────────┐ │ │
-│  │  │ WhatsApp │ │ Telegram │ │ Discord │ │    AI Spaces           │ │ │
-│  │  │ channel  │ │ channel  │ │ channel │ │    channel + plugin    │ │ │
-│  │  └────┬─────┘ └────┬─────┘ └────┬─────┘ └───────────┬───────────┘ │ │
-│  └───────┼────────────┼────────────┼─────────────────┼───────────────┘ │
-│          │            │            │                 │                 │
-│  ┌───────▼────────────▼────────────▼─────────────────▼───────────────┐ │
-│  │                    Routing + Bindings                              │ │
-│  └─────────────────────────────┬──────────────────────────────────────┘ │
-│                                │                                        │
-│  ┌─────────────────────────────▼──────────────────────────────────────┐ │
-│  │                     Agents + Tool Execution                        │ │
-│  │  ┌────────────────────────────────────────────────────────────────┐│ │
-│  │  │  Agent "main"                                                  ││ │
-│  │  │  workspace: ~/.openclaw/workspace                              ││ │
-│  │  │  tools: ALL                                                    ││ │
-│  │  │                                                                ││ │
-│  │  │  ┌─────────────────┐  ┌──────────────────────────────────┐     ││ │
-│  │  │  │ workspace/       │  │ workspace/Vacations/ [SPACE]     │     ││ │
-│  │  │  │ ├── AGENTS.md   │  │ Scoped via tool hooks            │     ││ │
-│  │  │  │ ├── MEMORY.md   │  │                                  │     ││ │
-│  │  │  │ ├── Private/    │  │                                  │     ││ │
-│  │  │  │ └── ...         │  │                                  │     ││ │
-│  │  │  └─────────────────┘  └──────────────────────────────────┘     ││ │
-│  │  └────────────────────────────────────────────────────────────────┘│ │
-│  └────────────────────────────────────────────────────────────────────┘ │
+│  Owns: Users, Auth, Sessions, Shares, Permissions, Space Metadata      │
+│                                                                          │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                │
+│  │  REST API    │  │  WebSocket   │  │   Database   │                │
+│  │              │  │              │  │              │                │
+│  │  /api/spaces │  │  /ws/space/  │  │  users      │                │
+│  │  /api/shares │  │              │  │  spaces     │                │
+│  │              │  │              │  │  shares     │                │
+│  └──────────────┘  └──────────────┘  │  sessions   │                │
+│                                      └──────────────┘                │
+└───────────────────────┬─────────────────────────────────────────────┘
+                        │
+                        │ API calls with spaceId
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          Agent Adapter                                   │
+│                                                                          │
+│  Owns: spaceId → agent mapping, agent routing                            │
+│                                                                          │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │  Space Mapping                                                    │  │
+│  │                                                                   │  │
+│  │  spaceId → { agentType, agentInstanceId, location }             │  │
+│  │                                                                   │  │
+│  │  "550e..." → {                                                    │  │
+│  │    agentType: "openclaw",                                        │  │
+│  │    agentInstanceId: "my-agent",                                 │  │
+│  │    location: { workspace: "...", path: "Vacations" }            │  │
+│  │  }                                                                │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+│                                                                          │
+│  ┌──────────────────────────────────────────────────────────────────┐  │
+│  │  Agent Implementations                                            │  │
+│  │                                                                   │  │
+│  │  OpenClawAdapter    ClaudeCodeAdapter    FutureAdapter            │  │
+│  │  (MVP)              (Future)            (Future)                  │  │
+│  └──────────────────────────────────────────────────────────────────┘  │
+└───────────────────────┬─────────────────────────────────────────────┘
+                        │
+                        │ Translates spaceId → workspace path
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                              Agent                                       │
+│                         (OpenClaw, etc.)                                │
+│                                                                          │
+│  Owns: Files, Agent Memory, Tool Execution, Space Config                │
+│                                                                          │
+│  workspace/                                                              │
+│  ├── AGENTS.md                     (private)                            │
+│  ├── MEMORY.md                     (private)                            │
+│  ├── Vacations/                    (space)                              │
+│  │   ├── .space/                                                          │
+│  │   │   ├── spaces.json           (config)                             │
+│  │   │   └── SPACE.md              (context)                            │
+│  │   ├── Maine.md                                                         │
+│  │   └── CostaRica.md                                                      │
+│  └── Research/NewCar/              (space)                               │
+│      ├── .space/                                                          │
+│      │   └── spaces.json                                                   │
+│      └── comparison.md                                                     │
+│                                                                          │
 └─────────────────────────────────────────────────────────────────────────┘
-                                    │
-                      ┌─────────────┼─────────────┐
-                      │             │             │
-                ┌─────▼─────┐ ┌─────▼─────┐ ┌─────▼─────┐
-                │ Control  │ │ macOS app │ │  Space   │
-                │   UI     │ │   (node)  │ │   UI     │
-                └──────────┘ └───────────┘ │(browser) │
-                                          └──────────┘
 ```
 
 ---
 
-## Scoped Access: How It Works
+## Responsibility Split
 
-### Key Insight: Same Agent, Scoped Tools
+### Spaces Service Knows:
 
-We don't need separate agents for each space. Instead:
+- `spaceId` (UUID)
+- Space metadata (name, description, owner)
+- Users, authentication, OAuth providers
+- Share links, roles, permissions
+- Sessions, audit logs
 
-1. Collaborator connects via share link
-2. AI Spaces plugin validates the share
-3. Plugin creates a **scoped context** for that session
-4. Agent tool calls are intercepted via OpenClaw's tool hooks
-5. Path-based restrictions enforce the space boundary
+### Agent Adapter Knows:
 
-### What Gets Scoped
+- `spaceId` → `agentType` + `agentInstanceId` + `location`
+- How to route to different agent types
+- How to translate file paths for each agent
+- How to manage agent sessions
 
-| Layer | Enforcement |
-|-------|-------------|
-| WebSocket auth | Validate share link token |
-| Tool hooks | Path validation, tool filtering |
-| File system | Resolve paths, check they're within space |
-| Memory | Skip agent's private memory, load space-specific memory if present |
+### Agent Knows:
 
-### Memory Isolation
-
-The scoped context loads differently:
-
-| File | Full Agent | Scoped Context |
-|------|------------|----------------|
-| `AGENTS.md` | ✓ Loaded | ✗ Skipped |
-| `MEMORY.md` | ✓ Loaded | ✗ Skipped |
-| `USER.md` | ✓ Loaded | ✗ Skipped |
-| `.space/SPACE.md` | Optional | ✓ Loaded (if exists) |
-| Space files | ✓ All | ✓ Only within space |
+- Its own files and workspace
+- Space config (`.space/spaces.json`)
+- Space context (`.space/SPACE.md`)
+- How to execute scoped sessions
 
 ---
 
-## Space Discovery
+## Data Models
 
-### How Spaces Are Found
+### Spaces Service Database
 
-The plugin needs to discover spaces when:
-- Gateway starts
-- Config files change
-- New spaces are created
+```sql
+-- Users (multiple auth providers per user)
+CREATE TABLE users (
+    id UUID PRIMARY KEY,
+    email TEXT,
+    display_name TEXT,
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);
 
-Two approaches:
-1. **Per-space config**: `.space/spaces.json` in each space directory
-2. **Workspace-root config**: `spaces.json` at the workspace root
+CREATE TABLE auth_providers (
+    id UUID PRIMARY KEY,
+    user_id UUID REFERENCES users(id),
+    provider_type TEXT, -- 'email', 'google', 'github', etc.
+    provider_user_id TEXT,
+    provider_email TEXT,
+    metadata JSONB, -- password hash, OAuth tokens, etc.
+    created_at TIMESTAMP
+);
 
-Both formats can be supported; per-space takes precedence.
+-- Spaces (minimal metadata)
+CREATE TABLE spaces (
+    id UUID PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    owner_id UUID REFERENCES users(id),
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP
+);
 
-### File Watcher
+-- Shares
+CREATE TABLE shares (
+    id UUID PRIMARY KEY,
+    token TEXT UNIQUE NOT NULL,
+    space_id UUID REFERENCES spaces(id),
+    user_id UUID REFERENCES users(id),
+    role TEXT NOT NULL, -- 'viewer', 'editor', 'owner', 'admin'
+    permissions TEXT[],
+    label TEXT,
+    expires_at TIMESTAMP,
+    created_at TIMESTAMP,
+    revoked_at TIMESTAMP
+);
+```
 
-A file watcher can detect when space configs are added/modified/removed, enabling dynamic space management without gateway restart.
-
----
-
-## Session Management
-
-### Session Keys
-
-Each collaborator gets a unique session key scoped to the space:
+### Agent Workspace
 
 ```
-space:<spaceId>:<agentId>:<collaboratorId>
+workspace/Vacations/
+├── .space/
+│   ├── spaces.json          # Space config
+│   └── SPACE.md             # Space context (agent instructions)
+├── Maine.md
+└── CostaRica.md
 ```
 
-### Session Isolation
-
-- Collaborators don't see each other's chat history
-- Collaborators don't see agent's other sessions
-- Session context is scoped to the space
+**spaces.json:**
+```json
+{
+  "name": "Family Vacations",
+  "description": "Shared vacation planning",
+  "agent": {
+    "tools": {
+      "allow": ["read", "write", "web_search"],
+      "deny": ["exec", "messaging"]
+    }
+  }
+}
+```
 
 ---
 
-## Integrationwith OpenClaw
+## Roles and Permissions
 
-### How AI SpacesPlugs In
+### Role Hierarchy
 
-AI Spaces needs to:
-1. **Discover spaces** by scanning config files
-2. **Register as a channel** for WebSocket routing
-3. **Register HTTP routes** for serving UI and share link management
-4. **Hook into tool execution** for path scoping
-5. **Inject context** into session metadata
+| Role | Permissions | Description | Availability |
+|------|-------------|-------------|--------------|
+| `viewer` | `read`, `comment` | View-only access | MVP |
+| `editor` | `read`, `comment`, `edit` | Modify files | MVP |
+| `owner` | `read`, `comment`, `edit`, `share` | Manage shares, full control | MVP |
+| `admin` | All + server admin | AI Spaces administrator | Post-MVP |
 
-### Key Integration Points
+### Permission Definitions
 
-| OpenClaw Feature | AI Spaces Use |
-|------------------|---------------|
-| Plugin registration | Channel + HTTP routes |
-| Tool hooks | Path validation, tool filtering |
-| Session metadata | Store space context |
-| Agent workspace | Source of truth for files |
+- **`read`**: View files and directory structure
+- **`comment`**: Chat with agent
+- **`edit`**: Modify files
+- **`share`**: Create/revoke share links
+- **`admin`**: Manage all spaces, users, server configuration
+
+### Role Assignment
+
+- Space creator → `owner` role
+- Share links have a single role
+- Users can have different roles per space (Post-MVP)
+- Anonymous users get role from share link
+
+---
+
+## HTTP API
+
+### Spaces
+
+```bash
+# Create space
+POST /api/spaces
+{
+  "name": "Family Vacations",
+  "description": "Shared vacation planning"
+}
+
+# Response
+{
+  "spaceId": "550e8400-...",
+  "name": "Family Vacations",
+  "description": "Shared vacation planning",
+  "ownerId": "660e8400-...",
+  "createdAt": "2026-04-01T12:00:00Z"
+}
+
+# Get space details
+GET /api/spaces/{spaceId}
+
+# Get space config (via agent adapter)
+GET /api/spaces/{spaceId}/config
+
+# Delete space
+DELETE /api/spaces/{spaceId}
+```
+
+### Shares
+
+```bash
+# Create share link
+POST /api/spaces/{spaceId}/shares
+{
+  "role": "editor",
+  "expiresAt": "2026-04-08T00:00:00Z",
+  "label": "Leah's vacation link"
+}
+
+# Response
+{
+  "shareId": "550e8400-...",
+  "token": "Kf7Pq9Rz...",
+  "spaceId": "550e8400-...",
+  "role": "editor",
+  "permissions": ["read", "comment", "edit"],
+  "shareUrl": "https://spaces.example.com/s/550e8400-...?t=Kf7Pq9Rz...",
+  "expiresAt": "2026-04-08T00:00:00Z"
+}
+
+# List shares
+GET /api/spaces/{spaceId}/shares
+
+# Revoke share
+DELETE /api/spaces/{spaceId}/shares/{shareId}
+```
+
+### Files
+
+```bash
+# Via WebSocket
+WS /ws/space/{spaceId}?t={token}
+
+# List files
+{ "type": "req", "id": "1", "method": "files.list", "params": { "path": "" } }
+
+# Read file
+{ "type": "req", "id": "2", "method": "files.read", "params": { "path": "Maine.md" } }
+
+# Write file
+{ "type": "req", "id": "3", "method": "files.write", "params": { "path": "Maine.md", "content": "..." } }
+
+# Chat
+{ "type": "req", "id": "4", "method": "chat.send", "params": { "message": "What files are here?" } }
+```
+
+---
+
+## Agent Adapter Interface
+
+```typescript
+interface AgentAdapter {
+  // Space management
+  createSpace(config: SpaceConfig): Promise<{ spaceId: string }>;
+  getSpaceConfig(spaceId: string): Promise<SpaceConfig>;
+  
+  // File operations
+  getFile(spaceId: string, path: string): Promise<FileContent>;
+  putFile(spaceId: string, path: string, content: string): Promise<void>;
+  listFiles(spaceId: string, path?: string): Promise<FileInfo[]>;
+  
+  // Session management
+  createSession(spaceId: string, context: SessionContext): Promise<Session>;
+  closeSession(sessionId: string): Promise<void>;
+  
+  // Chat
+  sendChatMessage(sessionId: string, message: string): AsyncIterator<ChatChunk>;
+}
+```
+
+All file paths are **relative to the space**. The agent adapter resolves them to absolute paths based on its internal mapping.
+
+---
+
+## Space Creation Flow
+
+```
+Agent Owner        Agent Adapter           Spaces Service      Database
+     │                  │                       │                 │
+     │ 1. Create        │                       │                 │
+     │    .space/       │                       │                 │
+     │    in workspace  │                       │                 │
+     │                  │                       │                 │
+     │ 2. Create space  │                       │                 │
+     │    POST /api/    │                       │                 │
+     │    spaces        │                       │                 │
+     │ ─────────────────►│                       │                 │
+     │                  │                       │                 │
+     │                  │ 3. Create space record │                 │
+     │                  │ ──────────────────────►│                 │
+     │                  │                       │                 │
+     │                  │                       │ 4. Insert       │
+     │                  │                       │ ────────────────►│
+     │                  │                       │                 │
+     │                  │                       │ 5. spaceId      │
+     │                  │                       │ ◄───────────────│
+     │                  │                       │                 │
+     │                  │ 6. Store mapping       │                 │
+     │                  │    spaceId → agent     │                 │
+     │                  │    (internal)         │                 │
+     │                  │                       │                 │
+     │                  │ 7. Return spaceId      │                 │
+     │ ◄────────────────│                       │                 │
+```
+
+**Key Points:**
+- Spaces Service stores minimal metadata (id, name, description, owner)
+- Agent Adapter maintains the `spaceId` → agent mapping
+- Space config stays in `.space/spaces.json` (authoritative)
+
+---
+
+## File Operation Flow
+
+```
+Collaborator       Spaces Service      Agent Adapter          Agent
+     │                  │                    │                   │
+     │ "Read Maine.md"  │                    │                   │
+     │ via WebSocket    │                    │                   │
+     │ ─────────────────►│                    │                   │
+     │                  │                    │                   │
+     │                  │ getFile(            │                   │
+     │                  │   spaceId, "Maine.md")                   │
+     │                  │ ───────────────────►│                   │
+     │                  │                    │                   │
+     │                  │                    │ Resolve spaceId:  │
+     │                  │                    │  → workspace/     │
+     │                  │                    │     Vacations/    │
+     │                  │                    │                   │
+     │                  │                    │ Read path:        │
+     │                  │                    │  workspace/Vac/   │
+     │                  │                    │  Maine.md         │
+     │                  │                    │ ─────────────────►│
+     │                  │                    │                   │
+     │                  │                    │     file content │
+     │                  │                    │ ◄────────────────│
+     │                  │                    │                   │
+     │    file content  │                    │                   │
+     │ ◄────────────────│                    │                   │
+```
 
 ---
 
 ## Security Model
 
-### What Collaborators Can Do
+### Path Isolation
 
-- Read files in the space directory
-- Write files in the space directory (if role = editor)
-- Chat with the agent about space content
-- Use tools allowed by space config
+All file operations go through the agent adapter, which validates:
 
-### What Collaborators Cannot Do
+1. Path resolves to absolute path
+2. Path is within space root
+3. Symlinks are resolved and checked
+4. Result path still within space root
 
-- Access files outside the space directory
-- See agent's `AGENTS.md`, `MEMORY.md`, `USER.md`
-- Use tools denied by space config
-- Escalate to other spaces
-- Access agent's other sessions
+### Tool Restrictions
 
-### Enforcement Points
+Scoped sessions have limited tools:
+- **Always allowed**: `read`, `glob`
+- **Editor only**: `write`, `edit`
+- **Configurable**: `web_search` (per space config)
+- **Always denied**: `exec`, `messaging`, `spawn_agents`, `credentials`
 
-| Layer | Enforcement |
-|-------|-------------|
-| Share link validation | Must be valid and not expired |
-| Session creation | Inject space context |
-| Tool calls | Path must resolve within space |
-| Memory loading | Skip agent's private files |
+### Memory Isolation
+
+Scoped sessions skip:
+- `AGENTS.md`
+- `MEMORY.md`
+- `USER.md`
+- `memory/` directory
+
+And load:
+- `.space/SPACE.md`
 
 ---
 
-## File Structure
+## MVP vs Post-MVP
 
-```
-~/.openclaw/
-├── openclaw.json                    # OpenClaw config
-├── workspace/                       # Agent's workspace
-│   ├── AGENTS.md                    # (PRIVATE)
-│   ├── MEMORY.md                    # (PRIVATE)
-│   │
-│   ├── Vacations/                   # Space
-│   │   ├── .space/
-│   │   │   └── spaces.json          # Space config
-│   │   └── ...
-│   │
-│   └── Research/NewCar/             # Space
-│       ├── .space/
-│       │   └── spaces.json
-│       └── ...
-│
-└── data/
-    └── ai-spaces/
-        └── shares.json              # Share links (managed by plugin)
-```
+### MVP (v0.1)
+
+| Feature | Implementation |
+|---------|---------------|
+| Space creation | API + agent adapter |
+| Share links | Token-based, anonymous |
+| Auth | No user accounts |
+| File operations | Via agent adapter |
+| Chat | Scoped sessions |
+| Agent support | OpenClaw only |
+
+### Post-MVP
+
+| Feature | Implementation |
+|---------|---------------|
+| User accounts | OAuth + multiple providers |
+| Admin role | Server administration |
+| Multiple agents | Separate agent adapter service |
+| Real-time collab | Yjs CRDT |
+| Chat history | Database persistence |
 
 ---
 
 ## Key Decisions
 
-| Decision | Rationale |
-|----------|-----------|
-| Subdirectory of existing workspace | Agent already knows the content, no sync latency |
-| Same agent with tool hooks | Simpler than spawning/managing separate agents |
-| Share links managed by plugin | OpenClaw doesn't need to know about collaborators |
-| Per-space config files | Self-contained, easy to reason about |
-| OpenClaw plugin architecture | Leverages existing infrastructure |
+1. **Spaces Service only knows spaceId** - doesn't know about agents or file paths
+2. **Agent Adapter maintains mapping** - spaceId → agent + location
+3. **Config lives in workspace** - `.space/spaces.json` is authoritative
+4. **Multiple auth providers per user** - email, Google, GitHub, etc.
+5. **Roles: viewer, editor, owner, admin** - owner manages shares, admin is server-wide
 
 ---
 
-## Open Questions
+## Related Documents
 
-1. **UI Technology**: What framework for Space UI? (Control UI uses Vite + Lit)
-2. **Real-time Edits**: How to handle concurrent edits? (CRDT? OT? Locking?)
-3. **File Watcher vs Polling**: How fast should space discovery respond?
-4. **Share Link Format**: URL param? Path component? JWT?
-5. **Session Storage**: Where to store session metadata? (OpenClaw sessions? Separate?)
-
----
-
-*Architecture document for AI Spaces.*
+- [AGENT-ADAPTER.md](./AGENT-ADAPTER.md) - Agent adapter architecture details
+- [Security Model](./security.md) - Security considerations
+- [User Models](./models/User.md) - User authentication
+- [Space Models](./models/Space.md) - Space data model

@@ -30,7 +30,8 @@ You don't create new workspaces. You don't copy files. You share portions of wha
 ├── MEMORY.md                     # Agent's long-term memory (PRIVATE)
 ├── Vacations/                    # ← SPACE: shared with family
 │   ├── .space/
-│   │   └── spaces.json          # Who can access
+│   │   ├── spaces.json          # Space configuration
+│   │   └── SPACE.md             # Space-specific context
 │   ├── Maine.md
 │   └── CostaRica.md
 ├── Research/
@@ -46,99 +47,239 @@ The agent's private files (`AGENTS.md`, `MEMORY.md`, `Private/`) are never expos
 
 ---
 
-## How It Works
+## Architecture
 
-### 1. You create a space
+AI Spaces is a **standalone service** that connects to your AI agent through a pluggable adapter interface. The MVP uses OpenClaw, but other agents can be supported.
 
-Add a `.space/` directory with configuration to any folder in your agent's workspace. The configuration defines who can access and what they can do.
+### Key Components
 
-### 2. You generate a share link
+| Component | Responsibility |
+|-----------|---------------|
+| **Spaces Service** | Users, auth, shares, permissions, real-time WebSocket, audit logs |
+| **Agent Adapter** | File operations, scoped sessions, tool execution |
+| **Space UI** | Web interface for collaborators (React) |
 
-A share link is created that can be sent to collaborators. Links can have expiration times and can be revoked.
+### Data Ownership
 
-### 3. Collaborators open the link
+| Data | Owner | Location |
+|------|-------|----------|
+| Users & Auth | Spaces Service | Database |
+| Spaces & Shares | Spaces Service | Database |
+| Space Config | Agent | `.space/spaces.json` |
+| Files | Agent | Workspace |
 
-They see:
-- **File browser**: Navigate the space's files
-- **Markdown editor**: Edit documents directly
-- **Chat**: Talk to the agent about the space
-
-The agent responds with knowledge scoped to that space. It can't see your other spaces, your private files, or your agent's full memory.
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        Spaces Service                           │
+│                                                                 │
+│  Owns: Users, Auth, Sessions, Shares, Permissions, Audit Log  │
+│                                                                 │
+│  ┌──────────────┐  ┌──────────────┐  ┌─────────────────────┐  │
+│  │  REST API    │  │  WebSocket   │  │  Agent Adapters     │  │
+│  │              │  │              │  │                     │  │
+│  │  POST /spaces │  │  /ws/space/ │  │  OpenClaw (MVP)     │  │
+│  │  POST /shares │  │              │  │  Future Agents      │  │
+│  └──────────────┘  └──────────────┘  └─────────────────────┘  │
+│                                                                 │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │  Database: users | spaces | shares | sessions | audit   │  │
+│  └─────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                        Agent (OpenClaw)                        │
+│                                                                 │
+│  Owns: Files, Agent Memory, Tool Execution                     │
+│                                                                 │
+│  workspace/                                                     │
+│  ├── AGENTS.md         (private)                               │
+│  ├── MEMORY.md         (private)                               │
+│  └── Vacations/        (shared space)                          │
+│      ├── .space/spaces.json                                   │
+│      └── Maine.md                                              │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ---
 
-## Architecture
+## How It Works
 
-AI Spaces is an **OpenClaw plugin** that:
+### 1. Create a Space
 
-1. **Discovers spaces** by scanning for `.space/` directories in agent workspaces
-2. **Validates share links** (managed byAI Spaces, not OpenClaw)
-3. **Enforces path restrictions** via tool hooks — the same agent serves requests, but file access is scoped
-4. **Serves a web UI** for collaborators to browse, edit, and chat
+Add a `.space/` directory with configuration to any folder in your agent's workspace:
 
+```json
+// .space/spaces.json
+{
+  "name": "Family Vacations",
+  "description": "Shared vacation planning",
+  "agent": {
+    "tools": {
+      "allow": ["read", "write", "web_search"],
+      "deny": ["exec", "messaging"]
+    }
+  }
+}
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                           OpenClaw Gateway                               │
-│                                                                          │
-│  ┌──────────────────────┐  ┌────────────────────────────────────────┐ │
-│  │ Messaging Channels   │  │ AI Spaces Plugin                       │ │
-│  │ (WhatsApp, Telegram) │  │ • Space discovery                      │ │
-│  └──────────────────────┘  │ • Share link validation                │ │
-│                            │ • Tool hook enforcement                 │ │
-│                            │ • Web UI serving                       │ │
-│                            └────────────────────────────┬───────────┘ │
-│                                                         │              │
-│  ┌─────────────────────────────────────────────────────▼────────────┐ │
-│  │              Agent "main" (full tools)                            │ │
-│  │              workspace: ~/.openclaw/workspace                     │ │
-│  │                                                                   │ │
-│  │  ┌────────────────┐          ┌──────────────────────────────┐    │ │
-│  │  │ workspace/      │          │ workspace/Vacations/ [SPACE] │    │ │
-│  │  │ (all accessible)│          │ Scoped via tool hooks        │    │ │
-│  │  └────────────────┘          └──────────────────────────────┘    │ │
-│  └───────────────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────────────────┘
-                                    ▲
-                                    │ WebSocket
-                          ┌─────────┴─────────┐
-                          │ Space UI (browser) │
-                          │ • File browser     │
-                          │ • Markdown editor  │
-                          │ • Chat interface   │
-                          └─────────────────────┘
+
+Register the space with Spaces Service:
+
+```bash
+POST /api/spaces
+{
+  "agentId": "my-openclaw",
+  "path": "Vacations",
+  "config": { ... }
+}
 ```
+
+### 2. Create Share Links
+
+Generate shareable links with specific permissions:
+
+```bash
+POST /api/spaces/{spaceId}/shares
+{
+  "role": "editor",
+  "expiresAt": "2026-05-01T00:00:00Z"
+}
+
+Response:
+{
+  "shareUrl": "https://spaces.example.com/s/abc123?t=Kf7Pq9Rz...",
+  "token": "Kf7Pq9Rz..."
+}
+```
+
+### 3. Collaborators Access
+
+Collaborators open the share URL and see:
+
+- **File Browser**: Navigate files and folders in the space
+- **Markdown Editor**: View and edit documents
+- **Chat Interface**: Talk to the agent about space content
+
+The agent only knows about files in that space — it can't see other spaces or private files.
 
 ---
 
 ## Security Model
 
-### What Collaborators Can Do
+### Permission System
 
-| Action | Editor | Viewer |
-|--------|--------|--------|
-| Browse files in space | ✓ | ✓ |
-| Edit documents | ✓ | ✗ |
-| Chat with agent | ✓ | ✓ |
-| See other spaces | ✗ | ✗ |
-| Access agent memory | ✗ | ✗ |
+**Permissions** (system-level):
+- `read`: View files and directory structure
+- `comment`: Chat with agent
+- `edit`: Modify files
+- `share`: Create/revoke share links
 
-### What the Agent Can Do in a Scoped Context
+**Roles** (user-facing):
 
-| Capability | Full Agent | Scoped Context |
-|------------|------------|----------------|
-| Read files in space | ✓ | ✓ |
-| Write files in space | ✓ | ✓ (if editor) |
-| Read files outside space | ✓ | ✗ |
-| Read agent memory | ✓ | ✗ |
-| Execute commands | ✓ | ✗ |
-| Send messages | ✓ | ✗ |
+| Role | Permissions | Description |
+|------|-------------|-------------|
+| Viewer | `read`, `comment` | View-only access |
+| Editor | `read`, `comment`, `edit` | Full collaboration |
+| Admin | `read`, `comment`, `edit`, `share` | Manage shares |
 
-### Enforcement
+### Memory Isolation
 
-- **Path validation**: Tool hooks reject any path outside the space directory
-- **Tool filtering**: Only allowed tools (`read`, `write`, `web_search`)
-- **Memory isolation**: `AGENTS.md`, `MEMORY.md` never loaded for scoped sessions
-- **Share links**: Short-lived tokens managed by AI Spaces, not OpenClaw
+When a collaborator chats with the agent, the agent loads a **scoped context**:
+
+| File | Full Agent | Scoped Context |
+|------|------------|----------------|
+| `AGENTS.md` | ✓ Loaded | ✗ Skipped |
+| `MEMORY.md` | ✓ Loaded | ✗ Skipped |
+| `USER.md` | ✓ Loaded | ✗ Skipped |
+| `.space/SPACE.md` | Optional | ✓ Loaded |
+| Space files | ✓ All | ✓ Only within space |
+
+### What Collaborators Cannot Do
+
+- Access files outside the space directory
+- See the agent's private memory or instructions
+- Use tools denied by space configuration
+- Escalate to other spaces
+- Access other collaborator sessions
+
+---
+
+## Configuration
+
+### Space Config (`.space/spaces.json`)
+
+Defines space metadata and agent behavior:
+
+```json
+{
+  "name": "Family Vacations",
+  "description": "Shared vacation planning",
+  "agent": {
+    "tools": {
+      "allow": ["read", "write", "web_search"],
+      "deny": ["exec", "messaging", "spawn_agents"]
+    }
+  }
+}
+```
+
+### Space Context (`.space/SPACE.md`)
+
+Space-specific instructions for the agent:
+
+```markdown
+# Space Context
+
+This space is for planning family vacations.
+
+## Guidelines
+- Focus on travel-related topics
+- Be helpful with budget questions
+- Keep suggestions family-friendly
+```
+
+---
+
+## Key Features
+
+### Scoped Agent Sessions
+- Collaborators chat with a scoped version of your agent
+- Agent only sees files within the space
+- Tool access restricted per space configuration
+
+### Real-Time Collaboration
+- WebSocket-based real-time updates
+- File changes broadcast to all collaborators
+- Chat responses streamed character-by-character
+
+### Fine-Grained Permissions
+- Role-based access control
+- Per-space tool restrictions
+- Audit logging for security
+
+### Portable Spaces
+- `.space/` directory travels with the folder
+- Move or rename spaces without losing configuration
+- Agent settings stay with the content
+
+---
+
+## MVP Scope
+
+**v0.1 (MVP)**:
+- Space creation via API
+- Share link generation (anonymous access)
+- File browsing (read-only via WebSocket)
+- File editing (full content, last-write-wins)
+- Scoped chat with agent
+- No user accounts required
+
+**Post-MVP**:
+- User accounts with OAuth
+- Real-time collaborative editing (Yjs CRDT)
+- Chat history persistence
+- File version history
+- Multi-folder spaces
 
 ---
 
@@ -156,20 +297,17 @@ AI Spaces is an **OpenClaw plugin** that:
 
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [`docs/README.md`](./docs/README.md) | Detailed overview |
-| [`docs/architecture.md`](./docs/architecture.md) | Technical architecture |
-| [`docs/openclaw-reference.md`](./docs/openclaw-reference.md) | OpenClaw concepts relevant to AI Spaces |
-| [`docs/security.md`](./docs/security.md) | Security model deep-dive |
-| [`docs/use-cases.md`](./docs/use-cases.md) | Practical scenarios |
+- [Architecture](./docs/ARCHITECTURE.md) - Canonical architecture reference
+- [User Stories](./docs/stories/) - Feature specifications
+- [User Flows](./docs/flows/) - Interaction flows
+- [Data Models](./docs/models/) - Schema definitions
+- [Security Model](./docs/security.md) - Security considerations
+- [OpenClaw Reference](./docs/openclaw-reference.md) - OpenClaw integration
 
 ---
 
-## Status
+## Development Status
 
-AI Spaces is currently in design phase. See [`docs/architecture.md`](./docs/architecture.md) for the technical specification.
+**Status**: Architecture finalization, pre-implementation
 
----
-
-*The core insight: Share a portion of your agent's knowledge, not the whole thing.*
+See [ARCHITECTURE.md](./docs/ARCHITECTURE.md) for detailed design decisions.

@@ -16,6 +16,8 @@ echo -e "${GREEN}=== OpenClaw Sandbox Setup ===${NC}"
 export OPENCLAW_SANDBOX_HOME="${OPENCLAW_SANDBOX_HOME:-/tmp/openclaw-sandbox}"
 export OPENCLAW_HOME="$OPENCLAW_SANDBOX_HOME"
 export OPENCLAW_WORKSPACE="$OPENCLAW_HOME/workspace"
+export OPENCLAW_STATE_DIR="$OPENCLAW_HOME/data"
+export OPENCLAW_CONFIG_PATH="$OPENCLAW_HOME/openclaw.json"
 
 PLUGIN_DIR="/workspaces/ai-spaces"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -25,6 +27,48 @@ echo -e "${YELLOW}Configuration:${NC}"
 echo "  Sandbox Home: $OPENCLAW_SANDBOX_HOME"
 echo "  Plugin Dir: $PLUGIN_DIR"
 echo ""
+
+# Step 0: Check prerequisites
+echo -e "${YELLOW}Step 0: Check prerequisites...${NC}"
+
+# Check Node.js version (22.14+ or 24.x)
+NODE_VERSION=$(node --version 2>/dev/null | sed 's/v//' | cut -d'.' -f1,2)
+if [ -z "$NODE_VERSION" ]; then
+  echo -e "${RED}ERROR: Node.js is not installed${NC}"
+  exit 1
+fi
+
+NODE_MAJOR=$(echo "$NODE_VERSION" | cut -d'.' -f1)
+NODE_MINOR=$(echo "$NODE_VERSION" | cut -d'.' -f2)
+
+if [ "$NODE_MAJOR" -lt 22 ] || ([ "$NODE_MAJOR" -eq 22 ] && [ "$NODE_MINOR" -lt 14 ]); then
+  if [ "$NODE_MAJOR" -lt 24 ]; then
+    echo -e "${RED}ERROR: Node.js version must be 22.14+ or 24.x (found $NODE_VERSION)${NC}"
+    exit 1
+  fi
+fi
+echo "  ✓ Node.js version: $(node --version)"
+
+# Check npm version (9+)
+NPM_VERSION=$(npm --version 2>/dev/null | cut -d'.' -f1)
+if [ -z "$NPM_VERSION" ]; then
+  echo -e "${RED}ERROR: npm is not installed${NC}"
+  exit 1
+fi
+
+if [ "$NPM_VERSION" -lt 9 ]; then
+  echo -e "${RED}ERROR: npm version must be 9+ (found $NPM_VERSION)${NC}"
+  exit 1
+fi
+echo "  ✓ npm version: $(npm --version)"
+
+# Check/install OpenClaw
+if ! command -v openclaw &> /dev/null; then
+  echo "  Installing OpenClaw globally..."
+  npm install -g openclaw@latest
+else
+  echo "  ✓ OpenClaw installed: $(openclaw --version 2>/dev/null || echo 'version unknown')"
+fi
 
 # Step 1: Clean up any existing sandbox
 echo -e "${YELLOW}Step 1: Cleanup existing sandbox...${NC}"
@@ -37,11 +81,15 @@ fi
 echo -e "${YELLOW}Step 2: Create sandbox directory structure...${NC}"
 mkdir -p "$OPENCLAW_SANDBOX_HOME"/{workspace,data,agents,credentials}
 mkdir -p "$OPENCLAW_SANDBOX_HOME/workspace/TestSpace/.space"
+mkdir -p "$OPENCLAW_SANDBOX_HOME/data/ai-spaces"
+mkdir -p "$OPENCLAW_SANDBOX_HOME/agents/main/sessions"
 
 echo "  Created: $OPENCLAW_SANDBOX_HOME/"
 echo "  Created: $OPENCLAW_SANDBOX_HOME/workspace/"
 echo "  Created: $OPENCLAW_SANDBOX_HOME/data/"
+echo "  Created: $OPENCLAW_SANDBOX_HOME/data/ai-spaces/"
 echo "  Created: $OPENCLAW_SANDBOX_HOME/agents/"
+echo "  Created: $OPENCLAW_SANDBOX_HOME/agents/main/sessions/"
 echo "  Created: $OPENCLAW_SANDBOX_HOME/credentials/"
 
 # Step 3: Create minimal gateway config
@@ -189,6 +237,8 @@ echo "Environment variables set:"
 echo "  export OPENCLAW_SANDBOX_HOME=$OPENCLAW_SANDBOX_HOME"
 echo "  export OPENCLAW_HOME=$OPENCLAW_HOME"
 echo "  export OPENCLAW_WORKSPACE=$OPENCLAW_WORKSPACE"
+echo "  export OPENCLAW_STATE_DIR=$OPENCLAW_STATE_DIR"
+echo "  export OPENCLAW_CONFIG_PATH=$OPENCLAW_CONFIG_PATH"
 echo ""
 echo "Next steps:"
 echo "  1. Build the plugin: cd $PLUGIN_DIR && npm run build"
@@ -200,7 +250,9 @@ echo "To start the gateway:"
 echo "  openclaw gateway"
 echo ""
 echo "To clean up:"
+echo "  pkill -f 'openclaw gateway'"
 echo "  rm -rf $OPENCLAW_SANDBOX_HOME"
+echo "  unset OPENCLAW_HOME OPENCLAW_SANDBOX_HOME OPENCLAW_WORKSPACE OPENCLAW_STATE_DIR OPENCLAW_CONFIG_PATH"
 echo ""
 
 # Export for current session

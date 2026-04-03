@@ -2,6 +2,8 @@
 
 Each flow describes a complete user journey from start to finish.
 
+---
+
 ## Flow Index
 
 | Flow | Description | Actors | MVP |
@@ -11,10 +13,35 @@ Each flow describes a complete user journey from start to finish.
 | [03-collaborator-access.md](./03-collaborator-access.md) | Collaborator accesses space | Collaborator | ✓ |
 | [04-browse-files.md](./04-browse-files.md) | Collaborator browses space files | Collaborator | ✓ |
 | [05-chat-agent.md](./05-chat-agent.md) | Collaborator chats with agent | Collaborator | ✓ |
-| [06-edit-file.md](./06-edit-file.md) | Collaborator edits file | Collaborator (Editor) | Post-MVP |
+| [06-edit-file.md](./06-edit-file.md) | Collaborator edits file | Collaborator (Editor) | ✓ |
 | [07-revoke-share.md](./07-revoke-share.md) | Owner revokes share link | Owner | ✓ |
 | [08-expired-link.md](./08-expired-link.md) | Collaborator link expires | Collaborator | ✓ |
 | [09-agent-modifies.md](./09-agent-modifies.md) | Agent modifies file in space | Agent, Collaborator | ✓ |
+
+---
+
+## Architecture Components
+
+All flows involve:
+
+- **Spaces Service**: REST API + WebSocket server + Database
+- **Agent Adapter**: Interface to AI agent
+- **Space UI**: Web interface (React)
+
+### Components in Flows
+
+```
+Owner                   Spaces Service                Agent Adapter
+  │                           │                              │
+  │ Create .space/            │                              │
+  │ POST /api/spaces          │                              │
+  │ ─────────────────────────►│                              │
+  │                           │ discoverSpaces()              │
+  │                           │ ─────────────────────────────►│
+  │                           │ ◄────────────────────────────│
+  │                           │ Return spaceId               │
+  │ ◄─────────────────────────│                              │
+```
 
 ---
 
@@ -23,8 +50,8 @@ Each flow describes a complete user journey from start to finish.
 Each flow uses:
 
 - **Actor**: Who performs the action
-- **UI**: What the user sees
-- **System**: What happens automatically
+- **System**: Spaces Service (REST API and WebSocket)
+- **Agent**: Agent Adapter (OpenClaw MVP)
 - **Decision**: Branching points
 - **Error**: Error handling
 
@@ -37,3 +64,21 @@ Each flow includes:
 1. **Happy Path**: Expected flow without errors
 2. **Error Paths**: What happens when things go wrong
 3. **Edge Cases**: Unusual scenarios
+
+---
+
+## Sequence Diagram Format
+
+Flows use Mermaid sequence diagrams:
+
+```mermaid
+sequenceDiagram
+    participant Owner
+    participant SpacesService
+    participant AgentAdapter
+    
+    Owner->>SpacesService: POST /api/spaces
+    SpacesService->>AgentAdapter: discoverSpaces()
+    AgentAdapter-->>SpacesService: space metadata
+    SpacesService-->>Owner: spaceId
+```

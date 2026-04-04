@@ -1,0 +1,1 @@
+This site uses Tailwind CSS and shadcn components, and always reference the design system defined in @DESIGN.md when creating new components and features or making significant changes to existing ones.

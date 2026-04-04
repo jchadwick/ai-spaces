@@ -1,120 +1,63 @@
 import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
 
 function App() {
   const [count, setCount] = useState(0)
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <div className="min-h-screen bg-surface font-ui text-on-surface">
+      <div className="flex h-screen">
+        <aside className="w-64 bg-surface-container-low p-lg flex flex-col">
+          <h2 className="text-title-sm text-on-surface mb-lg">Space Editor</h2>
+          <nav className="flex-1">
+            <ul className="space-y-xs">
+              <li>
+                <button
+                  type="button"
+                  className="w-full text-left px-md py-sm bg-surface-container-lowest rounded-md text-body-md hover:bg-primary-container/10 transition-colors"
+                >
+                  Files
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  className="w-full text-left px-md py-sm rounded-md text-body-md hover:bg-surface-container transition-colors"
+                >
+                  Chat
+                </button>
+              </li>
+            </ul>
+          </nav>
+        </aside>
 
-      <div className="ticks"></div>
+        <main className="flex-1 bg-surface-container-lowest p-xl">
+          <div className="max-w-4xl mx-auto space-y-xl">
+            <section className="text-center py-3xl">
+              <h1 className="font-display text-display-lg text-on-surface mb-md">
+                AI Spaces
+              </h1>
+              <p className="text-body-lg text-on-surface-variant max-w-md mx-auto">
+                Your digital atelier for code and AI collaboration
+              </p>
+            </section>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+            <section className="bg-surface-container-lowest rounded-2xl p-lg shadow-ambient">
+              <h2 className="font-display text-title-md mb-lg">Quick Start</h2>
+              <p className="text-body-md text-on-surface-variant mb-lg">
+                Edit <code className="font-mono text-body-sm bg-surface-container-low px-sm py-xxs rounded-sm">src/App.tsx</code> and save to test HMR
+              </p>
+              <button
+                type="button"
+                onClick={() => setCount((c) => c + 1)}
+                className="bg-gradient-to-br from-primary to-primary-container text-on-primary px-lg py-sm rounded-md font-ui text-body-md hover:shadow-elevated transition-shadow"
+              >
+                Count is {count}
+              </button>
+            </section>
+          </div>
+        </main>
+      </div>
+    </div>
   )
 }
 

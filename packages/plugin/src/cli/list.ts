@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 
 interface SpaceConfig {
   name: string;
@@ -12,11 +13,25 @@ interface SpaceConfig {
 }
 
 interface DiscoveredSpace {
+  id: string;
   agentName: string;
   spaceName: string;
   spacePath: string;
   configPath: string;
   config: SpaceConfig;
+}
+
+function generateSpaceId(agentName: string, spacePath: string): string {
+  const hash = crypto.createHash('sha256');
+  hash.update(`${agentName}:${spacePath}`);
+  const hex = hash.digest('hex');
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20, 32)
+  ].join('-');
 }
 
 async function findSpacesInWorkspace(workspaceDir: string, agentName: string): Promise<DiscoveredSpace[]> {
@@ -39,8 +54,10 @@ async function findSpacesInWorkspace(workspaceDir: string, agentName: string): P
             const configContent = fs.readFileSync(spaceConfigPath, 'utf-8');
             const config: SpaceConfig = JSON.parse(configContent);
             const spacePath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
+            const id = generateSpaceId(agentName, spacePath);
             
-            spaces.push({
+spaces.push({
+              id,
               agentName,
               spaceName: config.name || entry.name,
               spacePath,
@@ -126,11 +143,11 @@ export async function listSpaces() {
   }
   
   console.log('Discovered Spaces:\n');
-  console.log('  Name'.padEnd(30) + 'Agent'.padEnd(20) + 'Path');
-  console.log('  ' + '-'.repeat(70));
+  console.log('  Space ID                            Name                      Agent          Path');
+  console.log('  ' + '-'.repeat(95));
   
   for (const space of allSpaces) {
-    console.log('  ' + space.spaceName.padEnd(30) + space.agentName.padEnd(20) + space.spacePath);
+    console.log('  ' + space.id + '  ' + space.spaceName.padEnd(25) + space.agentName.padEnd(15) + space.spacePath);
   }
   
   console.log('\nTotal: %d space(s)', allSpaces.length);

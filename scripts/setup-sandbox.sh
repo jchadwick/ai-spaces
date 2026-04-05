@@ -19,7 +19,7 @@ export OPENCLAW_WORKSPACE="$OPENCLAW_HOME/workspace"
 export OPENCLAW_STATE_DIR="$OPENCLAW_HOME/data"
 export OPENCLAW_CONFIG_PATH="$OPENCLAW_HOME/openclaw.json"
 
-PLUGIN_DIR="/workspaces/ai-spaces"
+PLUGIN_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && cd .. && pwd )"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 echo ""
@@ -80,16 +80,12 @@ fi
 # Step 2: Create sandbox directory structure
 echo -e "${YELLOW}Step 2: Create sandbox directory structure...${NC}"
 mkdir -p "$OPENCLAW_SANDBOX_HOME"/{workspace,data,agents,credentials}
-mkdir -p "$OPENCLAW_SANDBOX_HOME/workspace/TestSpace/.space"
 mkdir -p "$OPENCLAW_SANDBOX_HOME/data/ai-spaces"
-mkdir -p "$OPENCLAW_SANDBOX_HOME/agents/main/sessions"
 
 echo "  Created: $OPENCLAW_SANDBOX_HOME/"
 echo "  Created: $OPENCLAW_SANDBOX_HOME/workspace/"
 echo "  Created: $OPENCLAW_SANDBOX_HOME/data/"
 echo "  Created: $OPENCLAW_SANDBOX_HOME/data/ai-spaces/"
-echo "  Created: $OPENCLAW_SANDBOX_HOME/agents/"
-echo "  Created: $OPENCLAW_SANDBOX_HOME/agents/main/sessions/"
 echo "  Created: $OPENCLAW_SANDBOX_HOME/credentials/"
 
 # Step 3: Create minimal gateway config
@@ -121,32 +117,15 @@ cat > "$OPENCLAW_HOME/openclaw.json" << 'EOF'
 EOF
 echo "  Created: $OPENCLAW_HOME/openclaw.json"
 
-# Step 4: Create test space
-echo -e "${YELLOW}Step 4: Create test space...${NC}"
-cat > "$OPENCLAW_HOME/workspace/TestSpace/.space/spaces.json" << 'EOF'
-{
-  "name": "Test Space",
-  "description": "Test space for plugin development",
-  "collaborators": [],
-  "agent": {
-    "capabilities": ["read", "write", "edit", "web_search"],
-    "denied": ["exec", "messaging"]
-  }
-}
-EOF
-echo "  Created: $OPENCLAW_HOME/workspace/TestSpace/.space/spaces.json"
+# Step 4: Create agent workspace directories
+echo -e "${YELLOW}Step 4: Create agent workspace directories...${NC}"
+mkdir -p "$OPENCLAW_SANDBOX_HOME/workspace/main"
+mkdir -p "$OPENCLAW_SANDBOX_HOME/workspace/second"
+echo "  Created: $OPENCLAW_SANDBOX_HOME/workspace/main/"
+echo "  Created: $OPENCLAW_SANDBOX_HOME/workspace/second/"
 
-# Step 5: Create AGENTS.md in workspace
-echo -e "${YELLOW}Step 5: Create agent workspace files...${NC}"
-cat > "$OPENCLAW_HOME/workspace/AGENTS.md" << 'EOF'
-# Test Agent
-
-This is a test agent workspace for AI Spaces plugin development.
-EOF
-echo "  Created: $OPENCLAW_HOME/workspace/AGENTS.md"
-
-# Step 6: Initialize plugin project if needed
-echo -e "${YELLOW}Step 6: Initialize plugin project...${NC}"
+# Step 5: Initialize plugin project if needed
+echo -e "${YELLOW}Step 5: Initialize plugin project...${NC}"
 cd "$PLUGIN_DIR"
 
 if [ ! -f "package.json" ]; then
@@ -160,8 +139,8 @@ if [ ! -d "node_modules/openclaw" ]; then
   npm install openclaw
 fi
 
-# Step 7: Create plugin manifest if it doesn't exist
-echo -e "${YELLOW}Step 7: Create plugin manifest...${NC}"
+# Step 6: Create plugin manifest if it doesn't exist
+echo -e "${YELLOW}Step 6: Create plugin manifest...${NC}"
 if [ ! -f "openclaw.plugin.json" ]; then
   cat > "$PLUGIN_DIR/openclaw.plugin.json" << 'EOF'
 {
@@ -184,8 +163,8 @@ else
   echo "  Plugin manifest already exists"
 fi
 
-# Step 8: Create minimal tsconfig if needed
-echo -e "${YELLOW}Step 8: Create TypeScript configuration...${NC}"
+# Step 7: Create minimal tsconfig if needed
+echo -e "${YELLOW}Step 7: Create TypeScript configuration...${NC}"
 if [ ! -f "tsconfig.json" ]; then
   cat > "$PLUGIN_DIR/tsconfig.json" << 'EOF'
 {
@@ -207,8 +186,8 @@ else
   echo "  TypeScript config already exists"
 fi
 
-# Step 9: Build the plugin
-echo -e "${YELLOW}Step 9: Build plugin...${NC}"
+# Step 8: Build the plugin
+echo -e "${YELLOW}Step 8: Build plugin...${NC}"
 if [ -f "package.json" ] && grep -q '"build"' package.json; then
   echo "  Running npm run build..."
   npm run build || echo -e "${RED}Build failed - this is expected for initial setup${NC}"
@@ -216,8 +195,8 @@ else
   echo "  No build script found - skipping build"
 fi
 
-# Step 10: Install plugin in sandbox
-echo -e "${YELLOW}Step 10: Install plugin in sandbox...${NC}"
+# Step 9: Install plugin in sandbox
+echo -e "${YELLOW}Step 9: Install plugin in sandbox...${NC}"
 export OPENCLAW_HOME="$OPENCLAW_SANDBOX_HOME"
 
 # Check if plugin can be installed
@@ -228,8 +207,46 @@ else
   echo "  Skipping plugin install - manifest not found"
 fi
 
-# Step 11: Verify installation
-echo -e "${YELLOW}Step 11: Verify installation...${NC}"
+# Step 10: Create second agent
+echo -e "${YELLOW}Step 10: Create second agent...${NC}"
+echo "  Creating agent: second"
+openclaw agents add second --workspace "$OPENCLAW_SANDBOX_HOME/workspace/second" --non-interactive
+
+# Step 11: Create shared spaces for each agent
+echo -e "${YELLOW}Step 11: Create shared spaces...${NC}"
+
+# Main agent's shared space (in default workspace)
+mkdir -p "$OPENCLAW_SANDBOX_HOME/.openclaw/workspace/Shared-Main/.space"
+cat > "$OPENCLAW_SANDBOX_HOME/.openclaw/workspace/Shared-Main/.space/spaces.json" << 'EOF'
+{
+  "name": "Shared Main",
+  "description": "Main agent's shared workspace",
+  "collaborators": [],
+  "agent": {
+    "capabilities": ["read", "write", "edit", "web_search"],
+    "denied": ["exec", "messaging"]
+  }
+}
+EOF
+echo "  Created: Main agent space at .openclaw/workspace/Shared-Main"
+
+# Second agent's shared space
+mkdir -p "$OPENCLAW_SANDBOX_HOME/workspace/second/Shared-Second/.space"
+cat > "$OPENCLAW_SANDBOX_HOME/workspace/second/Shared-Second/.space/spaces.json" << 'EOF'
+{
+  "name": "Shared Second",
+  "description": "Second agent's shared workspace",
+  "collaborators": [],
+  "agent": {
+    "capabilities": ["read", "write", "edit", "web_search"],
+    "denied": ["exec", "messaging"]
+  }
+}
+EOF
+echo "  Created: Second agent space at workspace/second/Shared-Second"
+
+# Step 12: Verify installation
+echo -e "${YELLOW}Step 12: Verify installation...${NC}"
 echo ""
 echo -e "${GREEN}Sandbox setup complete!${NC}"
 echo ""
@@ -244,7 +261,14 @@ echo "Next steps:"
 echo "  1. Build the plugin: cd $PLUGIN_DIR && npm run build"
 echo "  2. Install plugin: openclaw plugins install -l $PLUGIN_DIR"
 echo "  3. Verify: openclaw plugins inspect ai-spaces"
-echo "  4. Test: openclaw spaces list"
+echo "  4. List spaces: openclaw spaces list"
+echo ""
+echo "Available spaces:"
+echo "  - main/Shared-Main (main agent's shared space)"
+echo "  - second/Shared-Second (second agent's shared space)"
+echo ""
+echo "To register a space:"
+echo "  openclaw spaces register main/Shared-Main"
 echo ""
 echo "To start the gateway:"
 echo "  openclaw gateway"

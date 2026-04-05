@@ -93,12 +93,16 @@ function getAgentWorkspace(agentName: string, openclawHome: string): string | nu
   }
 }
 
-export async function listSpaces() {
+export async function listSpaces(options: { json?: boolean } = {}) {
   const openclawHome = process.env.OPENCLAW_HOME || path.join(process.env.HOME || '', '.openclaw');
   const agentsHome = getAgentsHome();
   
   if (!fs.existsSync(agentsHome)) {
-    console.log('No agents found. Run this command from within an OpenClaw environment.');
+    if (options.json) {
+      console.log(JSON.stringify({ error: 'No agents found', spaces: [] }, null, 2));
+    } else {
+      console.log('No agents found. Run this command from within an OpenClaw environment.');
+    }
     return;
   }
   
@@ -107,7 +111,11 @@ export async function listSpaces() {
     .map(entry => entry.name);
   
   if (agentDirs.length === 0) {
-    console.log('No agents configured.');
+    if (options.json) {
+      console.log(JSON.stringify({ spaces: [] }, null, 2));
+    } else {
+      console.log('No agents configured.');
+    }
     return;
   }
   
@@ -128,21 +136,37 @@ export async function listSpaces() {
   }
   
   if (allSpaces.length === 0) {
-    console.log('No spaces discovered.');
-    console.log('');
-    console.log('To create a space:');
-    console.log('  1. Create a directory in your workspace: mkdir -p MySpace/.space');
-    console.log('  2. Add a spaces.json config: echo \'{"name": "My Space"}\' > MySpace/.space/spaces.json');
+    if (options.json) {
+      console.log(JSON.stringify({ spaces: [] }, null, 2));
+    } else {
+      console.log('No spaces discovered.');
+      console.log('');
+      console.log('To create a space:');
+      console.log('  1. Create a directory in your workspace: mkdir -p MySpace/.space');
+      console.log('  2. Add a spaces.json config: echo \'{"name": "My Space"}\' > MySpace/.space/spaces.json');
+    }
     return;
   }
   
-  console.log('Discovered Spaces:\n');
-  console.log('  ' + 'Space ID'.padEnd(10) + '  ' + 'Name'.padEnd(25) + '  ' + 'Agent'.padEnd(15) + 'Path');
-  console.log('  ' + '-'.repeat(80));
-  
-  for (const space of allSpaces) {
-    console.log('  ' + space.id.padEnd(10) + '  ' + space.spaceName.padEnd(25) + '  ' + space.agentName.padEnd(15) + space.spacePath);
+  if (options.json) {
+    console.log(JSON.stringify({
+      spaces: allSpaces.map(space => ({
+        id: space.id,
+        name: space.spaceName,
+        agent: space.agentName,
+        path: space.spacePath,
+        config: space.config
+      }))
+    }, null, 2));
+  } else {
+    console.log('Discovered Spaces:\n');
+    console.log('  ' + 'Space ID'.padEnd(10) + '  ' + 'Name'.padEnd(25) + '  ' + 'Agent'.padEnd(15) + 'Path');
+    console.log('  ' + '-'.repeat(80));
+    
+    for (const space of allSpaces) {
+      console.log('  ' + space.id.padEnd(10) + '  ' + space.spaceName.padEnd(25) + '  ' + space.agentName.padEnd(15) + space.spacePath);
+    }
+    
+    console.log('\nTotal: %d space(s)', allSpaces.length);
   }
-  
-  console.log('\nTotal: %d space(s)', allSpaces.length);
 }

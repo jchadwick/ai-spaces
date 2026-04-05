@@ -106,44 +106,59 @@ async function findSpaceInWorkspace(workspaceDir: string, agentName: string, tar
   return await scanDir(workspaceDir);
 }
 
-export async function showSpace(spaceId: string) {
+export async function showSpace(spaceId: string, options: { json?: boolean } = {}) {
   const space = await findSpaceById(spaceId);
   
   if (!space) {
-    console.log(`Space not found: ${spaceId}`);
-    console.log('');
-    console.log('Use "openclaw spaces list" to see all available spaces.');
+    if (options.json) {
+      console.log(JSON.stringify({ error: 'Space not found', spaceId }, null, 2));
+    } else {
+      console.log(`Space not found: ${spaceId}`);
+      console.log('');
+      console.log('Use "openclaw spaces list" to see all available spaces.');
+    }
     return;
   }
   
-  console.log('');
-  console.log(`Space: ${space.spaceName}`);
-  console.log('');
-  console.log(`  ID:          ${space.id}`);
-  console.log(`  Agent:       ${space.agentName}`);
-  console.log(`  Path:        ${space.spacePath}`);
-  console.log(`  Config:      ${space.configPath}`);
-  
-  if (space.config.description) {
+  if (options.json) {
+    console.log(JSON.stringify({
+      id: space.id,
+      name: space.spaceName,
+      agent: space.agentName,
+      path: space.spacePath,
+      configPath: space.configPath,
+      config: space.config
+    }, null, 2));
+  } else {
     console.log('');
-    console.log(`  Description: ${space.config.description}`);
-  }
-  
-  if (space.config.agent) {
+    console.log(`Space: ${space.spaceName}`);
     console.log('');
-    console.log('  Agent Configuration:');
-    if (space.config.agent.capabilities && space.config.agent.capabilities.length > 0) {
-      console.log(`    Capabilities: ${space.config.agent.capabilities.join(', ')}`);
+    console.log(`  ID:          ${space.id}`);
+    console.log(`  Agent:       ${space.agentName}`);
+    console.log(`  Path:        ${space.spacePath}`);
+    console.log(`  Config:      ${space.configPath}`);
+    
+    if (space.config.description) {
+      console.log('');
+      console.log(`  Description: ${space.config.description}`);
     }
-    if (space.config.agent.denied && space.config.agent.denied.length > 0) {
-      console.log(`    Denied Tools: ${space.config.agent.denied.join(', ')}`);
+    
+    if (space.config.agent) {
+      console.log('');
+      console.log('  Agent Configuration:');
+      if (space.config.agent.capabilities && space.config.agent.capabilities.length > 0) {
+        console.log(`    Capabilities: ${space.config.agent.capabilities.join(', ')}`);
+      }
+      if (space.config.agent.denied && space.config.agent.denied.length > 0) {
+        console.log(`    Denied Tools: ${space.config.agent.denied.join(', ')}`);
+      }
     }
-  }
-  
-  if (space.config.collaborators && space.config.collaborators.length > 0) {
+    
+    if (space.config.collaborators && space.config.collaborators.length > 0) {
+      console.log('');
+      console.log(`  Collaborators: ${space.config.collaborators.join(', ')}`);
+    }
+    
     console.log('');
-    console.log(`  Collaborators: ${space.config.collaborators.join(', ')}`);
   }
-  
-  console.log('');
 }

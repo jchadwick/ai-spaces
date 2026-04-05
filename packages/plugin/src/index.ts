@@ -18,17 +18,19 @@ export default defineChannelPluginEntry({
         spaces
           .command('list')
           .description('List discovered spaces')
-          .action(async () => {
+          .option('--json', 'Output as JSON')
+          .action(async (options: { json?: boolean }) => {
             const { listSpaces } = await import('./cli/list.js');
-            await listSpaces();
+            await listSpaces(options);
           });
 
         spaces
           .command('show <spaceId>')
           .description('Show space details')
-          .action(async (spaceId: string) => {
+          .option('--json', 'Output as JSON')
+          .action(async (spaceId: string, options: { json?: boolean }) => {
             const { showSpace } = await import('./cli/show.js');
-            await showSpace(spaceId);
+            await showSpace(spaceId, options);
           });
 
         const share = spaces.command('share').description('Manage share links');

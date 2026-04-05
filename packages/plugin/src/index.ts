@@ -33,6 +33,17 @@ export default defineChannelPluginEntry({
             await showSpace(spaceId, options);
           });
 
+        spaces
+          .command('create <path>')
+          .description('Create a new space')
+          .option('--json', 'Output as JSON')
+          .option('--name <name>', 'Display name for the space')
+          .option('--description <description>', 'Description of the space')
+          .action(async (spacePath: string, options: { json?: boolean; name?: string; description?: string }) => {
+            const { createSpace } = await import('./cli/create.js');
+            await createSpace(spacePath, options);
+          });
+
         const share = spaces.command('share').description('Manage share links');
 
         share

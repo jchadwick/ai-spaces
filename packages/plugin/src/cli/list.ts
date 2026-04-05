@@ -25,13 +25,7 @@ function generateSpaceId(agentName: string, spacePath: string): string {
   const hash = crypto.createHash('sha256');
   hash.update(`${agentName}:${spacePath}`);
   const hex = hash.digest('hex');
-  return [
-    hex.slice(0, 8),
-    hex.slice(8, 12),
-    hex.slice(12, 16),
-    hex.slice(16, 20),
-    hex.slice(20, 32)
-  ].join('-');
+  return hex.slice(0, 8);
 }
 
 async function findSpacesInWorkspace(workspaceDir: string, agentName: string): Promise<DiscoveredSpace[]> {
@@ -143,11 +137,11 @@ export async function listSpaces() {
   }
   
   console.log('Discovered Spaces:\n');
-  console.log('  Space ID                            Name                      Agent          Path');
-  console.log('  ' + '-'.repeat(95));
+  console.log('  ' + 'Space ID'.padEnd(10) + '  ' + 'Name'.padEnd(25) + '  ' + 'Agent'.padEnd(15) + 'Path');
+  console.log('  ' + '-'.repeat(80));
   
   for (const space of allSpaces) {
-    console.log('  ' + space.id + '  ' + space.spaceName.padEnd(25) + space.agentName.padEnd(15) + space.spacePath);
+    console.log('  ' + space.id.padEnd(10) + '  ' + space.spaceName.padEnd(25) + '  ' + space.agentName.padEnd(15) + space.spacePath);
   }
   
   console.log('\nTotal: %d space(s)', allSpaces.length);

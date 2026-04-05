@@ -44,6 +44,16 @@ export default defineChannelPluginEntry({
             await createSpace(spacePath, options);
           });
 
+        spaces
+          .command('remove <spaceId>')
+          .description('Remove a space')
+          .option('--json', 'Output as JSON')
+          .option('--force', 'Confirm deletion')
+          .action(async (spaceId: string, options: { json?: boolean; force?: boolean }) => {
+            const { removeSpace } = await import('./cli/remove.js');
+            await removeSpace(spaceId, options);
+          });
+
         const share = spaces.command('share').description('Manage share links');
 
         share

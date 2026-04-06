@@ -10,4 +10,12 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  server: {
+    proxy: {
+      '/api': {
+        target: process.env.OPENCLAW_API || 'http://localhost:18789',
+        changeOrigin: true,
+      },
+    },
+  },
 })

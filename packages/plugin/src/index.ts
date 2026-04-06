@@ -1,5 +1,7 @@
 import { defineChannelPluginEntry } from 'openclaw/plugin-sdk/core';
 import { aiSpacesPlugin } from './channel.js';
+import type { IncomingMessage, ServerResponse } from 'http';
+import { handleListSpaces, handleGetSpace } from './routes/space-info.js';
 
 export default defineChannelPluginEntry({
   id: 'ai-spaces',
@@ -10,7 +12,61 @@ export default defineChannelPluginEntry({
   registerFull(api) {
     api.logger.info('[ai-spaces] Registering full plugin');
 
-    // Register CLI commands for space management
+    api.registerHttpRoute({
+      path: '/api/spaces',
+      auth: 'plugin',
+      handler: async (req: IncomingMessage, res: ServerResponse) => {
+        if (req.method === 'OPTIONS') {
+          res.statusCode = 200;
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+          res.end();
+          return true;
+        }
+        
+        if (req.method === 'GET') {
+          return handleListSpaces(req, res);
+        }
+        
+        res.statusCode = 405;
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.end(JSON.stringify({ error: 'Method not allowed' }));
+        return true;
+      },
+    });
+
+    api.registerHttpRoute({
+      path: '/api/spaces/',
+      auth: 'plugin',
+      match: 'prefix',
+      handler: async (req: IncomingMessage, res: ServerResponse) => {
+        if (req.method === 'OPTIONS') {
+          res.statusCode = 200;
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+          res.end();
+          return true;
+        }
+        
+        const url = new URL(req.url || '/', `http://${req.headers.host}`);
+        const pathMatch = url.pathname.match(/^\/api\/spaces\/([^\/]+)$/);
+        
+        if (pathMatch && req.method === 'GET') {
+          const spaceId = pathMatch[1];
+          return handleGetSpace(req, res, spaceId);
+        }
+        
+        res.statusCode = 404;
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.end(JSON.stringify({ error: 'Not found' }));
+        return true;
+      },
+    });
+
     api.registerCli(
       ({ program }) => {
         const spaces = program.command('spaces').description('Manage AI Spaces');

@@ -5,3 +5,6 @@ dist/
 repomix*
 *.tsbuildinfo
 *.tgz
+./*.png
+*.png
+.playwright-cli/

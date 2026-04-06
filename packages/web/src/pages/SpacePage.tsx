@@ -61,14 +61,30 @@ export default function SpacePage() {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-surface font-body text-on-surface overflow-hidden">
-      <TopNavBar spaceName={space.name} fileName="Maine.md" />
+    <div className="bg-surface font-body text-on-surface overflow-hidden h-screen flex flex-col">
+      <TopNavBar />
       
-      <main className="flex-1 flex overflow-hidden">
-        <FileExplorer spacePath={space.path} />
+      <main className="flex flex-1 overflow-hidden">
+        <FileExplorer />
         <MarkdownEditor />
         <AIChatPane />
       </main>
+
+      {/* Footer Status Bar */}
+      <footer className="fixed bottom-0 w-full h-6 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 flex items-center justify-between px-4 z-50">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
+            <span className="font-['Inter'] text-[11px] uppercase tracking-widest font-semibold text-emerald-500">Connected</span>
+          </div>
+          <div className="w-px h-3 bg-slate-300 dark:bg-slate-700"></div>
+          <span className="font-['Inter'] text-[11px] uppercase tracking-widest font-semibold text-slate-400">Role: Editor</span>
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="font-['Inter'] text-[11px] uppercase tracking-widest font-semibold text-slate-400">v1.0.4</span>
+          <span className="font-['Inter'] text-[11px] uppercase tracking-widest font-semibold text-slate-400">UTF-8</span>
+        </div>
+      </footer>
     </div>
   )
 }

@@ -2,6 +2,8 @@ import { defineChannelPluginEntry } from 'openclaw/plugin-sdk/core';
 import { aiSpacesPlugin } from './channel.js';
 import type { IncomingMessage, ServerResponse } from 'http';
 import { handleListSpaces, handleGetSpace } from './routes/space-info.js';
+import { handleFileTree, handleFileContent } from './routes/space-files.js';
+import { handleSpaceWebSocket } from './routes/space-ws.js';
 
 export default defineChannelPluginEntry({
   id: 'ai-spaces',
@@ -52,8 +54,27 @@ export default defineChannelPluginEntry({
         }
         
         const url = new URL(req.url || '/', `http://${req.headers.host}`);
-        const pathMatch = url.pathname.match(/^\/api\/spaces\/([^\/]+)$/);
         
+        const wsMatch = url.pathname.match(/^\/api\/spaces\/([^\/]+)\/ws$/);
+        if (wsMatch && req.headers.upgrade?.toLowerCase() === 'websocket') {
+          return handleSpaceWebSocket(req, res);
+        }
+        
+        const fileTreeMatch = url.pathname.match(/^\/api\/spaces\/([^\/]+)\/files$/);
+        if (fileTreeMatch && req.method === 'GET') {
+          const spaceId = fileTreeMatch[1];
+          const role = (url.searchParams.get('role') as 'viewer' | 'editor' | 'admin') || 'viewer';
+          return handleFileTree(req, res, spaceId, role);
+        }
+        
+        const fileContentMatch = url.pathname.match(/^\/api\/spaces\/([^\/]+)\/files\/(.+)$/);
+        if (fileContentMatch && req.method === 'GET') {
+          const spaceId = fileContentMatch[1];
+          const filePath = fileContentMatch[2];
+          return handleFileContent(req, res, spaceId, filePath);
+        }
+        
+        const pathMatch = url.pathname.match(/^\/api\/spaces\/([^\/]+)$/);
         if (pathMatch && req.method === 'GET') {
           const spaceId = pathMatch[1];
           return handleGetSpace(req, res, spaceId);

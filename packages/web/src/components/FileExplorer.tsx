@@ -1,54 +1,190 @@
-export default function FileExplorer() {
+import { useState } from 'react'
+import { useFileTree } from '../hooks/useFileTree'
+import type { FileNode } from '@ai-spaces/shared'
+
+interface FileExplorerProps {
+  spaceId: string | undefined
+  role: 'viewer' | 'editor' | 'admin'
+  selectedFile: string | null
+  onFileSelect: (filePath: string | null) => void
+}
+
+function getFileIcon(name: string, type: string): string {
+  if (type === 'directory') return 'folder'
+  const ext = name.split('.').pop()?.toLowerCase()
+  if (ext === 'md' || ext === 'markdown') return 'description'
+  if (ext === 'json') return 'settings'
+  if (ext === 'csv' || ext === 'xlsx') return 'table'
+  if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext || '')) return 'image'
+  return 'file_present'
+}
+
+function FileTreeNode({ 
+  node, 
+  depth = 0, 
+  selectedFile, 
+  onFileSelect,
+  expandedFolders,
+  toggleFolder
+}: { 
+  node: FileNode
+  depth?: number
+  selectedFile: string | null
+  onFileSelect: (path: string) => void
+  expandedFolders: Set<string>
+  toggleFolder: (path: string) => void
+}) {
+  const isDirectory = node.type === 'directory'
+  const isSelected = selectedFile === node.path
+  const isExpanded = expandedFolders.has(node.path)
+  const isHidden = node.name.startsWith('.')
+  const isSpaceFolder = node.name === '.space'
+  
+  const paddingLeft = 8 + depth * 16
+  
+  const handleClick = () => {
+    if (isDirectory) {
+      toggleFolder(node.path)
+    } else {
+      onFileSelect(node.path)
+    }
+  }
+  
+  const icon = getFileIcon(node.name, node.type)
+  
   return (
-    <aside className="w-64 bg-slate-100 dark:bg-slate-950 border-r border-slate-200 dark:border-slate-800 flex flex-col">
-      {/* Navigation Context */}
-      <div className="p-4 flex flex-col gap-1">
+    <>
+      <button
+        type="button"
+        onClick={handleClick}
+        className={`w-full flex items-center gap-2 px-2 py-1.5 cursor-pointer rounded transition-all text-left ${
+          isSelected 
+            ? 'text-primary bg-surface-container-lowest' 
+            : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-lowest/50'
+        } ${isHidden && !isSpaceFolder ? 'italic opacity-70' : ''} ${isSpaceFolder ? 'text-amber-600 dark:text-amber-400' : ''}`}
+        style={{ paddingLeft: `${paddingLeft}px` }}
+      >
+        {isDirectory && (
+          <span className="material-symbols-outlined text-sm">
+            {isExpanded ? 'keyboard_arrow_down' : 'keyboard_arrow_right'}
+          </span>
+        )}
+        <span className="material-symbols-outlined text-sm">{icon}</span>
+        <span className={`text-sm ${isSelected ? 'font-semibold' : ''}`}>
+          {node.name}
+        </span>
+      </button>
+      
+      {isDirectory && isExpanded && node.children && node.children.length > 0 && (
+        <div className="flex flex-col">
+          {node.children.map((child: FileNode) => (
+            <FileTreeNode
+              key={child.path}
+              node={child}
+              depth={depth + 1}
+              selectedFile={selectedFile}
+              onFileSelect={onFileSelect}
+              expandedFolders={expandedFolders}
+              toggleFolder={toggleFolder}
+            />
+          ))}
+        </div>
+      )}
+      
+      {isDirectory && isExpanded && (!node.children || node.children.length === 0) && (
+        <div className="text-xs text-on-surface-variant/50 italic px-4 py-1" style={{ paddingLeft: `${paddingLeft + 24}px` }}>
+          (empty)
+        </div>
+      )}
+    </>
+  )
+}
+
+export default function FileExplorer({ spaceId, role, selectedFile, onFileSelect }: FileExplorerProps) {
+  const { files, loading, error } = useFileTree(spaceId, role)
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
+  
+  const toggleFolder = (path: string) => {
+    setExpandedFolders(prev => {
+      const next = new Set(prev)
+      if (next.has(path)) {
+        next.delete(path)
+      } else {
+        next.add(path)
+      }
+      return next
+    })
+  }
+  
+  if (loading) {
+    return (
+      <aside className="w-64 bg-surface-container-low flex flex-col">
+        <div className="p-4 flex items-center justify-center">
+          <div className="animate-spin rounded-full w-6 h-6 border-2 border-primary border-t-transparent"></div>
+        </div>
+      </aside>
+    )
+  }
+  
+  if (error) {
+    return (
+      <aside className="w-64 bg-surface-container-low flex flex-col">
+        <div className="p-4">
+          <div className="bg-error-container/10 rounded-lg p-3 text-error text-sm">
+            {error}
+          </div>
+        </div>
+      </aside>
+    )
+  }
+  
+  return (
+    <aside className="w-64 bg-surface-container-low flex flex-col">
+      <div className="p-4 flex flex-col gap-1 flex-1 overflow-auto">
         <div className="flex items-center justify-between mb-4">
-          <span className="font-headline font-bold text-slate-900 dark:text-white uppercase tracking-wider text-xs">Explorer</span>
-          <span className="material-symbols-outlined text-slate-400 text-lg cursor-pointer">create_new_folder</span>
+          <span className="font-headline font-bold text-on-surface uppercase tracking-wider text-xs">Explorer</span>
+          <button type="button" className="text-on-surface-variant hover:text-on-surface transition-colors">
+            <span className="material-symbols-outlined text-lg">create_new_folder</span>
+          </button>
         </div>
-        {/* Tree Structure */}
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2 px-2 py-1.5 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 cursor-pointer rounded transition-all">
-            <span className="material-symbols-outlined text-sm">keyboard_arrow_down</span>
-            <span className="material-symbols-outlined text-sm text-amber-500">folder_open</span>
-            <span className="text-sm font-medium">.space</span>
+        
+        {files.length === 0 ? (
+          <div className="text-sm text-on-surface-variant italic px-2">
+            No files found
           </div>
-          <div className="flex items-center gap-2 px-2 py-1.5 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 cursor-pointer rounded transition-all ml-4">
-            <span className="material-symbols-outlined text-sm">folder</span>
-            <span className="text-sm">Budget</span>
+        ) : (
+          <div className="flex flex-col gap-0.5">
+            {files.map((node) => (
+              <FileTreeNode
+                key={node.path}
+                node={node}
+                selectedFile={selectedFile}
+                onFileSelect={onFileSelect}
+                expandedFolders={expandedFolders}
+                toggleFolder={toggleFolder}
+              />
+            ))}
           </div>
-          <div className="flex items-center gap-2 px-2 py-1.5 text-blue-600 bg-white dark:bg-slate-900 rounded shadow-sm ml-4">
-            <span className="material-symbols-outlined text-sm">description</span>
-            <span className="text-sm font-semibold">Maine.md</span>
-          </div>
-          <div className="flex items-center gap-2 px-2 py-1.5 text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 cursor-pointer rounded transition-all ml-4">
-            <span className="material-symbols-outlined text-sm">description</span>
-            <span className="text-sm">CostaRica.md</span>
-          </div>
-        </div>
+        )}
       </div>
-      {/* New File Button */}
-      <div className="px-4 mt-2">
-        <button type="button" className="w-full bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all">
+      
+      <div className="px-4 py-2 border-t border-outline-variant/20">
+        <button type="button" className="w-full bg-surface-container hover:bg-surface-container-high text-on-surface py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all">
           <span className="material-symbols-outlined text-sm">add</span>
           New File
         </button>
       </div>
-      {/* History Panel */}
-      <div className="mt-auto border-t border-slate-200 dark:border-slate-800 flex flex-col max-h-48">
-        <div className="px-4 py-3 flex items-center justify-between text-slate-500">
-          <span className="text-[10px] uppercase tracking-widest font-bold">History</span>
-          <span className="material-symbols-outlined text-sm">unfold_less</span>
+      
+      <div className="border-t border-outline-variant/20">
+        <div className="px-4 py-3 flex items-center justify-between text-on-surface-variant">
+          <span className="text-label-sm uppercase tracking-wider font-bold">History</span>
+          <button type="button" className="text-on-surface-variant hover:text-on-surface transition-colors">
+            <span className="material-symbols-outlined text-sm">unfold_less</span>
+          </button>
         </div>
-        <div className="overflow-y-auto px-4 pb-4 flex flex-col gap-3 custom-scrollbar">
-          <div className="flex flex-col gap-0.5">
-            <span className="text-xs text-slate-900 dark:text-slate-200 font-medium">Added portland options</span>
-            <span className="text-[10px] text-slate-400">2 mins ago • AI</span>
-          </div>
-          <div className="flex flex-col gap-0.5">
-            <span className="text-xs text-slate-500 dark:text-slate-400">Fixed typo in heading</span>
-            <span className="text-[10px] text-slate-400">15 mins ago • You</span>
+        <div className="overflow-y-auto px-4 pb-4 flex flex-col gap-3 max-h-32 custom-scrollbar">
+          <div className="text-xs text-on-surface-variant/50 italic">
+            File history coming soon...
           </div>
         </div>
       </div>

@@ -20,6 +20,7 @@ export OPENCLAW_STATE_DIR="$OPENCLAW_HOME/data"
 export OPENCLAW_CONFIG_PATH="$OPENCLAW_HOME/openclaw.json"
 
 PLUGIN_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && cd .. && pwd )"
+PLUGIN_PACKAGE_DIR="$PLUGIN_DIR/packages/plugin"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 echo ""
@@ -90,26 +91,23 @@ echo "  Created: $OPENCLAW_SANDBOX_HOME/credentials/"
 
 # Step 3: Create minimal gateway config
 echo -e "${YELLOW}Step 3: Create gateway configuration...${NC}"
-cat > "$OPENCLAW_HOME/openclaw.json" << 'EOF'
+cat > "$OPENCLAW_HOME/openclaw.json" << EOF
 {
-  agents: {
-    defaults: {
-      workspace: "~/.openclaw/workspace",
-      model: {
-        primary: "anthropic/claude-sonnet-4"
-      }
+  "agents": {
+    "defaults": {
+      "workspace": "$OPENCLAW_SANDBOX_HOME/workspace",
+      "skipBootstrap": true
     }
   },
-  gateway: {
-    port: 18789,
-    auth: {
-      token: "sandbox-test-token"
-    }
+  "gateway": {
+    "mode": "local",
+    "port": 18789,
+    "bind": "loopback"
   },
-  plugins: {
-    entries: {
+  "plugins": {
+    "entries": {
       "ai-spaces": {
-        enabled: true
+        "enabled": true
       }
     }
   }
@@ -119,164 +117,118 @@ echo "  Created: $OPENCLAW_HOME/openclaw.json"
 
 # Step 4: Create agent workspace directories
 echo -e "${YELLOW}Step 4: Create agent workspace directories...${NC}"
-mkdir -p "$OPENCLAW_SANDBOX_HOME/workspace/main"
-mkdir -p "$OPENCLAW_SANDBOX_HOME/workspace/second"
-echo "  Created: $OPENCLAW_SANDBOX_HOME/workspace/main/"
-echo "  Created: $OPENCLAW_SANDBOX_HOME/workspace/second/"
+mkdir -p "$OPENCLAW_SANDBOX_HOME/workspace/TestSpace"
+mkdir -p "$OPENCLAW_SANDBOX_HOME/agents/main"
+echo "  Created: $OPENCLAW_SANDBOX_HOME/workspace/TestSpace/"
+echo "  Created: $OPENCLAW_SANDBOX_HOME/agents/main/"
 
-# Step 5: Initialize plugin project if needed
-echo -e "${YELLOW}Step 5: Initialize plugin project...${NC}"
+# Create agent configuration for main agent
+cat > "$OPENCLAW_SANDBOX_HOME/agents/main/agent.json" << EOF
+{
+  "id": "main",
+  "workspace": "$OPENCLAW_SANDBOX_HOME/workspace"
+}
+EOF
+echo "  Created: $OPENCLAW_SANDBOX_HOME/agents/main/agent.json"
+
+# Step 5: Build the plugin
+echo -e "${YELLOW}Step 5: Build the plugin...${NC}"
 cd "$PLUGIN_DIR"
-
-if [ ! -f "package.json" ]; then
-  echo "  Initializing npm project..."
-  npm init -y
-fi
-
-if [ ! -d "node_modules/openclaw" ]; then
-  echo "  Installing dependencies..."
-  npm install -D typescript @types/node tsx vitest
-  npm install openclaw
-fi
-
-# Step 6: Create plugin manifest if it doesn't exist
-echo -e "${YELLOW}Step 6: Create plugin manifest...${NC}"
-if [ ! -f "openclaw.plugin.json" ]; then
-  cat > "$PLUGIN_DIR/openclaw.plugin.json" << 'EOF'
-{
-  "id": "ai-spaces",
-  "name": "AI Spaces",
-  "description": "Share portions of your agent workspace with collaborators",
-  "kind": "channel",
-  "configSchema": {
-    "type": "object",
-    "additionalProperties": false,
-    "properties": {
-      "enabled": { "type": "boolean", "default": true },
-      "basePath": { "type": "string", "default": "/spaces" }
-    }
-  }
-}
-EOF
-  echo "  Created: openclaw.plugin.json"
-else
-  echo "  Plugin manifest already exists"
-fi
-
-# Step 7: Create minimal tsconfig if needed
-echo -e "${YELLOW}Step 7: Create TypeScript configuration...${NC}"
-if [ ! -f "tsconfig.json" ]; then
-  cat > "$PLUGIN_DIR/tsconfig.json" << 'EOF'
-{
-  "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "esModuleInterop": true,
-    "strict": true,
-    "outDir": "dist",
-    "rootDir": "src",
-    "skipLibCheck": true
-  },
-  "include": ["src/**/*", "index.ts", "setup-entry.ts"]
-}
-EOF
-  echo "  Created: tsconfig.json"
-else
-  echo "  TypeScript config already exists"
-fi
-
-# Step 8: Build the plugin
-echo -e "${YELLOW}Step 8: Build plugin...${NC}"
 if [ -f "package.json" ] && grep -q '"build"' package.json; then
   echo "  Running npm run build..."
-  npm run build || echo -e "${RED}Build failed - this is expected for initial setup${NC}"
+  npm run build || echo -e "${RED}Build failed${NC}"
 else
   echo "  No build script found - skipping build"
 fi
 
-# Step 9: Install plugin in sandbox
-echo -e "${YELLOW}Step 9: Install plugin in sandbox...${NC}"
-export OPENCLAW_HOME="$OPENCLAW_SANDBOX_HOME"
+# Step 6: Install plugin in sandbox extensions
+echo -e "${YELLOW}Step 6: Install plugin in sandbox...${NC}"
+EXTENSIONS_DIR="$OPENCLAW_SANDBOX_HOME/data/extensions"
+mkdir -p "$EXTENSIONS_DIR/ai-spaces"
 
-# Check if plugin can be installed
-if [ -f "openclaw.plugin.json" ]; then
-  echo "  Installing plugin from: $PLUGIN_DIR"
-  openclaw plugins install -l "$PLUGIN_DIR" || echo -e "${YELLOW}Plugin install requires build artifacts - continuing${NC}"
+# Copy built plugin files
+if [ -d "$PLUGIN_PACKAGE_DIR/dist" ]; then
+  echo "  Copying built plugin to $EXTENSIONS_DIR/ai-spaces/"
+  cp -r "$PLUGIN_PACKAGE_DIR/dist/"* "$EXTENSIONS_DIR/ai-spaces/"
+  cp "$PLUGIN_PACKAGE_DIR/openclaw.plugin.json" "$EXTENSIONS_DIR/ai-spaces/" 2>/dev/null || true
+  cp "$PLUGIN_PACKAGE_DIR/package.json" "$EXTENSIONS_DIR/ai-spaces/"
 else
-  echo "  Skipping plugin install - manifest not found"
+  echo -e "${RED}  Plugin not built - run 'npm run build' in packages/plugin first${NC}"
 fi
 
-# Step 10: Create second agent
-echo -e "${YELLOW}Step 10: Create second agent...${NC}"
-echo "  Creating agent: second"
-openclaw agents add second --workspace "$OPENCLAW_SANDBOX_HOME/workspace/second" --non-interactive
+# Step 7: Create test spaces
+echo -e "${YELLOW}Step 7: Create test spaces...${NC}"
 
-# Step 11: Create shared spaces for each agent
-echo -e "${YELLOW}Step 11: Create shared spaces...${NC}"
+# Main workspace test space
+TEST_SPACE_DIR="$OPENCLAW_SANDBOX_HOME/workspace/TestSpace"
+mkdir -p "$TEST_SPACE_DIR/.space"
+mkdir -p "$TEST_SPACE_DIR/Budget"
 
-# Main agent's shared space (in default workspace)
-mkdir -p "$OPENCLAW_SANDBOX_HOME/.openclaw/workspace/Shared-Main/.space"
-cat > "$OPENCLAW_SANDBOX_HOME/.openclaw/workspace/Shared-Main/.space/spaces.json" << 'EOF'
+cat > "$TEST_SPACE_DIR/.space/spaces.json" << 'EOF'
 {
-  "name": "Shared Main",
-  "description": "Main agent's shared workspace",
-  "collaborators": [],
-  "agent": {
-    "capabilities": ["read", "write", "edit", "web_search"],
-    "denied": ["exec", "messaging"]
-  }
+  "name": "Test Space",
+  "description": "A test space for development"
 }
 EOF
-echo "  Created: Main agent space at .openclaw/workspace/Shared-Main"
 
-# Second agent's shared space
-mkdir -p "$OPENCLAW_SANDBOX_HOME/workspace/second/Shared-Second/.space"
-cat > "$OPENCLAW_SANDBOX_HOME/workspace/second/Shared-Second/.space/spaces.json" << 'EOF'
-{
-  "name": "Shared Second",
-  "description": "Second agent's shared workspace",
-  "collaborators": [],
-  "agent": {
-    "capabilities": ["read", "write", "edit", "web_search"],
-    "denied": ["exec", "messaging"]
-  }
-}
+cat > "$TEST_SPACE_DIR/Maine.md" << 'EOF'
+# Maine Vacation
+
+Our upcoming summer trip to the Northeast. We are focusing on coastal regions and local dining.
+
+## Options
+
+- **Portland** - Foodie hub with great breweries and harbor views.
+- **Acadia National Park** - Hiking, Cadillac Mountain, and lobster rolls.
+- **Kennebunkport** - Classic beach vibes and charming boutiques.
+
+> **Tip**: Consider adding a section for car rental availability in July.
 EOF
-echo "  Created: Second agent space at workspace/second/Shared-Second"
 
-# Step 12: Verify installation
-echo -e "${YELLOW}Step 12: Verify installation...${NC}"
+cat > "$TEST_SPACE_DIR/CostaRica.md" << 'EOF'
+# Costa Rica Trip
+
+Tropical adventure planned for winter.
+
+## Activities
+
+- Zip-lining through cloud forests
+- Beach time in Manuel Antonio
+- Volcano hiking in Arenal
+- Wildlife spotting in Monteverde
+EOF
+
+cat > "$TEST_SPACE_DIR/Budget/notes.md" << 'EOF'
+# Budget Notes
+
+- Hotel: $150/night x 5 nights
+- Flights: ~$400 per person
+- Food: ~$50/day per person
+- Activities: Variable
+EOF
+
+echo "  Created: Test Space at $TEST_SPACE_DIR"
+
+# Step 8: Verify installation
+echo -e "${YELLOW}Step 8: Verify installation...${NC}"
 echo ""
 echo -e "${GREEN}Sandbox setup complete!${NC}"
 echo ""
-echo "Environment variables set:"
+echo "Environment variables:"
 echo "  export OPENCLAW_SANDBOX_HOME=$OPENCLAW_SANDBOX_HOME"
-echo "  export OPENCLAW_HOME=$OPENCLAW_HOME"
-echo "  export OPENCLAW_WORKSPACE=$OPENCLAW_WORKSPACE"
-echo "  export OPENCLAW_STATE_DIR=$OPENCLAW_STATE_DIR"
-echo "  export OPENCLAW_CONFIG_PATH=$OPENCLAW_CONFIG_PATH"
-echo ""
-echo "Next steps:"
-echo "  1. Build the plugin: cd $PLUGIN_DIR && npm run build"
-echo "  2. Install plugin: openclaw plugins install -l $PLUGIN_DIR"
-echo "  3. Verify: openclaw plugins inspect ai-spaces"
-echo "  4. List spaces: openclaw spaces list"
-echo ""
-echo "Available spaces:"
-echo "  - main/Shared-Main (main agent's shared space)"
-echo "  - second/Shared-Second (second agent's shared space)"
-echo ""
-echo "To register a space:"
-echo "  openclaw spaces register main/Shared-Main"
+echo "  export OPENCLAW_HOME=$OPENCLAW_SANDBOX_HOME"
+echo "  export OPENCLAW_WORKSPACE=$OPENCLAW_SANDBOX_HOME/workspace"
+echo "  export OPENCLAW_STATE_DIR=$OPENCLAW_SANDBOX_HOME/data"
 echo ""
 echo "To start the gateway:"
-echo "  openclaw gateway"
+echo "  OPENCLAW_HOME=$OPENCLAW_SANDBOX_HOME openclaw gateway --allow-unconfigured"
+echo ""
+echo "To run the web app (in another terminal):"
+echo "  cd $PLUGIN_DIR && npm run dev -w @ai-spaces/web"
 echo ""
 echo "To clean up:"
 echo "  pkill -f 'openclaw gateway'"
 echo "  rm -rf $OPENCLAW_SANDBOX_HOME"
-echo "  unset OPENCLAW_HOME OPENCLAW_SANDBOX_HOME OPENCLAW_WORKSPACE OPENCLAW_STATE_DIR OPENCLAW_CONFIG_PATH"
 echo ""
 
 # Export for current session

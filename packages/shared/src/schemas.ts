@@ -56,3 +56,33 @@ export const ShareStoreSchema = z.object({
   shares: z.record(ShareSchema),
   byToken: z.record(z.string()),
 });
+
+export interface FileNodeType {
+  name: string;
+  type: 'file' | 'directory';
+  path: string;
+  children?: FileNodeType[];
+  size?: number;
+  modified?: string;
+}
+
+export const FileNodeSchema: z.ZodType<FileNodeType> = z.object({
+  name: z.string(),
+  type: z.enum(['file', 'directory']),
+  path: z.string(),
+  children: z.lazy(() => z.array(FileNodeSchema)).optional(),
+  size: z.number().optional(),
+  modified: z.string().optional(),
+});
+
+export const FileTreeResponseSchema = z.object({
+  files: z.array(FileNodeSchema),
+});
+
+export const FileContentResponseSchema = z.object({
+  path: z.string(),
+  content: z.string().optional(),
+  contentType: z.enum(['markdown', 'text', 'image', 'binary']),
+  size: z.number().optional(),
+  modified: z.string().optional(),
+});

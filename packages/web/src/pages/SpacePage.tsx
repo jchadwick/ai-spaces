@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import TopNavBar from '../components/TopNavBar'
 import FileExplorer from '../components/FileExplorer'
@@ -18,9 +18,13 @@ interface Space {
 
 export default function SpacePage() {
   const { spaceId } = useParams()
+  const [searchParams] = useSearchParams()
+  const role = (searchParams.get('role') as 'viewer' | 'editor' | 'admin') || 'viewer'
+  
   const [space, setSpace] = useState<Space | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [selectedFile, setSelectedFile] = useState<string | null>(null)
 
   useEffect(() => {
     fetch(`/api/spaces/${spaceId}`)
@@ -62,12 +66,12 @@ export default function SpacePage() {
 
   return (
     <div className="bg-surface font-body text-on-surface overflow-hidden h-screen flex flex-col">
-      <TopNavBar />
+      <TopNavBar spaceName={space?.config?.name} selectedFile={selectedFile} />
       
       <main className="flex flex-1 overflow-hidden">
-        <FileExplorer />
-        <MarkdownEditor />
-        <AIChatPane />
+        <FileExplorer spaceId={spaceId} role={role} selectedFile={selectedFile} onFileSelect={setSelectedFile} />
+        <MarkdownEditor spaceId={spaceId} filePath={selectedFile ?? undefined} />
+        <AIChatPane spaceId={spaceId!} role={role} />
       </main>
 
       {/* Footer Status Bar */}
@@ -78,7 +82,7 @@ export default function SpacePage() {
             <span className="font-['Inter'] text-[11px] uppercase tracking-widest font-semibold text-emerald-500">Connected</span>
           </div>
           <div className="w-px h-3 bg-slate-300 dark:bg-slate-700"></div>
-          <span className="font-['Inter'] text-[11px] uppercase tracking-widest font-semibold text-slate-400">Role: Editor</span>
+          <span className="font-['Inter'] text-[11px] uppercase tracking-widest font-semibold text-slate-400">Role: {role.charAt(0).toUpperCase() + role.slice(1)}</span>
         </div>
         <div className="flex items-center gap-4">
           <span className="font-['Inter'] text-[11px] uppercase tracking-widest font-semibold text-slate-400">v1.0.4</span>

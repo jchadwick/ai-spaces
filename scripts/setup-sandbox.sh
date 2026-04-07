@@ -141,17 +141,14 @@ else
   echo "  No build script found - skipping build"
 fi
 
-# Step 6: Install plugin in sandbox extensions
+# Step 6: Install plugin in sandbox
 echo -e "${YELLOW}Step 6: Install plugin in sandbox...${NC}"
-EXTENSIONS_DIR="$OPENCLAW_SANDBOX_HOME/data/extensions"
-mkdir -p "$EXTENSIONS_DIR/ai-spaces"
 
-# Copy built plugin files
+# Install plugin using openclaw plugins install -l for proper registration
 if [ -d "$PLUGIN_PACKAGE_DIR/dist" ]; then
-  echo "  Copying built plugin to $EXTENSIONS_DIR/ai-spaces/"
-  cp -r "$PLUGIN_PACKAGE_DIR/dist/"* "$EXTENSIONS_DIR/ai-spaces/"
-  cp "$PLUGIN_PACKAGE_DIR/openclaw.plugin.json" "$EXTENSIONS_DIR/ai-spaces/" 2>/dev/null || true
-  cp "$PLUGIN_PACKAGE_DIR/package.json" "$EXTENSIONS_DIR/ai-spaces/"
+  echo "  Installing plugin from: $PLUGIN_PACKAGE_DIR"
+  export OPENCLAW_HOME="$OPENCLAW_SANDBOX_HOME"
+  openclaw plugins install -l "$PLUGIN_PACKAGE_DIR" || echo -e "${YELLOW}  Plugin install may have issues - continuing${NC}"
 else
   echo -e "${RED}  Plugin not built - run 'npm run build' in packages/plugin first${NC}"
 fi

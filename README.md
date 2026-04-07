@@ -306,6 +306,52 @@ This space is for planning family vacations.
 
 ---
 
+## Development
+
+### Prerequisites
+
+- Node.js 22.14+ or 24.x
+- npm 9+
+- [OpenClaw](https://openclaw.ai) installed globally
+
+### Setup
+
+```bash
+# Install dependencies
+npm install
+
+# Build the plugin
+npm run build
+
+# Setup sandbox environment (isolated test environment)
+./scripts/setup-sandbox.sh
+```
+
+### Running
+
+```bash
+# Start the gateway (uses sandbox environment)
+./openclaw.sh gateway --allow-unconfigured
+
+# In another terminal, start the web app
+npm run dev:web
+
+# Test the API
+curl http://localhost:18789/api/spaces
+```
+
+### Clean Up
+
+```bash
+# Stop the gateway
+pkill -f 'openclaw gateway'
+
+# Remove sandbox environment
+rm -rf /tmp/openclaw-sandbox
+```
+
+---
+
 ## Development Status
 
 **Status**: Architecture finalization, pre-implementation

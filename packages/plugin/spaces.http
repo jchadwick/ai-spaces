@@ -5,6 +5,9 @@
 ###   1. Run: ./scripts/setup-sandbox.sh
 ###   2. Run: ./openclaw.sh gateway --allow-unconfigured
 ###   3. Use these requests to test the API
+###
+### Test Results (2026-04-07):
+###   All tests passing. Plugin loads and routes work correctly.
 
 @baseUrl = http://localhost:18789
 

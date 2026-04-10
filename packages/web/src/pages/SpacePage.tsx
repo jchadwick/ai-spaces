@@ -1,9 +1,11 @@
-import { useParams, useSearchParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import TopNavBar from '../components/TopNavBar'
 import FileExplorer from '../components/FileExplorer'
 import MarkdownEditor from '../components/MarkdownEditor'
 import AIChatPane from '../components/AIChatPane'
+import { ErrorBoundary, WebSocketErrorBoundary } from '../components/errors'
+import { ToastProvider } from '../components/ui/toast'
 
 interface Space {
   id: string
@@ -18,77 +20,160 @@ interface Space {
 
 export default function SpacePage() {
   const { spaceId } = useParams()
-  const [searchParams] = useSearchParams()
-  const role = (searchParams.get('role') as 'viewer' | 'editor' | 'admin') || 'viewer'
+  const navigate = useNavigate()
   
-  const [space, setSpace] = useState<Space | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [space, setSpace] = useState<Space | null>(null)
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
 
   useEffect(() => {
-    fetch(`/api/spaces/${spaceId}`)
+    if (!spaceId) {
+      setError('Space ID is required')
+      setLoading(false)
+      return
+    }
+
+    const controller = new AbortController()
+    let mounted = true
+
+    fetch(`/api/spaces/${spaceId}`, { signal: controller.signal })
       .then(res => {
-        if (!res.ok) throw new Error(`Failed to fetch space: ${res.status}`)
+        if (!res.ok) {
+          if (res.status === 404) {
+            throw new Error('Space not found')
+          }
+          throw new Error(`Failed to fetch space: ${res.status}`)
+        }
         return res.json()
       })
       .then(data => {
+        if (!mounted) return
         setSpace(data)
         setLoading(false)
       })
       .catch(err => {
-        setError(err.message)
+        if (!mounted) return
+        if (err.name === 'AbortError') return
+        setError(err.message || 'Unable to load space')
         setLoading(false)
       })
+
+    return () => {
+      mounted = false
+      controller.abort()
+    }
   }, [spaceId])
+
+  const handleLeaveSpace = () => {
+    navigate('/')
+  }
 
   if (loading) {
     return (
-      <div className="h-screen flex items-center justify-center bg-surface">
-        <div className="animate-spin rounded-full w-8 h-8 border-2 border-primary border-t-transparent"></div>
+      <div className="h-screen flex flex-col items-center justify-center bg-surface">
+        <div className="animate-spin rounded-full w-8 h-8 border-2 border-primary border-t-transparent mb-md"></div>
+        <p className="text-body-sm text-on-surface-variant">Loading space...</p>
       </div>
     )
   }
 
-  if (error || !space) {
+  if (error) {
     return (
-      <div className="h-screen flex items-center justify-center bg-surface">
-        <div className="bg-error-container/10 border border-error/20 rounded-xl p-xl">
-          <div className="flex items-center gap-sm text-error">
-            <span className="material-symbols-outlined">error</span>
-            <span className="text-body-md font-medium">Failed to load space</span>
+      <div className="min-h-screen bg-surface font-ui text-on-surface flex items-center justify-center p-lg">
+        <div className="max-w-md w-full">
+          <div className="text-center mb-lg">
+            <div className="w-16 h-16 mx-auto mb-md rounded-full bg-error-container flex items-center justify-center">
+              <span className="material-symbols-outlined text-error text-3xl">error</span>
+            </div>
+            <h1 className="text-title-lg text-on-surface mb-sm">Error Loading Space</h1>
+            <p className="text-body-md text-on-surface-variant">{error}</p>
           </div>
-          <p className="text-body-sm text-on-surface-variant mt-xs">{error || 'Space not found'}</p>
+          <button
+            type="button"
+            onClick={handleLeaveSpace}
+            className="w-full px-lg py-sm bg-primary text-on-primary rounded-md font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-xs"
+          >
+            <span className="material-symbols-outlined text-lg">home</span>
+            Go to Home
+          </button>
         </div>
       </div>
     )
   }
+
+  if (!space) {
+    return (
+      <div className="min-h-screen bg-surface font-ui text-on-surface flex items-center justify-center p-lg">
+        <div className="max-w-md w-full">
+          <div className="text-center mb-lg">
+            <div className="w-16 h-16 mx-auto mb-md rounded-full bg-error-container flex items-center justify-center">
+              <span className="material-symbols-outlined text-error text-3xl">search_off</span>
+            </div>
+            <h1 className="text-title-lg text-on-surface mb-sm">Space Not Found</h1>
+            <p className="text-body-md text-on-surface-variant">The space you're looking for doesn't exist.</p>
+          </div>
+          <button
+            type="button"
+            onClick={handleLeaveSpace}
+            className="w-full px-lg py-sm bg-primary text-on-primary rounded-md font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-xs"
+          >
+            <span className="material-symbols-outlined text-lg">home</span>
+            Go to Home
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const role = 'admin'
 
   return (
-    <div className="bg-surface font-body text-on-surface overflow-hidden h-screen flex flex-col">
-      <TopNavBar spaceName={space?.config?.name} selectedFile={selectedFile} />
-      
-      <main className="flex flex-1 overflow-hidden">
-        <FileExplorer spaceId={spaceId} role={role} selectedFile={selectedFile} onFileSelect={setSelectedFile} />
-        <MarkdownEditor spaceId={spaceId} filePath={selectedFile ?? undefined} />
-        <AIChatPane spaceId={spaceId!} role={role} />
-      </main>
+    <ToastProvider>
+      <div className="bg-surface font-body text-on-surface overflow-hidden h-screen flex flex-col">
+        <ErrorBoundary>
+          <TopNavBar 
+            spaceName={space?.config?.name} 
+            selectedFile={selectedFile} 
+            role={role}
+          />
+        </ErrorBoundary>
+        
+        <main className="flex flex-1 overflow-hidden">
+          <ErrorBoundary>
+            <FileExplorer spaceId={spaceId} role={role} selectedFile={selectedFile} onFileSelect={setSelectedFile} />
+          </ErrorBoundary>
+          <ErrorBoundary>
+            <MarkdownEditor 
+              spaceId={spaceId} 
+              filePath={selectedFile ?? undefined} 
+              role={role}
+              onFileModified={() => {
+                const event = new CustomEvent('fileModified');
+                window.dispatchEvent(event);
+              }}
+            />
+          </ErrorBoundary>
+          <WebSocketErrorBoundary showInline>
+            <AIChatPane spaceId={spaceId!} role={role} />
+          </WebSocketErrorBoundary>
+        </main>
 
-      {/* Footer Status Bar */}
-      <footer className="fixed bottom-0 w-full h-6 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 flex items-center justify-between px-4 z-50">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
-            <span className="font-['Inter'] text-[11px] uppercase tracking-widest font-semibold text-emerald-500">Connected</span>
+        <footer className="fixed bottom-0 w-full h-6 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 flex items-center justify-between px-4 z-50">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
+              <span className="font-['Inter'] text-[11px] uppercase tracking-widest font-semibold text-emerald-500">Connected</span>
+            </div>
+            <div className="w-px h-3 bg-slate-300 dark:bg-slate-700"></div>
+            <span className="font-['Inter'] text-[11px] uppercase tracking-widest font-semibold text-slate-400">Role: {role.charAt(0).toUpperCase() + role.slice(1)}</span>
           </div>
-          <div className="w-px h-3 bg-slate-300 dark:bg-slate-700"></div>
-          <span className="font-['Inter'] text-[11px] uppercase tracking-widest font-semibold text-slate-400">Role: {role.charAt(0).toUpperCase() + role.slice(1)}</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <span className="font-['Inter'] text-[11px] uppercase tracking-widest font-semibold text-slate-400">v1.0.4</span>
-          <span className="font-['Inter'] text-[11px] uppercase tracking-widest font-semibold text-slate-400">UTF-8</span>
-        </div>
-      </footer>
-    </div>
+          <div className="flex items-center gap-4">
+            <span className="font-['Inter'] text-[11px] uppercase tracking-widest font-semibold text-slate-400">v1.0.4</span>
+            <span className="font-['Inter'] text-[11px] uppercase tracking-widest font-semibold text-slate-400">UTF-8</span>
+          </div>
+        </footer>
+      </div>
+    </ToastProvider>
   )
 }

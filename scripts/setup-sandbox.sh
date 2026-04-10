@@ -102,7 +102,10 @@ cat > "$OPENCLAW_HOME/openclaw.json" << EOF
   "gateway": {
     "mode": "local",
     "port": 18789,
-    "bind": "loopback"
+    "bind": "loopback",
+    "auth": {
+      "token": "secret"
+    }
   },
   "plugins": {
     "entries": {

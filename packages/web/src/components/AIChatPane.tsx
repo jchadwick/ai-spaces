@@ -1,20 +1,26 @@
 import { useState, useRef, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { useSpaceWebSocket } from '../hooks/useSpaceWebSocket';
 import type { ChatMessage } from '@ai-spaces/shared';
 
-type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error';
+type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'reconnecting' | 'error';
 
 interface AIChatPaneProps {
   spaceId: string;
   role?: 'viewer' | 'editor' | 'admin';
 }
 
-function ConnectionStatusIndicator({ status }: { status: ConnectionStatus }) {
+interface ConnectionStatusIndicatorProps {
+  status: ConnectionStatus;
+  reconnectAttempt?: number;
+  onRetry?: () => void;
+}
+
+function ConnectionStatusIndicator({ status, reconnectAttempt = 0, onRetry }: ConnectionStatusIndicatorProps) {
   const colors = {
     connecting: 'bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]',
     connected: 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]',
     disconnected: 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]',
+    reconnecting: 'bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]',
     error: 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]',
   };
 
@@ -22,7 +28,8 @@ function ConnectionStatusIndicator({ status }: { status: ConnectionStatus }) {
     connecting: 'Connecting',
     connected: 'Connected',
     disconnected: 'Disconnected',
-    error: 'Error',
+    reconnecting: reconnectAttempt > 0 ? `Reconnecting (${reconnectAttempt})` : 'Reconnecting...',
+    error: 'Connection Failed',
   };
 
   return (
@@ -31,6 +38,15 @@ function ConnectionStatusIndicator({ status }: { status: ConnectionStatus }) {
       <span className="font-['Inter'] text-[11px] uppercase tracking-widest font-semibold text-slate-400">
         {labels[status]}
       </span>
+      {status === 'error' && onRetry && (
+        <button
+          type="button"
+          onClick={onRetry}
+          className="ml-2 text-[10px] text-primary hover:text-primary/80 font-medium"
+        >
+          Retry
+        </button>
+      )}
     </div>
   );
 }
@@ -78,15 +94,12 @@ function TypingIndicator() {
 }
 
 export default function AIChatPane({ spaceId, role = 'viewer' }: AIChatPaneProps) {
-  const [searchParams] = useSearchParams();
-  const token = searchParams.get('t') || '';
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const prevMessagesLengthRef = useRef(0);
-
-  const { messages, connectionStatus, sendMessage, isStreaming } = useSpaceWebSocket({
+  
+  const { messages, connectionStatus, reconnectAttempt, sendMessage, reconnect, isStreaming } = useSpaceWebSocket({
     spaceId,
-    token,
   });
 
   const isViewer = role === 'viewer';
@@ -115,7 +128,7 @@ export default function AIChatPane({ spaceId, role = 'viewer' }: AIChatPaneProps
             <span className="material-symbols-outlined text-tertiary">forum</span>
             <span className="font-headline font-bold text-slate-900 dark:text-white">AI Assistant</span>
           </div>
-          <ConnectionStatusIndicator status={connectionStatus} />
+          <ConnectionStatusIndicator status={connectionStatus} reconnectAttempt={reconnectAttempt} onRetry={reconnect} />
         </div>
       </div>
 

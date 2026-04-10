@@ -21,25 +21,12 @@ export const SpaceSchema = z.object({
   config: SpaceConfigSchema,
 });
 
-export const ShareSchema = z.object({
-  id: z.string(),
-  token: z.string(),
-  spaceId: z.string(),
-  spacePath: z.string(),
-  role: z.enum(['viewer', 'editor', 'admin']),
-  created: z.string().datetime(),
-  expires: z.string().datetime().optional(),
-  label: z.string().max(100).optional(),
-  revoked: z.boolean().optional(),
-  revokedAt: z.string().datetime().optional(),
-});
-
 export const SessionContextSchema = z.object({
   type: z.literal('space'),
   spaceId: z.string(),
   spacePath: z.string(),
   agentId: z.string(),
-  shareToken: z.string(),
+  userId: z.string(),
   role: z.enum(['viewer', 'editor', 'admin']),
   sessionKey: z.string(),
   
@@ -50,11 +37,6 @@ export const SessionContextSchema = z.object({
   contextFiles: z.array(z.string()),
   
   effectiveWorkspaceRoot: z.string(),
-});
-
-export const ShareStoreSchema = z.object({
-  shares: z.record(ShareSchema),
-  byToken: z.record(z.string()),
 });
 
 export interface FileNodeType {
@@ -85,4 +67,30 @@ export const FileContentResponseSchema = z.object({
   contentType: z.enum(['markdown', 'text', 'image', 'binary']),
   size: z.number().optional(),
   modified: z.string().optional(),
+});
+
+export const UserRoleSchema = z.enum(['admin', 'owner', 'viewer', 'editor']);
+
+export const UserSchema = z.object({
+  id: z.string(),
+  email: z.string().email(),
+  passwordHash: z.string(),
+  role: UserRoleSchema,
+  displayName: z.string().optional(),
+  createdAt: z.string().datetime(),
+  updatedAt: z.string().datetime(),
+});
+
+export const SessionSchema = z.object({
+  id: z.string(),
+  userId: z.string(),
+  refreshToken: z.string(),
+  expiresAt: z.string().datetime(),
+  createdAt: z.string().datetime(),
+});
+
+export const AuthTokensSchema = z.object({
+  accessToken: z.string(),
+  refreshToken: z.string(),
+  expiresIn: z.number(),
 });

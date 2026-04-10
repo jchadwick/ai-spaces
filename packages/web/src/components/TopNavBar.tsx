@@ -1,9 +1,12 @@
+import RoleBadge from './RoleBadge'
+
 interface TopNavBarProps {
   spaceName?: string
   selectedFile?: string | null
+  role?: 'viewer' | 'editor' | 'admin'
 }
 
-export default function TopNavBar({ spaceName, selectedFile }: TopNavBarProps) {
+export default function TopNavBar({ spaceName, selectedFile, role }: TopNavBarProps) {
   const pathParts = selectedFile?.split('/').filter(Boolean) || []
   
   return (
@@ -14,7 +17,7 @@ export default function TopNavBar({ spaceName, selectedFile }: TopNavBarProps) {
           <nav className="flex items-center gap-2 text-sm ml-4">
             <span className="text-slate-500 dark:text-slate-400">{spaceName}</span>
             {pathParts.map((part, index) => (
-              <span key={index} className="flex items-center gap-2">
+              <span key={`${part}-${index}`} className="flex items-center gap-2">
                 <span className="text-slate-400">/</span>
                 <span className={index === pathParts.length - 1 
                   ? "text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 font-bold px-1" 
@@ -24,6 +27,9 @@ export default function TopNavBar({ spaceName, selectedFile }: TopNavBarProps) {
               </span>
             ))}
           </nav>
+        )}
+        {role && spaceName && (
+          <RoleBadge role={role} />
         )}
       </div>
       <div className="flex items-center gap-4">

@@ -3,6 +3,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import type { FileNode, Role } from '@ai-spaces/shared';
+import { validatePath, isPathContained } from '../validation.js';
+import { logPathEscapeAttempt } from '../audit-logger.js';
 
 interface SpaceConfig {
   name: string;
@@ -108,7 +110,7 @@ async function scanForSpace(dir: string, agentName: string, targetId: string, re
   return null;
 }
 
-function buildFileTree(dir: string, basePath: string, hideSpaceFolder: boolean): FileNode[] {
+function buildFileTree(dir: string, basePath: string, hideSpaceFolder: boolean, spaceRoot: string): FileNode[] {
   if (!fs.existsSync(dir)) {
     return [];
   }
@@ -125,10 +127,19 @@ function buildFileTree(dir: string, basePath: string, hideSpaceFolder: boolean):
     const relativePath = basePath ? `${basePath}/${entry.name}` : entry.name;
     
     try {
+      if (entry.isSymbolicLink()) {
+        const linkTarget = fs.readlinkSync(fullPath);
+        const resolvedTarget = path.resolve(dir, linkTarget);
+        
+        if (!isPathContained(resolvedTarget, spaceRoot)) {
+          continue;
+        }
+      }
+      
       const stats = fs.statSync(fullPath);
       
       if (entry.isDirectory()) {
-        const children = buildFileTree(fullPath, relativePath, hideSpaceFolder);
+        const children = buildFileTree(fullPath, relativePath, hideSpaceFolder, spaceRoot);
         nodes.push({
           name: entry.name,
           type: 'directory',
@@ -182,9 +193,12 @@ function detectContentType(filePath: string): 'markdown' | 'text' | 'image' | 'b
   return 'text';
 }
 
-function isPathSafe(filePath: string, spaceRoot: string): boolean {
-  const resolved = path.resolve(spaceRoot, filePath);
-  return resolved.startsWith(spaceRoot);
+function getClientIp(req: IncomingMessage): string | undefined {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string') {
+    return forwarded.split(',')[0].trim();
+  }
+  return req.socket?.remoteAddress;
 }
 
 function getSpaceRootPath(space: DiscoveredSpace): string {
@@ -223,7 +237,7 @@ export async function handleFileTree(req: IncomingMessage, res: ServerResponse, 
   const spaceRoot = getSpaceRootPath(space);
   const hideSpaceFolder = role !== 'admin';
   
-  const files = buildFileTree(spaceRoot, '', hideSpaceFolder);
+  const files = buildFileTree(spaceRoot, '', hideSpaceFolder, spaceRoot);
   
   res.statusCode = 200;
   res.setHeader('Content-Type', 'application/json');
@@ -244,8 +258,11 @@ export async function handleFileContent(req: IncomingMessage, res: ServerRespons
   }
   
   const spaceRoot = getSpaceRootPath(space);
+  const clientIp = getClientIp(req);
+  const validation = validatePath(filePath, spaceRoot);
   
-  if (!isPathSafe(filePath, spaceRoot)) {
+  if (!validation.valid) {
+    logPathEscapeAttempt(spaceId, filePath, validation.resolvedPath, undefined, clientIp);
     res.statusCode = 403;
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -253,7 +270,7 @@ export async function handleFileContent(req: IncomingMessage, res: ServerRespons
     return true;
   }
   
-  const fullPath = path.join(spaceRoot, filePath);
+  const fullPath = validation.resolvedPath!;
   
   if (!fs.existsSync(fullPath)) {
     res.statusCode = 404;

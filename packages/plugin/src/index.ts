@@ -1,18 +1,22 @@
 import { defineChannelPluginEntry } from 'openclaw/plugin-sdk/core';
 import { aiSpacesPlugin } from './channel.js';
 import type { IncomingMessage, ServerResponse } from 'http';
-import { handleListSpaces, handleGetSpace } from './routes/space-info.js';
+import { handleListSpaces, handleGetSpace, handleCreateSpace } from './routes/space-info.js';
 import { handleFileTree, handleFileContent } from './routes/space-files.js';
 import { handleSpaceWebSocket } from './routes/space-ws.js';
+import { handleLogin, handleLogout } from './routes/auth.js';
+import { setRuntime } from './runtime.js';
+import { seedAdminUser } from './seed-admin.js';
 
 export default defineChannelPluginEntry({
   id: 'ai-spaces',
   name: 'AI Spaces',
   description: 'Share portions of your agent workspace with collaborators',
   plugin: aiSpacesPlugin,
+  setRuntime,
 
-  registerFull(api) {
-    api.logger.info('[ai-spaces] Registering full plugin');
+  async registerFull(api) {
+    api.logger.info('[ai-spaces] Registerizing full plugin');
 
     api.registerHttpRoute({
       path: '/api/spaces',
@@ -31,6 +35,10 @@ export default defineChannelPluginEntry({
           return handleListSpaces(req, res);
         }
         
+        if (req.method === 'POST') {
+          return handleCreateSpace(req, res);
+        }
+        
         res.statusCode = 405;
         res.setHeader('Content-Type', 'application/json');
         res.setHeader('Access-Control-Allow-Origin', '*');
@@ -47,7 +55,7 @@ export default defineChannelPluginEntry({
         if (req.method === 'OPTIONS') {
           res.statusCode = 200;
           res.setHeader('Access-Control-Allow-Origin', '*');
-          res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+          res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
           res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
           res.end();
           return true;
@@ -85,6 +93,38 @@ export default defineChannelPluginEntry({
         res.setHeader('Access-Control-Allow-Origin', '*');
         res.end(JSON.stringify({ error: 'Not found' }));
         return true;
+      },
+    });
+
+    api.registerHttpRoute({
+      path: '/api/auth/login',
+      auth: 'plugin',
+      handler: async (req: IncomingMessage, res: ServerResponse) => {
+        if (req.method === 'OPTIONS') {
+          res.statusCode = 200;
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+          res.end();
+          return true;
+        }
+        return handleLogin(req, res);
+      },
+    });
+
+    api.registerHttpRoute({
+      path: '/api/auth/logout',
+      auth: 'plugin',
+      handler: async (req: IncomingMessage, res: ServerResponse) => {
+        if (req.method === 'OPTIONS') {
+          res.statusCode = 200;
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+          res.end();
+          return true;
+        }
+        return handleLogout(req, res);
       },
     });
 
@@ -130,34 +170,6 @@ export default defineChannelPluginEntry({
             const { removeSpace } = await import('./cli/remove.js');
             await removeSpace(spaceId, options);
           });
-
-        const share = spaces.command('share').description('Manage share links');
-
-        share
-          .command('create <spaceId>')
-          .description('Create a share link')
-          .option('--role <role>', 'Role: editor or viewer', 'editor')
-          .option('--expires <duration>', 'Expiration (e.g., 7d)', '7d')
-          .action(async (spaceId: string, options: { role: string; expires: string }) => {
-            const { createShare } = await import('./cli/share-create.js');
-            await createShare(spaceId, options);
-          });
-
-        share
-          .command('list <spaceId>')
-          .description('List share links for a space')
-          .action(async (spaceId: string) => {
-            const { listShares } = await import('./cli/share-list.js');
-            await listShares(spaceId);
-          });
-
-        share
-          .command('revoke <spaceId> <shareId>')
-          .description('Revoke a share link')
-          .action(async (spaceId: string, shareId: string) => {
-            const { revokeShare } = await import('./cli/share-revoke.js');
-            await revokeShare(spaceId, shareId);
-          });
       },
       {
         commands: ['spaces'],
@@ -170,5 +182,7 @@ export default defineChannelPluginEntry({
         ],
       }
     );
+
+    await seedAdminUser();
   },
 });

@@ -2,6 +2,8 @@ import type { IncomingMessage, ServerResponse } from 'http';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { createSpace, type CreateSpaceInput } from '../space-store.js';
+import { SpaceConfigSchema } from '@ai-spaces/shared';
 
 interface SpaceConfig {
   name: string;
@@ -189,4 +191,129 @@ export async function handleGetSpace(req: IncomingMessage, res: ServerResponse, 
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.end(JSON.stringify({ error: 'Space not found' }));
   return true;
+}
+
+function readBody(req: IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+    req.on('end', () => resolve(body));
+    req.on('error', reject);
+  });
+}
+
+export async function handleCreateSpace(req: IncomingMessage, res: ServerResponse) {
+  try {
+    const body = await readBody(req);
+    
+    let data: unknown;
+    try {
+      data= JSON.parse(body);
+    } catch {
+      res.statusCode = 400;
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.end(JSON.stringify({ error: 'Invalid JSON' }));
+      return true;
+    }
+    
+    if (!data || typeof data !== 'object') {
+      res.statusCode = 400;
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.end(JSON.stringify({ error: 'Request body must be an object' }));
+      return true;
+    }
+    
+    const input = data as Record<string, unknown>;
+    
+    if (!input.agentId || typeof input.agentId !== 'string') {
+      res.statusCode = 400;
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.end(JSON.stringify({ error: 'agentId is required and must be a string' }));
+      return true;
+    }
+    
+    if (!input.agentType || typeof input.agentType !== 'string') {
+      res.statusCode = 400;
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.end(JSON.stringify({ error: 'agentType is required and must be a string' }));
+      return true;
+    }
+    
+    if (!input.path || typeof input.path !== 'string') {
+      res.statusCode = 400;
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.end(JSON.stringify({ error: 'path is required and must be a string' }));
+      return true;
+    }
+    
+    if (!input.config || typeof input.config !== 'object') {
+      res.statusCode = 400;
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.end(JSON.stringify({ error: 'config is required and must be an object' }));
+      return true;
+    }
+    
+    const configResult = SpaceConfigSchema.safeParse(input.config);
+    if (!configResult.success) {
+      res.statusCode = 400;
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.end(JSON.stringify({ 
+        error: 'Invalid config schema',
+        details: configResult.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')
+      }));
+      return true;
+    }
+    
+    const createInput: CreateSpaceInput ={
+      agentId: input.agentId as string,
+      agentType: input.agentType as string,
+      path: input.path as string,
+      config: configResult.data,
+    };
+    
+    const result = createSpace(createInput);
+    
+    if (!result.success) {
+      res.statusCode = 400;
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.end(JSON.stringify({ 
+        error: result.error,
+        details: result.details 
+      }));
+      return true;
+    }
+    
+    res.statusCode = 201;
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.end(JSON.stringify({
+      spaceId: result.space.id,
+      name: result.space.config.name,
+      path: result.space.path,
+      agentId: result.space.agentId,
+      agentType: result.space.agentType,
+      createdAt: result.space.createdAt,
+    }));
+    
+    return true;
+  } catch (error) {
+    res.statusCode = 500;
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.end(JSON.stringify({ 
+      error: 'Internal server error',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }));
+    return true;
+  }
 }

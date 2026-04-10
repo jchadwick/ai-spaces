@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useFileTree } from '../hooks/useFileTree'
+import { useToast } from './ui/toast'
 import type { FileNode } from '@ai-spaces/shared'
 
 interface FileExplorerProps {
@@ -57,7 +58,7 @@ function FileTreeNode({
       <button
         type="button"
         onClick={handleClick}
-        className={`w-full flex items-center gap-2 px-2 py-1.5 cursor-pointer rounded transition-all text-left ${
+        className={`w-full flex items-center gap-1 px-2 py-1.5 cursor-pointer rounded transition-all text-left ${
           isSelected 
             ? 'text-primary bg-surface-container-lowest' 
             : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-lowest/50'
@@ -65,11 +66,13 @@ function FileTreeNode({
         style={{ paddingLeft: `${paddingLeft}px` }}
       >
         {isDirectory && (
-          <span className="material-symbols-outlined text-sm">
-            {isExpanded ? 'keyboard_arrow_down' : 'keyboard_arrow_right'}
+          <span className="material-symbols-outlined text-lg">
+            {isExpanded ? 'folder_open' : 'folder'}
           </span>
         )}
-        <span className="material-symbols-outlined text-sm">{icon}</span>
+        {!isDirectory && (
+          <span className="material-symbols-outlined text-lg">{icon}</span>
+        )}
         <span className={`text-sm ${isSelected ? 'font-semibold' : ''}`}>
           {node.name}
         </span>
@@ -101,8 +104,31 @@ function FileTreeNode({
 }
 
 export default function FileExplorer({ spaceId, role, selectedFile, onFileSelect }: FileExplorerProps) {
-  const { files, loading, error } = useFileTree(spaceId, role)
+  const { files, loading, error, refresh } = useFileTree(spaceId)
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
+  const { showToast } = useToast()
+  
+  const isViewer = role === 'viewer'
+  
+  useEffect(() => {
+    const handleFileModified = (event: CustomEvent<{ path: string; action: string; triggeredBy: string }>) => {
+      refresh()
+      
+      const fileName = event.detail.path.split('/').pop() || event.detail.path
+      const triggeredBy = event.detail.triggeredBy === 'agent' ? 'Agent' : 'User'
+      
+      if (event.detail.action === 'created') {
+        showToast(`${fileName} created by ${triggeredBy}`, 'success', 3000)
+      } else {
+        showToast(`${fileName} updated by ${triggeredBy}`, 'info', 3000)
+      }
+    }
+    
+    window.addEventListener('fileModified', handleFileModified as EventListener)
+    return () => {
+      window.removeEventListener('fileModified', handleFileModified as EventListener)
+    }
+  }, [refresh, showToast])
   
   const toggleFolder = (path: string) => {
     setExpandedFolders(prev => {
@@ -142,10 +168,17 @@ export default function FileExplorer({ spaceId, role, selectedFile, onFileSelect
     <aside className="w-64 bg-surface-container-low flex flex-col">
       <div className="p-4 flex flex-col gap-1 flex-1 overflow-auto">
         <div className="flex items-center justify-between mb-4">
-          <span className="font-headline font-bold text-on-surface uppercase tracking-wider text-xs">Explorer</span>
-          <button type="button" className="text-on-surface-variant hover:text-on-surface transition-colors">
-            <span className="material-symbols-outlined text-lg">create_new_folder</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <span className="font-headline font-bold text-on-surface uppercase tracking-wider text-xs">Explorer</span>
+            {isViewer && (
+              <span className="text-[10px] text-on-surface-variant italic">(view only)</span>
+            )}
+          </div>
+          {!isViewer && (
+            <button type="button" className="text-on-surface-variant hover:text-on-surface transition-colors">
+              <span className="material-symbols-outlined text-lg">create_new_folder</span>
+            </button>
+          )}
         </div>
         
         {files.length === 0 ? (
@@ -168,12 +201,14 @@ export default function FileExplorer({ spaceId, role, selectedFile, onFileSelect
         )}
       </div>
       
-      <div className="px-4 py-2 border-t border-outline-variant/20">
-        <button type="button" className="w-full bg-surface-container hover:bg-surface-container-high text-on-surface py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all">
-          <span className="material-symbols-outlined text-sm">add</span>
-          New File
-        </button>
-      </div>
+      {!isViewer && (
+        <div className="px-4 py-2 border-t border-outline-variant/20">
+          <button type="button" className="w-full bg-surface-container hover:bg-surface-container-high text-on-surface py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all">
+            <span className="material-symbols-outlined text-sm">add</span>
+            New File
+          </button>
+        </div>
+      )}
       
       <div className="border-t border-outline-variant/20">
         <div className="px-4 py-3 flex items-center justify-between text-on-surface-variant">

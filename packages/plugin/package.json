@@ -6,13 +6,16 @@
   "types": "./dist/index.d.ts",
   "type": "module",
   "scripts": {
-    "build": "tsc && node scripts/bundle-web.mjs",
+    "lint": "eslint 'src/**/*.ts' --max-warnings 0",
+    "build": "npm run lint && tsc && node scripts/bundle-web.mjs",
     "dev": "tsc --watch",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "openclaw": {
-    "extensions": ["./dist/index.js"],
+    "extensions": [
+      "./dist/index.js"
+    ],
     "setupEntry": "./dist/setup-entry.js"
   },
   "keywords": [
@@ -33,10 +36,18 @@
   "homepage": "https://github.com/jchadwick/ai-spaces#readme",
   "dependencies": {
     "@ai-spaces/shared": "*",
+    "@types/jsonwebtoken": "^9.0.10",
+    "bcrypt": "^6.0.0",
+    "jsonwebtoken": "^9.0.3",
     "openclaw": "^2026.3.28"
   },
   "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
     "@types/node": "^25.5.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "esbuild": "^0.27.4",
+    "eslint": "^8.57.0",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2",
     "vitest": "^4.1.2"

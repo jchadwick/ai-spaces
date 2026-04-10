@@ -331,19 +331,24 @@ npm run build
 
 ```bash
 # Start the gateway (uses sandbox environment)
-./openclaw.sh gateway --allow-unconfigured
+./start.sh
 
 # In another terminal, start the web app
 npm run dev:web
 
 # Test the API
 curl http://localhost:18789/api/spaces
+
+# Test auth (default admin credentials)
+curl -X POST http://localhost:18789/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin","password":"ai-spaces"}'
 ```
 
 ### Clean Up
 
 ```bash
-# Stop the gateway
+# Stop the gateway (or just Ctrl+C if using ./start.sh)
 pkill -f 'openclaw gateway'
 
 # Remove sandbox environment

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
+import { getAccessToken } from '@/contexts/AuthContext'
 
 export type FileType = 'markdown' | 'text' | 'image' | 'binary' | 'unknown'
 
@@ -58,7 +59,9 @@ export function useFileContent(spaceId: string | undefined, filePath: string | u
       try {
         const [currentSpaceId, currentFilePath] = fetchKey.split(':')
         const encodedPath = encodeURIComponent(currentFilePath)
+        const token = getAccessToken()
         const response = await fetch(`/api/spaces/${currentSpaceId}/files/${encodedPath}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
           signal: controller.signal,
         })
 

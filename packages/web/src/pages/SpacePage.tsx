@@ -6,6 +6,7 @@ import MarkdownEditor from '../components/MarkdownEditor'
 import AIChatPane from '../components/AIChatPane'
 import { ErrorBoundary, WebSocketErrorBoundary } from '../components/errors'
 import { ToastProvider } from '../components/ui/toast'
+import { getAccessToken } from '@/contexts/AuthContext'
 
 interface Space {
   id: string
@@ -36,8 +37,12 @@ export default function SpacePage() {
 
     const controller = new AbortController()
     let mounted = true
+    const token = getAccessToken()
 
-    fetch(`/api/spaces/${spaceId}`, { signal: controller.signal })
+    fetch(`/api/spaces/${spaceId}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      signal: controller.signal,
+    })
       .then(res => {
         if (!res.ok) {
           if (res.status === 404) {

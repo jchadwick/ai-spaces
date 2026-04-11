@@ -17,6 +17,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
   isAuthenticated: boolean
+  accessToken: string | null
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -36,6 +37,14 @@ function getStoredTokens(): AuthTokens | null {
     // localStorage not available
   }
   return null
+}
+
+export function getAccessToken(): string | null {
+  try {
+    return localStorage.getItem(ACCESS_TOKEN_KEY)
+  } catch {
+    return null
+  }
 }
 
 function getStoredUser(): User | null {
@@ -84,6 +93,7 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [accessToken, setAccessToken] = useState<string | null>(null)
 
   useEffect(() => {
     const storedUser = getStoredUser()
@@ -91,6 +101,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     
     if (storedUser && tokens) {
       setUser(storedUser)
+      setAccessToken(tokens.accessToken)
     }
     setIsLoading(false)
   }, [])
@@ -126,6 +137,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setStoredTokens(tokens)
       setStoredUser(data.user)
       setUser(data.user)
+      setAccessToken(data.accessToken)
     } catch (error) {
       clearStoredAuth()
       throw error
@@ -161,6 +173,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     login,
     logout,
     isAuthenticated: user !== null,
+    accessToken,
   }
 
   return (

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { getAccessToken } from '@/contexts/AuthContext'
 
 export interface AuditEntry {
   id: string
@@ -36,8 +37,11 @@ export function useAuditLog(spaceId?: string, limit: number = 50): UseAuditLogRe
     }
 
     const url = `/api/audit?${params.toString()}`
+    const token = getAccessToken()
 
-    fetch(url)
+    fetch(url, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
       .then(res => {
         if (!res.ok) {
           throw new Error('Failed to fetch audit log')

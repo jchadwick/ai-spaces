@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
+import { getAccessToken } from '@/contexts/AuthContext'
 import RecentActivity from '@/components/RecentActivity'
 
 interface Space {
@@ -23,7 +24,10 @@ function HomePage() {
   const { showToast } = useToast()
 
   const fetchSpaces = useCallback(() => {
-    fetch(`/api/spaces`)
+    const token = getAccessToken()
+    fetch(`/api/spaces`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
       .then(res => {
         if (!res.ok) throw new Error(`Failed to fetch spaces: ${res.status}`)
         return res.json()
@@ -45,7 +49,11 @@ function HomePage() {
   const handleScan = async () => {
     setScanning(true)
     try {
-      const res = await fetch('/api/spaces/scan', { method: 'POST' })
+      const token = getAccessToken()
+      const res = await fetch('/api/spaces/scan', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
       if (!res.ok) {
         const data = await res.json()
         throw new Error(data.error || 'Scan failed')

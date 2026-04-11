@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import type { FileNode } from '@ai-spaces/shared'
+import { getAccessToken } from '@/contexts/AuthContext'
 
 export interface FileTree {
   files: FileNode[]
@@ -28,7 +29,10 @@ export function useFileTree(spaceId: string | undefined): FileTree {
     setLoading(true)
     setError(null)
     
-    fetch(`/api/spaces/${fetchKey}/files`)
+    const token = getAccessToken()
+    fetch(`/api/spaces/${fetchKey}/files`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
       .then(res => {
         if (!res.ok) throw new Error(`Failed to fetch files: ${res.status}`)
         return res.json()

@@ -1,96 +1,78 @@
-import { Router, type Request, type Response } from 'express';
-import * as fs from 'fs';
-import * as path from 'path';
+import { Hono } from 'hono';
+import { z } from 'zod';
+import { zValidator } from '@hono/zod-validator';
+import type { FileProvider } from '@ai-spaces/shared';
 
-export const filesRouter = Router();
+let fileProvider: FileProvider;
 
-const DEFAULT_ROOT = process.env.AI_SPACES_ROOT || path.join(process.env.HOME || '', 'ai-spaces-workspace');
-
-filesRouter.get('/read', (req: Request, res: Response) => {
-  const filePath = req.query.path as string;
-  
-  if (!filePath) {
-    res.status(400).json({ error: 'Path is required' });
-    return;
-  }
-  
-  const fullPath = path.join(DEFAULT_ROOT, filePath);
-  
-  if (!isPathSafe(fullPath, DEFAULT_ROOT)) {
-    res.status(403).json({ error: 'Access denied' });
-    return;
-  }
-  
-  if (!fs.existsSync(fullPath)) {
-    res.status(404).json({ error: 'File not found' });
-    return;
-  }
-  
-  try {
-    const content = fs.readFileSync(fullPath, 'utf-8');
-    res.json({ content });
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-filesRouter.post('/write', (req: Request, res: Response) => {
-  const { path: filePath, content } = req.body;
-  
-  if (!filePath || content === undefined) {
-    res.status(400).json({ error: 'Path and content are required' });
-    return;
-  }
-  
-  const fullPath = path.join(DEFAULT_ROOT, filePath);
-  
-  if (!isPathSafe(fullPath, DEFAULT_ROOT)) {
-    res.status(403).json({ error: 'Access denied' });
-    return;
-  }
-  
-  try {
-    const dir = path.dirname(fullPath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    
-    fs.writeFileSync(fullPath, content, 'utf-8');
-    res.json({ success: true });
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-filesRouter.get('/list', (req: Request, res: Response) => {
-  const dirPath = req.query.path as string || '';
-  
-  const fullPath = path.join(DEFAULT_ROOT, dirPath);
-  
-  if (!isPathSafe(fullPath, DEFAULT_ROOT)) {
-    res.status(403).json({ error: 'Access denied' });
-    return;
-  }
-  
-  if (!fs.existsSync(fullPath)) {
-    res.status(404).json({ error: 'Directory not found' });
-    return;
-  }
-  
-  try {
-    const entries = fs.readdirSync(fullPath, { withFileTypes: true });
-    const files = entries.map(entry => ({
-      name: entry.name,
-      isDirectory: entry.isDirectory(),
-    }));
-    res.json({ files });
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
-  }
-});
-
-function isPathSafe(requestedPath: string, rootPath: string): boolean {
-  const normalizedRequested = path.normalize(path.resolve(requestedPath));
-  const normalizedRoot = path.normalize(path.resolve(rootPath));
-  return normalizedRequested.startsWith(normalizedRoot);
+export function setFileProvider(provider: FileProvider) {
+  fileProvider = provider;
 }
+
+export const filesRouter = new Hono();
+
+const readSchema = z.object({
+  path: z.string(),
+});
+
+const writeSchema = z.object({
+  path: z.string(),
+  content: z.string(),
+});
+
+const listQuerySchema = z.object({
+  path: z.string().optional(),
+});
+
+filesRouter.get('/read', zValidator('query', readSchema), async (c) => {
+  const { path: filePath } = c.req.valid('query');
+  
+  try {
+    const content = await fileProvider.read(filePath);
+    return c.json({ content });
+  } catch (error) {
+    const message = (error as Error).message;
+    if (message.includes('not found')) {
+      return c.json({ error: 'File not found' }, 404);
+    }
+    if (message.includes('Access denied')) {
+      return c.json({ error: 'Access denied' }, 403);
+    }
+    return c.json({ error: message }, 500);
+  }
+});
+
+filesRouter.post('/write', zValidator('json', writeSchema), async (c) => {
+  const { path: filePath, content } = c.req.valid('json');
+  
+  try {
+    await fileProvider.write(filePath, content);
+    return c.json({ success: true });
+  } catch (error) {
+    const message = (error as Error).message;
+    if (message.includes('Access denied')) {
+      return c.json({ error: 'Access denied' }, 403);
+    }
+    return c.json({ error: message }, 500);
+  }
+});
+
+filesRouter.get('/list', zValidator('query', listQuerySchema), async (c) => {
+  const { path: dirPath } = c.req.valid('query');
+  
+  try {
+    const files = await fileProvider.list(dirPath || '');
+    return c.json({ files });
+  } catch (error) {
+    const message = (error as Error).message;
+    if (message.includes('not found')) {
+      return c.json({ error: 'Directory not found' }, 404);
+    }
+    if (message.includes('Access denied')) {
+      return c.json({ error: 'Access denied' }, 403);
+    }
+    return c.json({ error: message }, 500);
+  }
+});
+
+export type FilesRouter = typeof filesRouter;

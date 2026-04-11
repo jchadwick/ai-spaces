@@ -1,39 +1,42 @@
-import { Router, type Request, type Response } from 'express';
-import { getUserByEmail, getUserById } from '../user-store.js';
-import { verifyPassword } from '../password-utils.js';
+import { Hono } from 'hono';
+import { z } from 'zod';
+import { zValidator } from '@hono/zod-validator';
+import { getUserByEmail, getUserById, verifyPassword } from '../user-service.js';
 import type { User } from '@ai-spaces/shared';
 import jwt from 'jsonwebtoken';
 
 const ACCESS_SECRET = process.env.JWT_SECRET || 'ai-spaces-dev-secret-change-in-production';
 const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'ai-spaces-refresh-secret-change-in-production';
 
-export const authRouter = Router();
+export const authRouter = new Hono();
 
-authRouter.post('/login', async (req: Request, res: Response) => {
-  const { email, password } = req.body;
+const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
 
-  if (!email || !password) {
-    res.status(400).json({ error: 'Email and password required' });
-    return;
-  }
+const refreshSchema = z.object({
+  refreshToken: z.string().min(1),
+});
+
+authRouter.post('/login', zValidator('json', loginSchema), async (c) => {
+  const { email, password } = c.req.valid('json');
 
   const user = getUserByEmail(email);
 
   if (!user) {
-    res.status(401).json({ error: 'Invalid credentials' });
-    return;
+    return c.json({ error: 'Invalid credentials' }, 401);
   }
 
   const validPassword = await verifyPassword(password, user.passwordHash);
 
   if (!validPassword) {
-    res.status(401).json({ error: 'Invalid credentials' });
-    return;
+    return c.json({ error: 'Invalid credentials' }, 401);
   }
 
   const { accessToken, refreshToken } = generateTokens(user);
 
-  res.json({
+  return c.json({
     accessToken,
     refreshToken,
     user: {
@@ -45,41 +48,33 @@ authRouter.post('/login', async (req: Request, res: Response) => {
   });
 });
 
-authRouter.post('/logout', (_req: Request, res: Response) => {
-  res.json({ success: true });
+authRouter.post('/logout', (c) => {
+  return c.json({ success: true });
 });
 
-authRouter.post('/refresh', async (req: Request, res: Response) => {
-  const { refreshToken } = req.body;
-
-  if (!refreshToken) {
-    res.status(400).json({ error: 'Refresh token required' });
-    return;
-  }
+authRouter.post('/refresh', zValidator('json', refreshSchema), async (c) => {
+  const { refreshToken } = c.req.valid('json');
 
   let decoded: jwt.JwtPayload;
   try {
     decoded = jwt.verify(refreshToken, REFRESH_SECRET) as jwt.JwtPayload;
   } catch {
-    res.status(401).json({ error: 'Invalid or expired refresh token' });
-    return;
+    return c.json({ error: 'Invalid or expired refresh token' }, 401);
   }
 
   if (decoded.type !== 'refresh' || !decoded.userId) {
-    res.status(401).json({ error: 'Invalid refresh token' });
-    return;
+    return c.json({ error: 'Invalid refresh token' }, 401);
   }
 
   const user = getUserById(decoded.userId);
 
   if (!user) {
-    res.status(401).json({ error: 'User no longer exists' });
-    return;
+    return c.json({ error: 'User no longer exists' }, 401);
   }
 
   const { accessToken, refreshToken: newRefreshToken } = generateTokens(user);
 
-  res.json({
+  return c.json({
     accessToken,
     refreshToken: newRefreshToken,
     user: {
@@ -106,3 +101,5 @@ function generateTokens(user: User): { accessToken: string; refreshToken: string
   
   return { accessToken, refreshToken };
 }
+
+export type AuthRouter = typeof authRouter;

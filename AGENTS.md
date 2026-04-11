@@ -12,21 +12,50 @@ This ensures work is backed up and progress is visible.
 
 We use the `tk` task manager for planning and tracking work in this repository.
 
-## Development Guidelines
+## Testing Environment
 
-### Technology Stack
-- **Language**: TypeScript
-- **Runtime**: Node.js
-- **Framework**: OpenClaw plugin architecture
-- **UI**: React + Vite + shadcn/ui
-- **Validation**: Zod v4
-- **Real-time**: WebSocket
-- **Markdown**: react-markdown with remark-gfm
+**IMPORTANT:** Always use the sandbox environment for testing, NOT the system-installed OpenClaw.
+
+IMPORTANT: DO NOT EVER USE THE `openclaw` COMMAND WITHOUT PROVIDING THE SANDBOX PATH
+In fact, use the `./openclaw.sh` script instead, which includes the sandbox path.
+
+The sandbox provides an isolated environment that doesn't interfere with your production OpenClaw setup.
+
+When running the gateway the `openclaw gateway` command do not wait for it to exit - it is a service, it does not exit!
+
+### Setup Sandbox
+
+```bash
+# One-time setup (creates /tmp/openclaw-sandbox with isolated config)
+./scripts/setup-sandbox.sh
+```
+
+### Start Gateway in Sandbox
+
+```bash
+# Run the gateway using the sandbox environment
+OPENCLAW_HOME=/tmp/openclaw-sandbox openclaw gateway --allow-unconfigured
+```
+
+### Start Web App (separate terminal)
+
+```bash
+npm run dev:web
+```
+
+### Clean Up
+
+```bash
+pkill -f 'openclaw gateway'
+rm -rf /tmp/openclaw-sandbox
+```
+
 
 ### Code Style
 
 <typescript>
 - Use TypeScript/static typing/type-first development everywhere possible
+- Use Zod schemas to define models and provide validation; derive types from schemas
 - Prefer functional programming over OOP
 - Prefer pure functions and immutability
 - **ESM ONLY**: All imports must use ES module syntax
@@ -40,6 +69,9 @@ We use the `tk` task manager for planning and tracking work in this repository.
 - Use React functional components and hooks
 - Prefer composition over inheritance
 - Keep components small and focused
+- Use Tailwind CSS for styling and shadcn/ui for components
+- Use React Query for data fetching
+- Use React Hook Form for form handling
 </react>
 
 ### Naming Conventions
@@ -62,3 +94,4 @@ ALWAYS try the simplest solution first. If things are getting too complicated, t
 Always verify that your changes work as expected, follow all linting and formatting rules, and do not introduce any new warnings or errors.
 - When possible, actually run the code to confirm it works as expected.
 - Run any quality checks before attempting to run the code
+- End with a short summary of the changes you made and how I can test them (and explain how you already tested them)

@@ -8,3 +8,4 @@ repomix*
 ./*.png
 *.png
 .playwright-cli/
+.ai-spaces.db*

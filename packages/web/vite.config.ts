@@ -3,8 +3,8 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
-const openclawPort = process.env.OPENCLAW_PORT || (process.env.OPENCLAW_SANDBOX_HOME ? '18789' : '18789');
-const openclawHost = process.env.OPENCLAW_API || `http://localhost:${openclawPort}`;
+const serverPort = process.env.AI_SPACES_PORT || '3001';
+const serverHost = process.env.AI_SPACES_URL || `http://localhost:${serverPort}`;
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
@@ -16,8 +16,12 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: openclawHost,
+        target: serverHost,
         changeOrigin: true,
+      },
+      '/ws': {
+        target: serverHost,
+        ws: true,
       },
     },
   },

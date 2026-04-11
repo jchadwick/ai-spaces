@@ -1,12 +1,10 @@
 import { defineChannelPluginEntry } from 'openclaw/plugin-sdk/core';
 import { aiSpacesPlugin } from './channel.js';
 import type { IncomingMessage, ServerResponse } from 'http';
-import { handleListSpaces, handleGetSpace, handleCreateSpace } from './routes/space-info.js';
-import { handleFileTree, handleFileContent } from './routes/space-files.js';
-import { handleSpaceWebSocket } from './routes/space-ws.js';
-import { handleLogin, handleLogout } from './routes/auth.js';
 import { setRuntime } from './runtime.js';
-import { seedAdminUser } from './seed-admin.js';
+import { proxyRequest } from './routes/proxy.js';
+
+const SERVER_URL = process.env.AI_SPACES_URL || 'http://localhost:3001';
 
 export default defineChannelPluginEntry({
   id: 'ai-spaces',
@@ -16,34 +14,14 @@ export default defineChannelPluginEntry({
   setRuntime,
 
   async registerFull(api) {
-    api.logger.info('[ai-spaces] Registerizing full plugin');
+    console.log('[ai-spaces] Registering proxy plugin');
+    console.log('[ai-spaces] Proxying to:', SERVER_URL);
 
     api.registerHttpRoute({
       path: '/api/spaces',
       auth: 'plugin',
       handler: async (req: IncomingMessage, res: ServerResponse) => {
-        if (req.method === 'OPTIONS') {
-          res.statusCode = 200;
-          res.setHeader('Access-Control-Allow-Origin', '*');
-          res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-          res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-          res.end();
-          return true;
-        }
-        
-        if (req.method === 'GET') {
-          return handleListSpaces(req, res);
-        }
-        
-        if (req.method === 'POST') {
-          return handleCreateSpace(req, res);
-        }
-        
-        res.statusCode = 405;
-        res.setHeader('Content-Type', 'application/json');
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.end(JSON.stringify({ error: 'Method not allowed' }));
-        return true;
+        return proxyRequest(req, res, `${SERVER_URL}/api/spaces`);
       },
     });
 
@@ -52,47 +30,9 @@ export default defineChannelPluginEntry({
       auth: 'plugin',
       match: 'prefix',
       handler: async (req: IncomingMessage, res: ServerResponse) => {
-        if (req.method === 'OPTIONS') {
-          res.statusCode = 200;
-          res.setHeader('Access-Control-Allow-Origin', '*');
-          res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-          res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-          res.end();
-          return true;
-        }
-        
         const url = new URL(req.url || '/', `http://${req.headers.host}`);
-        
-        const wsMatch = url.pathname.match(/^\/api\/spaces\/([^\/]+)\/ws$/);
-        if (wsMatch && req.headers.upgrade?.toLowerCase() === 'websocket') {
-          return handleSpaceWebSocket(req, res);
-        }
-        
-        const fileTreeMatch = url.pathname.match(/^\/api\/spaces\/([^\/]+)\/files$/);
-        if (fileTreeMatch && req.method === 'GET') {
-          const spaceId = fileTreeMatch[1];
-          const role = (url.searchParams.get('role') as 'viewer' | 'editor' | 'admin') || 'viewer';
-          return handleFileTree(req, res, spaceId, role);
-        }
-        
-        const fileContentMatch = url.pathname.match(/^\/api\/spaces\/([^\/]+)\/files\/(.+)$/);
-        if (fileContentMatch && req.method === 'GET') {
-          const spaceId = fileContentMatch[1];
-          const filePath = fileContentMatch[2];
-          return handleFileContent(req, res, spaceId, filePath);
-        }
-        
-        const pathMatch = url.pathname.match(/^\/api\/spaces\/([^\/]+)$/);
-        if (pathMatch && req.method === 'GET') {
-          const spaceId = pathMatch[1];
-          return handleGetSpace(req, res, spaceId);
-        }
-        
-        res.statusCode = 404;
-        res.setHeader('Content-Type', 'application/json');
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        res.end(JSON.stringify({ error: 'Not found' }));
-        return true;
+        const targetPath = url.pathname.replace(/^\/api/, '/api');
+        return proxyRequest(req, res, `${SERVER_URL}${targetPath}`);
       },
     });
 
@@ -100,15 +40,7 @@ export default defineChannelPluginEntry({
       path: '/api/auth/login',
       auth: 'plugin',
       handler: async (req: IncomingMessage, res: ServerResponse) => {
-        if (req.method === 'OPTIONS') {
-          res.statusCode = 200;
-          res.setHeader('Access-Control-Allow-Origin', '*');
-          res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-          res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-          res.end();
-          return true;
-        }
-        return handleLogin(req, res);
+        return proxyRequest(req, res, `${SERVER_URL}/api/auth/login`);
       },
     });
 
@@ -116,15 +48,15 @@ export default defineChannelPluginEntry({
       path: '/api/auth/logout',
       auth: 'plugin',
       handler: async (req: IncomingMessage, res: ServerResponse) => {
-        if (req.method === 'OPTIONS') {
-          res.statusCode = 200;
-          res.setHeader('Access-Control-Allow-Origin', '*');
-          res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-          res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-          res.end();
-          return true;
-        }
-        return handleLogout(req, res);
+        return proxyRequest(req, res, `${SERVER_URL}/api/auth/logout`);
+      },
+    });
+
+    api.registerHttpRoute({
+      path: '/api/auth/refresh',
+      auth: 'plugin',
+      handler: async (req: IncomingMessage, res: ServerResponse) => {
+        return proxyRequest(req, res, `${SERVER_URL}/api/auth/refresh`);
       },
     });
 
@@ -182,7 +114,5 @@ export default defineChannelPluginEntry({
         ],
       }
     );
-
-    await seedAdminUser();
   },
 });

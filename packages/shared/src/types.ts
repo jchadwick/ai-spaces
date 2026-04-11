@@ -67,3 +67,16 @@ export interface AuthTokens {
   refreshToken: string;
   expiresIn: number;
 }
+
+export interface FileEntry {
+  name: string;
+  isDirectory: boolean;
+}
+
+export interface FileProvider {
+  read(path: string): Promise<string>;
+  write(path: string, content: string): Promise<void>;
+  list(path: string): Promise<FileEntry[]>;
+  delete(path: string): Promise<void>;
+  exists(path: string): Promise<boolean>;
+}

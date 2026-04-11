@@ -1,56 +1,53 @@
 import 'dotenv/config';
-import express from 'express';
-import cors from 'cors';
-import { createServer } from 'http';
-import { WebSocketServer } from 'ws';
+import { serve } from '@hono/node-server';
 import * as fs from 'fs';
 import * as path from 'path';
-import { setupWebSocket } from './ws-server.js';
-import { authRouter } from './routes/auth.js';
-import { spacesRouter } from './routes/spaces.js';
-import { filesRouter } from './routes/files.js';
-import { chatRouter } from './routes/chat.js';
-import { auditRouter } from './routes/audit.js';
+import { app } from './app.js';
 import { seedAdmin } from './seed-admin.js';
-import { authMiddleware } from './middleware/auth.js';
 
 const PORT = parseInt(process.env.AI_SPACES_PORT || '3001', 10);
 const WEB_DIST = process.env.WEB_DIST || path.join(process.env.HOME || '', 'ai-spaces', 'packages', 'web', 'dist');
 
-const app = express();
-
-app.use(cors());
-app.use(express.json());
-
-app.use('/api/auth', authRouter);
-app.use('/api/spaces', authMiddleware, spacesRouter);
-app.use('/api/files', authMiddleware, filesRouter);
-app.use('/api/chat', authMiddleware, chatRouter);
-app.use('/api/audit', auditRouter);
-
-app.get('/health', (_req, res) => {
-  res.json({ status: 'ok' });
-});
-
 if (fs.existsSync(WEB_DIST)) {
-  app.use(express.static(WEB_DIST));
-  
-  app.get('*', (_req, res) => {
-    res.sendFile(path.join(WEB_DIST, 'index.html'));
+  app.use('*', async (c, next) => {
+    if (c.req.path.startsWith('/api/')) {
+      return next();
+    }
+    const filePath = path.join(WEB_DIST, c.req.path);
+    if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+      const content = fs.readFileSync(filePath);
+      return c.text(content, 200, {
+        'Content-Type': getContentType(filePath),
+      });
+    }
+    const indexContent = fs.readFileSync(path.join(WEB_DIST, 'index.html'), 'utf-8');
+    return c.text(indexContent, 200, {
+      'Content-Type': 'text/html',
+    });
   });
-  
   console.log(`Serving static files from: ${WEB_DIST}`);
 }
 
-const server = createServer(app);
+function getContentType(filePath: string): string {
+  const ext = path.extname(filePath);
+  const types: Record<string, string> = {
+    '.html': 'text/html',
+    '.js': 'application/javascript',
+    '.css': 'text/css',
+    '.json': 'application/json',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+  };
+  return types[ext] || 'text/plain';
+}
 
-const wss = new WebSocketServer({ server, path: '/ws' });
+seedAdmin();
 
-setupWebSocket(wss);
+console.log(`AI Spaces server running on port ${PORT}`);
 
-server.listen(PORT, () => {
-  console.log(`AI Spaces server running on port ${PORT}`);
-  seedAdmin();
+serve({
+  fetch: app.fetch,
+  port: PORT,
 });
 
-export { app, server };
+export { app };

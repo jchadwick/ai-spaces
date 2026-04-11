@@ -4,7 +4,7 @@ import { hashPassword } from './password-utils.js';
 import { eq } from 'drizzle-orm';
 import * as crypto from 'crypto';
 
-const ADMIN_EMAIL = 'admin';
+const ADMIN_EMAIL = 'admin@ai-spaces.test';
 const ADMIN_PASSWORD = 'ai-spaces';
 const ADMIN_ROLE = 'admin';
 

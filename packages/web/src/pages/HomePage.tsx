@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
+import RecentActivity from '@/components/RecentActivity'
 
 interface Space {
   id: string
@@ -149,6 +150,10 @@ function HomePage() {
           </div>
         )}
       </main>
+
+      <aside className="fixed right-0 top-14 bottom-6 w-72 border-l border-outline-variant/20 bg-surface-container-lowest/50">
+        <RecentActivity className="h-full" />
+      </aside>
 
       <footer className="fixed bottom-0 w-full bg-surface-container-lowest border-t border-outline-variant/20 px-xl py-sm">
         <div className="max-w-6xl mx-auto flex items-center justify-between text-label-sm text-on-surface-variant">

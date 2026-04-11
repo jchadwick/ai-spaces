@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
+import { Button } from '@/components/ui/button'
+import { useToast } from '@/components/ui/toast'
 
 interface Space {
   id: string
@@ -16,8 +18,10 @@ function HomePage() {
   const [spaces, setSpaces] = useState<Space[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [scanning, setScanning] = useState(false)
+  const { showToast } = useToast()
 
-  useEffect(() => {
+  const fetchSpaces = useCallback(() => {
     fetch(`/api/spaces`)
       .then(res => {
         if (!res.ok) throw new Error(`Failed to fetch spaces: ${res.status}`)
@@ -33,6 +37,27 @@ function HomePage() {
       })
   }, [])
 
+  useEffect(() => {
+    fetchSpaces()
+  }, [fetchSpaces])
+
+  const handleScan = async () => {
+    setScanning(true)
+    try {
+      const res = await fetch('/api/spaces/scan', { method: 'POST' })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Scan failed')
+      }
+      showToast('Scan complete', 'success', 3000)
+      fetchSpaces()
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Scan failed', 'error', 5000)
+    } finally {
+      setScanning(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-surface font-ui text-on-surface">
       <header className="bg-surface-container-lowest border-b border-outline-variant/20 px-xl py-lg">
@@ -41,8 +66,20 @@ function HomePage() {
             <span className="material-symbols-outlined text-primary text-2xl">workspaces</span>
             <h1 className="font-display text-title-lg text-on-surface">AI Spaces</h1>
           </div>
-          <div className="flex items-center gap-sm text-body-md text-on-surface-variant">
-            <span className="material-symbols-outlined text-lg">account_circle</span>
+          <div className="flex items-center gap-sm">
+            <Button 
+              size="sm" 
+              variant="secondary"
+              onClick={handleScan}
+              disabled={scanning}
+              className="gap-1.5"
+            >
+              <span className={`material-symbols-outlined text-sm ${scanning ? 'animate-spin' : ''}`}>
+                {scanning ? 'sync' : 'search'}
+              </span>
+              {scanning ? 'Scanning...' : 'Scan'}
+            </Button>
+            <span className="material-symbols-outlined text-lg text-on-surface-variant">account_circle</span>
           </div>
         </div>
       </header>

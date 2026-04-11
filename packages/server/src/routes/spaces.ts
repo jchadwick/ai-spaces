@@ -1,11 +1,12 @@
-import { Router, type Request, type Response } from 'express';
+import { Hono } from 'hono';
+import { z } from 'zod';
+import { zValidator } from '@hono/zod-validator';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import type { Space, SpaceConfig } from '@ai-spaces/shared';
-import { SpaceConfigSchema } from '@ai-spaces/shared';
 
-export const spacesRouter = Router();
+export const spacesRouter = new Hono();
 
 interface SpaceRecord {
   id: string;
@@ -22,6 +23,12 @@ interface SpaceStore {
   spaces: Record<string, SpaceRecord>;
   byAgentPath: Record<string, string>;
 }
+
+const createSpaceSchema = z.object({
+  path: z.string().min(1),
+  agentId: z.string().optional(),
+  agentType: z.string().optional(),
+});
 
 function getDataDir(): string {
   return process.env.AI_SPACES_DATA || path.join(process.env.HOME || '', '.ai-spaces');
@@ -57,7 +64,7 @@ function saveStore(store: SpaceStore): void {
   fs.writeFileSync(filePath, JSON.stringify(store, null, 2));
 }
 
-spacesRouter.get('/', (_req: Request, res: Response) => {
+spacesRouter.get('/', (c) => {
   const store = loadStore();
   const spaces = Object.values(store.spaces).map(s => ({
     id: s.id,
@@ -66,36 +73,30 @@ spacesRouter.get('/', (_req: Request, res: Response) => {
     createdAt: s.createdAt,
     updatedAt: s.updatedAt,
   }));
-  res.json({ spaces });
+  return c.json({ spaces });
 });
 
-spacesRouter.get('/:id', (req: Request, res: Response) => {
+spacesRouter.get('/:id', (c) => {
+  const id = c.req.param('id');
   const store = loadStore();
-  const space = store.spaces[req.params.id];
+  const space = store.spaces[id];
   
   if (!space) {
-    res.status(404).json({ error: 'Space not found' });
-    return;
+    return c.json({ error: 'Space not found' }, 404);
   }
   
-  res.json({ space });
+  return c.json({ space });
 });
 
-spacesRouter.post('/', async (req: Request, res: Response) => {
-  const { path: spacePath, agentId, agentType } = req.body;
-  
-  if (!spacePath) {
-    res.status(400).json({ error: 'Path is required' });
-    return;
-  }
+spacesRouter.post('/', zValidator('json', createSpaceSchema), (c) => {
+  const { path: spacePath, agentId, agentType } = c.req.valid('json');
   
   const store = loadStore();
-  const pathKey = `${agentId}:${spacePath}`;
+  const pathKey = `${agentId || 'default'}:${spacePath}`;
   
   if (store.byAgentPath[pathKey]) {
     const existingId = store.byAgentPath[pathKey];
-    res.status(409).json({ error: 'Space already exists', spaceId: existingId });
-    return;
+    return c.json({ error: 'Space already exists', spaceId: existingId }, 409);
   }
   
   const id = crypto.randomBytes(16).toString('hex');
@@ -116,22 +117,172 @@ spacesRouter.post('/', async (req: Request, res: Response) => {
   store.byAgentPath[pathKey] = id;
   saveStore(store);
   
-  res.status(201).json({ space });
+  return c.json({ space }, 201);
 });
 
-spacesRouter.delete('/:id', (req: Request, res: Response) => {
+spacesRouter.delete('/:id', (c) => {
+  const id = c.req.param('id');
   const store = loadStore();
-  const space = store.spaces[req.params.id];
+  const space = store.spaces[id];
   
   if (!space) {
-    res.status(404).json({ error: 'Space not found' });
-    return;
+    return c.json({ error: 'Space not found' }, 404);
   }
   
   const pathKey = `${space.agentId}:${space.path}`;
   delete store.byAgentPath[pathKey];
-  delete store.spaces[req.params.id];
+  delete store.spaces[id];
   saveStore(store);
   
-  res.json({ success: true });
+  return c.json({ success: true });
 });
+
+interface DiscoveredSpace {
+  id: string;
+  agentName: string;
+  spaceName: string;
+  spacePath: string;
+  configPath: string;
+  config: SpaceConfig;
+}
+
+function generateSpaceId(agentName: string, spacePath: string): string {
+  const hash = crypto.createHash('sha256');
+  hash.update(`${agentName}:${spacePath}`);
+  const hex = hash.digest('hex');
+  return hex.slice(0, 8);
+}
+
+async function findSpacesInWorkspace(workspaceDir: string, agentName: string): Promise<DiscoveredSpace[]> {
+  const spaces: DiscoveredSpace[] = [];
+  
+  if (!fs.existsSync(workspaceDir)) {
+    return spaces;
+  }
+  
+  async function scanDir(dir: string, relativePath: string = '') {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const spaceDir = path.join(dir, entry.name);
+        const spaceConfigPath = path.join(spaceDir, '.space', 'spaces.json');
+        
+        if (fs.existsSync(spaceConfigPath)) {
+          try {
+            const configContent = fs.readFileSync(spaceConfigPath, 'utf-8');
+            const config: SpaceConfig = JSON.parse(configContent);
+            const spacePathRel = relativePath ? `${relativePath}/${entry.name}` : entry.name;
+            const id = generateSpaceId(agentName, spacePathRel);
+            
+            spaces.push({
+              id,
+              agentName,
+              spaceName: config.name || entry.name,
+              spacePath: spacePathRel,
+              configPath: spaceConfigPath,
+              config,
+            });
+          } catch {}
+        }
+        
+        await scanDir(spaceDir, relativePath ? `${relativePath}/${entry.name}` : entry.name);
+      }
+    }
+  }
+  
+  await scanDir(workspaceDir);
+  return spaces;
+}
+
+function getAgentsHome(): string {
+  const openclawHome = process.env.OPENCLAW_HOME || path.join(process.env.HOME || '', '.openclaw');
+  return path.join(openclawHome, 'agents');
+}
+
+function getAgentWorkspace(agentName: string): string | null {
+  const openclawHome = process.env.OPENCLAW_HOME || path.join(process.env.HOME || '', '.openclaw');
+  const agentsDir = getAgentsHome();
+  const agentFile = path.join(agentsDir, agentName, 'agent.json');
+  
+  if (!fs.existsSync(agentFile)) {
+    return null;
+  }
+  
+  try {
+    const agentData = JSON.parse(fs.readFileSync(agentFile, 'utf-8'));
+    return agentData.workspace || null;
+  } catch {
+    return null;
+  }
+}
+
+spacesRouter.post('/scan', async (c) => {
+  const openclawHome = process.env.OPENCLAW_HOME || path.join(process.env.HOME || '', '.openclaw');
+  const agentsHome = getAgentsHome();
+  
+  if (!fs.existsSync(agentsHome)) {
+    return c.json({ discovered: [], registered: 0 });
+  }
+  
+  const agentDirs = fs.readdirSync(agentsHome, { withFileTypes: true })
+    .filter(entry => entry.isDirectory())
+    .map(entry => entry.name);
+  
+  const allSpaces: DiscoveredSpace[] = [];
+  
+  for (const agentName of agentDirs) {
+    let workspacePath: string;
+    
+    if (agentName === 'main') {
+      workspacePath = path.join(openclawHome, 'workspace');
+    } else {
+      workspacePath = getAgentWorkspace(agentName) || 
+                     path.join(openclawHome, 'workspace', agentName);
+    }
+    
+    const spaces = await findSpacesInWorkspace(workspacePath, agentName);
+    allSpaces.push(...spaces);
+  }
+  
+  const store = loadStore();
+  let registered = 0;
+  
+  for (const space of allSpaces) {
+    const pathKey = `${space.agentName}:${space.spacePath}`;
+    
+    if (!store.byAgentPath[pathKey]) {
+      const id = space.id;
+      const now = new Date().toISOString();
+      
+      store.spaces[id] = {
+        id,
+        agentId: space.agentName,
+        agentType: space.agentName === 'main' ? 'main' : 'agent',
+        path: space.spacePath,
+        configPath: space.configPath,
+        config: space.config,
+        createdAt: now,
+        updatedAt: now,
+      };
+      
+      store.byAgentPath[pathKey] = id;
+      registered++;
+    }
+  }
+  
+  saveStore(store);
+  
+  return c.json({
+    discovered: allSpaces.map(space => ({
+      id: space.id,
+      name: space.spaceName,
+      agent: space.agentName,
+      path: space.spacePath,
+      config: space.config
+    })),
+    registered
+  });
+});
+
+export type SpacesRouter = typeof spacesRouter;

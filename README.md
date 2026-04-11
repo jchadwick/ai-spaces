@@ -180,7 +180,8 @@ The agent only knows about files in that space — it can't see other spaces or 
 |------|-------------|-------------|
 | Viewer | `read`, `comment` | View-only access |
 | Editor | `read`, `comment`, `edit` | Full collaboration |
-| Admin | `read`, `comment`, `edit`, `share` | Manage shares |
+| Owner | `read`, `comment`, `edit`, `share` | Manage space|
+| Admin | `read`, `comment`, `edit`, `share` | Manage all spaces and shares |
 
 ### Memory Isolation
 
@@ -262,26 +263,6 @@ This space is for planning family vacations.
 - Move or rename spaces without losing configuration
 - Agent settings stay with the content
 
----
-
-## MVP Scope
-
-**v0.1 (MVP)**:
-- Space creation via API
-- Share link generation (anonymous access)
-- File browsing (read-only via WebSocket)
-- File editing (full content, last-write-wins)
-- Scoped chat with agent
-- No user accounts required
-
-**Post-MVP**:
-- User accounts with OAuth
-- Real-time collaborative editing (Yjs CRDT)
-- Chat history persistence
-- File version history
-- Multi-folder spaces
-
----
 
 ## Comparison to Alternatives
 
@@ -354,11 +335,3 @@ pkill -f 'openclaw gateway'
 # Remove sandbox environment
 rm -rf /tmp/openclaw-sandbox
 ```
-
----
-
-## Development Status
-
-**Status**: Architecture finalization, pre-implementation
-
-See [ARCHITECTURE.md](./docs/ARCHITECTURE.md) for detailed design decisions.

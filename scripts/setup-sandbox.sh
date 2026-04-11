@@ -108,6 +108,11 @@ cat > "$OPENCLAW_HOME/openclaw.json" << EOF
     }
   },
   "plugins": {
+    "load": {
+      "paths": [
+        "$PLUGIN_PACKAGE_DIR"
+      ]
+    },
     "entries": {
       "ai-spaces": {
         "enabled": true
@@ -144,47 +149,9 @@ else
   echo "  No build script found - skipping build"
 fi
 
-# Step 6: Install plugin in OpenClaw stock extensions
-echo -e "${YELLOW}Step 6: Install plugin in OpenClaw extensions...${NC}"
-
-# Find OpenClaw installation directories (may be multiple if using fnm with multiple Node versions)
-# We need to install to ALL OpenClaw installations to ensure it works with the active Node version
-OPENCLAW_INSTALL_DIRS=()
-
-# Try to find OpenClaw installations
-for fnm_path in "$HOME/.local/share/fnm/node-versions"/*; do
-  if [ -d "$fnm_path/installation/lib/node_modules/openclaw" ]; then
-    OPENCLAW_INSTALL_DIRS+=("$fnm_path/installation/lib/node_modules/openclaw")
-  fi
-done
-
-# Also check standard npm global path
-if [ -d "$(npm root -g)/openclaw" ]; then
-  OPENCLAW_INSTALL_DIRS+=("$(npm root -g)/openclaw")
-fi
-
-if [ ${#OPENCLAW_INSTALL_DIRS[@]} -eq 0 ]; then
-  echo -e "${RED}  Cannot find any OpenClaw installation directories${NC}"
-  echo "  Please ensure OpenClaw is installed globally"
-  exit 1
-fi
-
-# Copy plugin files to stock extensions directory for each OpenClaw installation
-if [ -d "$PLUGIN_PACKAGE_DIR/dist" ]; then
-  for OPENCLAW_DIR in "${OPENCLAW_INSTALL_DIRS[@]}"; do
-    OPENCLAW_EXTENSIONS_DIR="$OPENCLAW_DIR/dist/extensions"
-    echo "  Copying plugin to $OPENCLAW_EXTENSIONS_DIR/ai-spaces/"
-    rm -rf "$OPENCLAW_EXTENSIONS_DIR/ai-spaces"
-    mkdir -p "$OPENCLAW_EXTENSIONS_DIR/ai-spaces"
-    cp -r "$PLUGIN_PACKAGE_DIR/dist" "$OPENCLAW_EXTENSIONS_DIR/ai-spaces/"
-    cp "$PLUGIN_PACKAGE_DIR/openclaw.plugin.json" "$OPENCLAW_EXTENSIONS_DIR/ai-spaces/"
-    cp "$PLUGIN_PACKAGE_DIR/package.json" "$OPENCLAW_EXTENSIONS_DIR/ai-spaces/"
-  done
-  echo "  ✓ Plugin installed to ${#OPENCLAW_INSTALL_DIRS[@]} OpenClaw installation(s)"
-else
-  echo -e "${RED}  Plugin not built - run 'npm run build' in packages/plugin first${NC}"
-  exit 1
-fi
+# Step 6: No longer needed - plugin loads directly from local path via plugins.load.paths
+echo -e "${YELLOW}Step 6: Skip copying to stock extensions (using plugins.load.paths)...${NC}"
+echo "  ✓ Plugin loads directly from: $PLUGIN_PACKAGE_DIR"
 
 # Step 7: Enable the plugin
 echo -e "${YELLOW}Step 7: Enable ai-spaces plugin...${NC}"

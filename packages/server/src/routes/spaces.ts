@@ -88,6 +88,30 @@ spacesRouter.get('/:id', (c) => {
   return c.json({ space });
 });
 
+spacesRouter.get('/:id/files', async (c) => {
+  const id = c.req.param('id');
+  const path = c.req.query('path') || '';
+  const store = loadStore();
+  const space = store.spaces[id];
+  
+  if (!space) {
+    return c.json({ error: 'Space not found' }, 404);
+  }
+  
+  const fullPath = path ? `${space.path}/${path}` : space.path;
+  
+  try {
+    const entries = await fs.promises.readdir(fullPath, { withFileTypes: true });
+    const files = entries.map(entry => ({
+      name: entry.name,
+      isDirectory: entry.isDirectory(),
+    }));
+    return c.json({ files });
+  } catch (error) {
+    return c.json({ error: 'Failed to list files' }, 500);
+  }
+});
+
 spacesRouter.post('/', zValidator('json', createSpaceSchema), (c) => {
   const { path: spacePath, agentId, agentType } = c.req.valid('json');
   

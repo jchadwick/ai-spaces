@@ -10,7 +10,9 @@ import { authRouter } from './routes/auth.js';
 import { spacesRouter } from './routes/spaces.js';
 import { filesRouter } from './routes/files.js';
 import { chatRouter } from './routes/chat.js';
+import { auditRouter } from './routes/audit.js';
 import { seedAdmin } from './seed-admin.js';
+import { authMiddleware } from './middleware/auth.js';
 
 const PORT = parseInt(process.env.AI_SPACES_PORT || '3001', 10);
 const WEB_DIST = process.env.WEB_DIST || path.join(process.env.HOME || '', 'ai-spaces', 'packages', 'web', 'dist');
@@ -21,9 +23,10 @@ app.use(cors());
 app.use(express.json());
 
 app.use('/api/auth', authRouter);
-app.use('/api/spaces', spacesRouter);
-app.use('/api/files', filesRouter);
-app.use('/api/chat', chatRouter);
+app.use('/api/spaces', authMiddleware, spacesRouter);
+app.use('/api/files', authMiddleware, filesRouter);
+app.use('/api/chat', authMiddleware, chatRouter);
+app.use('/api/audit', auditRouter);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });

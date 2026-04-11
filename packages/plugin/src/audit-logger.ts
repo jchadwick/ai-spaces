@@ -3,8 +3,9 @@ import * as path from 'path';
 
 export interface AuditLogEntry {
   timestamp: string;
-  event: 'path_escape_attempt' | 'access_denied' | 'invalid_path';
+  event: 'path_escape_attempt' | 'access_denied' | 'invalid_path' | 'login' | 'logout' | 'file_access' | 'space_created' | 'space_accessed';
   sessionId?: string;
+  userId?: string;
   spaceId?: string;
   attemptedPath?: string;
   resolvedPath?: string;
@@ -78,5 +79,71 @@ export function logAccessDenied(
     sessionId,
     message: reason,
     clientIp,
+  });
+}
+
+export function logLogin(
+  userId: string,
+  success: boolean,
+  sessionId?: string,
+  clientIp?: string,
+  reason?: string
+): void {
+  logSecurityEvent({
+    event: 'login',
+    userId,
+    sessionId,
+    clientIp,
+    message: success ? `User ${userId} logged in successfully` : `Login failed for user ${userId}: ${reason}`,
+  });
+}
+
+export function logLogout(
+  userId: string,
+  sessionId?: string,
+  clientIp?: string
+): void {
+  logSecurityEvent({
+    event: 'logout',
+    userId,
+    sessionId,
+    clientIp,
+    message: `User ${userId} logged out`,
+  });
+}
+
+export function logFileAccess(
+  spaceId: string,
+  userId: string,
+  filePath: string,
+  action: 'read' | 'write',
+  sessionId?: string,
+  clientIp?: string
+): void {
+  logSecurityEvent({
+    event: 'file_access',
+    userId,
+    spaceId,
+    sessionId,
+    attemptedPath: filePath,
+    clientIp,
+    message: `User ${userId} ${action} file: ${filePath} in space ${spaceId}`,
+  });
+}
+
+export function logSpaceAccessed(
+  spaceId: string,
+  userId: string,
+  action: 'view' | 'create' | 'delete',
+  sessionId?: string,
+  clientIp?: string
+): void {
+  logSecurityEvent({
+    event: action === 'create' ? 'space_created' : 'space_accessed',
+    userId,
+    spaceId,
+    sessionId,
+    clientIp,
+    message: `User ${userId} ${action} space ${spaceId}`,
   });
 }

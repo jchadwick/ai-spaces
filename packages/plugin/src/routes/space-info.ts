@@ -4,6 +4,8 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import { createSpace, type CreateSpaceInput } from '../space-store.js';
 import { SpaceConfigSchema } from '@ai-spaces/shared';
+import { logSpaceAccessed } from '../audit-logger.js';
+import { validateSession } from '../session-middleware.js';
 
 interface SpaceConfig {
   name: string;
@@ -172,6 +174,7 @@ export async function handleGetSpace(req: IncomingMessage, res: ServerResponse, 
     const space = spaces.find(s => s.id === spaceId);
     
     if (space) {
+      logSpaceAccessed(spaceId, 'unknown', 'view');
       res.statusCode = 200;
       res.setHeader('Content-Type', 'application/json');
       res.setHeader('Access-Control-Allow-Origin', '*');
@@ -291,6 +294,12 @@ export async function handleCreateSpace(req: IncomingMessage, res: ServerRespons
         details: result.details 
       }));
       return true;
+    }
+    
+    const payload = validateSession(req);
+    const userId = payload?.userId as string | undefined;
+    if (userId) {
+      logSpaceAccessed(result.space.id, userId, 'create');
     }
     
     res.statusCode = 201;

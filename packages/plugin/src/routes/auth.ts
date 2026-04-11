@@ -3,6 +3,7 @@ import { getUserByEmail, getUserById } from '../user-store.js';
 import { verifyPassword } from '../password-utils.js';
 import type { User } from '@ai-spaces/shared';
 import jwt from 'jsonwebtoken';
+import { logLogin, logLogout } from '../audit-logger.js';
 
 const ACCESS_SECRET = process.env.JWT_SECRET || 'ai-spaces-dev-secret-change-in-production';
 const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'ai-spaces-refresh-secret-change-in-production';
@@ -53,6 +54,7 @@ export async function handleLogin(req: IncomingMessage, res: ServerResponse): Pr
   const user = getUserByEmail(loginData.email);
 
   if (!user) {
+    logLogin(loginData.email, false, undefined, getClientIp(req), 'User not found');
     res.statusCode = 401;
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -63,6 +65,7 @@ export async function handleLogin(req: IncomingMessage, res: ServerResponse): Pr
   const validPassword = await verifyPassword(loginData.password, user.passwordHash);
 
   if (!validPassword) {
+    logLogin(user.id, false, undefined, getClientIp(req), 'Invalid password');
     res.statusCode = 401;
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -71,6 +74,7 @@ export async function handleLogin(req: IncomingMessage, res: ServerResponse): Pr
   }
 
   const { accessToken, refreshToken } = generateTokens(user);
+  logLogin(user.id, true, undefined, getClientIp(req));
 
   res.statusCode = 200;
   res.setHeader('Content-Type', 'application/json');
@@ -90,6 +94,23 @@ export async function handleLogin(req: IncomingMessage, res: ServerResponse): Pr
 }
 
 export async function handleLogout(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
+  const authHeader = req.headers.authorization;
+  let userId: string | undefined;
+  
+  if (authHeader) {
+    const parts = authHeader.split(' ');
+    if (parts.length === 2 && parts[0] === 'Bearer') {
+      try {
+        const decoded = jwt.decode(parts[1]) as jwt.JwtPayload | null;
+        userId = decoded?.userId as string | undefined;
+      } catch {}
+    }
+  }
+  
+  if (userId) {
+    logLogout(userId, undefined, getClientIp(req));
+  }
+  
   res.statusCode = 200;
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -193,4 +214,12 @@ function generateTokens(user: User): { accessToken: string; refreshToken: string
   );
   
   return { accessToken, refreshToken };
+}
+
+function getClientIp(req: IncomingMessage): string | undefined {
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string') {
+    return forwarded.split(',')[0].trim();
+  }
+  return req.socket?.remoteAddress;
 }

@@ -4,7 +4,8 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import type { FileNode, Role } from '@ai-spaces/shared';
 import { validatePath, isPathContained } from '../validation.js';
-import { logPathEscapeAttempt } from '../audit-logger.js';
+import { logPathEscapeAttempt, logFileAccess } from '../audit-logger.js';
+import { validateSession } from '../session-middleware.js';
 
 interface SpaceConfig {
   name: string;
@@ -271,6 +272,12 @@ export async function handleFileContent(req: IncomingMessage, res: ServerRespons
   }
   
   const fullPath = validation.resolvedPath!;
+  
+  const payload = validateSession(req);
+  const userId = payload?.userId as string | undefined;
+  if (userId) {
+    logFileAccess(spaceId, userId, filePath, 'read');
+  }
   
   if (!fs.existsSync(fullPath)) {
     res.statusCode = 404;

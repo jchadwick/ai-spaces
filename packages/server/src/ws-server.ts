@@ -1,6 +1,8 @@
 import type { WebSocketServer as WSServer, WebSocket } from 'ws';
 import * as crypto from 'crypto';
 import type { ChatMessage } from '@ai-spaces/shared';
+import jwt from 'jsonwebtoken';
+import { ACCESS_SECRET } from './middleware/auth.js';
 
 interface WSClient {
   ws: WebSocket;
@@ -25,8 +27,29 @@ export function setupWebSocket(wss: WSServer): void {
       return;
     }
     
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      ws.close(1008, 'Authentication required');
+      return;
+    }
+    
+    const token = authHeader.substring(7);
+    
+    let decoded: jwt.JwtPayload;
+    try {
+      decoded = jwt.verify(token, ACCESS_SECRET) as jwt.JwtPayload;
+    } catch {
+      ws.close(1008, 'Invalid token');
+      return;
+    }
+    
+    if (!decoded.userId) {
+      ws.close(1008, 'Invalid token');
+      return;
+    }
+    
     const spaceId = pathMatch[1];
-    const userId = url.searchParams.get('userId') || 'anonymous';
+    const userId = decoded.userId;
     const sessionId = generateId();
     
     const clientId = generateId();

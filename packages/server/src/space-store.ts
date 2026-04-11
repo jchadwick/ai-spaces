@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import type { Space, SpaceConfig } from '@ai-spaces/shared';
 import { SpaceConfigSchema } from '@ai-spaces/shared';
+import { logAudit } from './audit.js';
 
 interface SpaceRecord {
   id: string;
@@ -114,7 +115,7 @@ export function validateSpacePath(inputPath: string): { valid: true; config: Spa
   }
 }
 
-export function createSpace(input: CreateSpaceInput): CreateSpaceResult {
+export function createSpace(input: CreateSpaceInput, userId: string = 'system'): CreateSpaceResult {
   const validation = validateSpacePath(input.path);
   
   if (!validation.valid) {
@@ -158,12 +159,20 @@ export function createSpace(input: CreateSpaceInput): CreateSpaceResult {
   
   saveStore(store);
   
+  logAudit('space.create', userId, { spaceId: id, path: space.path });
+  
   return { success: true, space };
 }
 
-export function getSpace(id: string): SpaceRecord | null {
+export function getSpace(id: string, userId: string = 'system'): SpaceRecord | null {
   const store = loadStore();
-  return store.spaces[id] || null;
+  const space = store.spaces[id] || null;
+  
+  if (space) {
+    logAudit('space.access', userId, { spaceId: id, path: space.path });
+  }
+  
+  return space;
 }
 
 export function getSpaceByPath(agentId: string, spacePath: string): SpaceRecord | null {
@@ -189,7 +198,7 @@ export function listSpaces(agentId?: string): SpaceRecord[] {
   return spaces;
 }
 
-export function deleteSpace(id: string): boolean {
+export function deleteSpace(id: string, userId: string = 'system'): boolean {
   const store = loadStore();
   const space = store.spaces[id];
   
@@ -202,5 +211,8 @@ export function deleteSpace(id: string): boolean {
   delete store.spaces[id];
   
   saveStore(store);
+  
+  logAudit('space.delete', userId, { spaceId: id, path: space.path });
+  
   return true;
 }

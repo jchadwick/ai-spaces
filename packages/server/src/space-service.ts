@@ -6,6 +6,7 @@ import { spaces } from './db/index.js';
 import { eq, and } from 'drizzle-orm';
 import type { SpaceConfig } from '@ai-spaces/shared';
 import { SpaceConfigSchema } from '@ai-spaces/shared';
+import { logAudit } from './audit.js';
 
 export function generateSpaceId(): string {
   return crypto.randomBytes(16).toString('hex');
@@ -67,7 +68,7 @@ export function validateSpacePath(inputPath: string): { valid: true; config: Spa
   }
 }
 
-export function createSpace(input: CreateSpaceInput): CreateSpaceResult {
+export function createSpace(input: CreateSpaceInput, userId: string = 'system'): CreateSpaceResult {
   const validation = validateSpacePath(input.path);
   
   if (!validation.valid) {
@@ -110,11 +111,19 @@ export function createSpace(input: CreateSpaceInput): CreateSpaceResult {
     return { success: false, error: 'Failed to create space' };
   }
   
+  logAudit('space.create', userId, { spaceId: id, path: newSpace.path });
+  
   return { success: true, space: newSpace };
 }
 
-export function getSpace(id: string) {
-  return db.select().from(spaces).where(eq(spaces.id, id)).limit(1).get();
+export function getSpace(id: string, userId: string = 'system') {
+  const space = db.select().from(spaces).where(eq(spaces.id, id)).limit(1).get();
+  
+  if (space) {
+    logAudit('space.access', userId, { spaceId: id, path: space.path });
+  }
+  
+  return space;
 }
 
 export function getSpaceByPath(agentId: string, spacePath: string) {
@@ -130,7 +139,18 @@ export function listSpaces(agentId?: string) {
   return db.select().from(spaces).all();
 }
 
-export function deleteSpace(id: string): boolean {
+export function deleteSpace(id: string, userId: string = 'system'): boolean {
+  const space = db.select().from(spaces).where(eq(spaces.id, id)).limit(1).get();
+  
+  if (!space) {
+    return false;
+  }
+  
   const result = db.delete(spaces).where(eq(spaces.id, id)).run();
+  
+  if (result.changes > 0) {
+    logAudit('space.delete', userId, { spaceId: id, path: space.path });
+  }
+  
   return result.changes > 0;
 }

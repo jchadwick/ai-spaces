@@ -32,18 +32,24 @@ function detectFileType(contentType: string | null, fileName: string): FileType 
   return 'unknown'
 }
 
-export function useFileContent(spaceId: string | undefined, filePath: string | undefined): FileContent {
+interface UseFileContentOptions {
+  refreshKey?: number;
+}
+
+export function useFileContent(spaceId: string | undefined, filePath: string | undefined, options?: UseFileContentOptions): FileContent {
+  const refreshKey = options?.refreshKey ?? 0;
+  
   const [content, setContent] = useState<string | null>(null)
   const [fileInfo, setFileInfo] = useState<FileInfo | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const fetchIdRef = useRef(0)
-
+  
   const fetchKey = useMemo(() => {
     if (!spaceId || !filePath) return null
-    return `${spaceId}:${filePath}`
-  }, [spaceId, filePath])
+    return `${spaceId}:${filePath}:${refreshKey}`
+  }, [spaceId, filePath, refreshKey])
 
   useEffect(() => {
     if (!fetchKey) {

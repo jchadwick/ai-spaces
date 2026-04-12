@@ -306,6 +306,27 @@ export function useSpaceWebSocket({ spaceId, onMessage }: UseSpaceWebSocketOptio
     wsRef.current.send(JSON.stringify(message));
   }, [connectionStatus]);
 
+const writeFileHttp = useCallback(async (spaceId: string, filePath: string, content: string): Promise<{ success: boolean; path?: string; modified?: string; error?: string }> => {
+    try {
+      const response = await fetch(`/api/spaces/${spaceId}/files/${encodeURIComponent(filePath)}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ content }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to write file' }));
+        return { success: false, error: error.error || 'Failed to write file' };
+      }
+      
+      return { success: true, path: filePath };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
+  }, []);
+
   const writeFile = useCallback((path: string, content: string): Promise<{ success: boolean; path?: string; modified?: string; error?: string }> => {
     return new Promise((resolve, reject) => {
       if (!wsRef.current || connectionStatus !== 'connected') {
@@ -322,7 +343,7 @@ export function useSpaceWebSocket({ spaceId, onMessage }: UseSpaceWebSocketOptio
       };
 
       pendingRequestsRef.current.set(requestId, {
-        resolve: (result) => resolve(result as { success: boolean; path?: string; modified?: string }),
+        resolve: (result) => resolve(result as { success: boolean; path?: string, modified?: string }),
         reject,
       });
 
@@ -345,6 +366,7 @@ export function useSpaceWebSocket({ spaceId, onMessage }: UseSpaceWebSocketOptio
     clearReconnected,
     sendMessage,
     writeFile,
+    writeFileHttp,
     reconnect,
     disconnect,
     isStreaming,

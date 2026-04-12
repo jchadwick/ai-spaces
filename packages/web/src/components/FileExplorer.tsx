@@ -114,6 +114,8 @@ export default function FileExplorer({ spaceId, role, selectedFile, onFileSelect
     const handleFileModified = (event: CustomEvent<{ path: string; action: string; triggeredBy: string }>) => {
       refresh()
       
+      if (!event.detail?.path) return;
+      
       const fileName = event.detail.path.split('/').pop() || event.detail.path
       const triggeredBy = event.detail.triggeredBy === 'agent' ? 'Agent' : 'User'
       

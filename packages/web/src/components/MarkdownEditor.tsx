@@ -12,7 +12,7 @@ import "highlight.js/styles/github.css";
 interface MarkdownEditorProps {
   spaceId?: string;
   filePath?: string;
-  role?: 'viewer' | 'editor' | 'admin';
+  role?: "viewer" | "editor" | "admin";
   onFileModified?: () => void;
 }
 
@@ -52,16 +52,22 @@ function getDraftKey(spaceId: string, filePath: string): string {
 
 function saveDraft(spaceId: string, filePath: string, content: string): void {
   try {
-    localStorage.setItem(getDraftKey(spaceId, filePath), JSON.stringify({
-      content,
-      savedAt: new Date().toISOString(),
-    }));
+    localStorage.setItem(
+      getDraftKey(spaceId, filePath),
+      JSON.stringify({
+        content,
+        savedAt: new Date().toISOString(),
+      }),
+    );
   } catch {
     // Ignore localStorage errors (quota exceeded, etc.)
   }
 }
 
-function loadDraft(spaceId: string, filePath: string): { content: string; savedAt: string } | null {
+function loadDraft(
+  spaceId: string,
+  filePath: string,
+): { content: string; savedAt: string } | null {
   try {
     const data = localStorage.getItem(getDraftKey(spaceId, filePath));
     if (data) {
@@ -84,50 +90,72 @@ function clearDraft(spaceId: string, filePath: string): void {
 export default function MarkdownEditor({
   spaceId,
   filePath,
-  role = 'viewer',
+  role = "viewer",
   onFileModified,
 }: MarkdownEditorProps) {
+const [fileVersion, setFileVersion] = useState(0);
+  
   const { content, fileInfo, loading, error } = useFileContent(
     spaceId,
     filePath,
+    { refreshKey: fileVersion },
   );
-  const { writeFile, connectionStatus } = useSpaceWebSocket({
+  const { writeFileHttp } = useSpaceWebSocket({
     spaceId: spaceId || '',
   });
   const { showToast } = useToast();
-  
+
   const [editMode, setEditMode] = useState(false);
   const [editContent, setEditContent] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showDraftPrompt, setShowDraftPrompt] = useState(false);
-  const [draftData, setDraftData] = useState<{ content: string; savedAt: string } | null>(null);
+  const [draftData, setDraftData] = useState<{
+    content: string;
+    savedAt: string;
+  } | null>(null);
   const [showConcurrentWarning, setShowConcurrentWarning] = useState(false);
-  
+
   const autoSaveRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const editContentRef = useRef(editContent);
-  
+
   useEffect(() => {
     editContentRef.current = editContent;
   }, [editContent]);
-  
-  const canEdit = role === 'editor' || role === 'admin';
-  
+
+  const canEdit = role === "editor" || role === "admin";
+
   useEffect(() => {
-    const handleFileModified = (event: CustomEvent<{ path: string; action: string; triggeredBy: string }>) => {
-      if (editMode && event.detail.path === filePath && event.detail.triggeredBy === 'agent') {
-        const fileName = filePath.split('/').pop() || filePath;
-        showToast(`${fileName} was modified by the AI while you were editing. Consider saving your changes or canceling to see the new version.`, 'warning', 5000);
+    const handleFileModified = (
+      event: CustomEvent<{ path: string; action: string; triggeredBy: string }>,
+    ) => {
+      if (
+        editMode &&
+        event.detail?.path === filePath &&
+        event.detail?.triggeredBy === "agent"
+      ) {
+        const fileName = filePath.split("/").pop() || filePath;
+        showToast(
+          `${fileName} was modified by the AI while you were editing. Consider saving your changes or canceling to see the new version.`,
+          "warning",
+          5000,
+        );
         setShowConcurrentWarning(true);
       }
     };
-    
-    window.addEventListener('fileModified', handleFileModified as EventListener);
+
+    window.addEventListener(
+      "fileModified",
+      handleFileModified as EventListener,
+    );
     return () => {
-      window.removeEventListener('fileModified', handleFileModified as EventListener);
+      window.removeEventListener(
+        "fileModified",
+        handleFileModified as EventListener,
+      );
     };
   }, [editMode, filePath, showToast]);
-  
+
   useEffect(() => {
     if (filePath && spaceId && content !== null && !editMode) {
       const draft = loadDraft(spaceId, filePath);
@@ -137,13 +165,13 @@ export default function MarkdownEditor({
       }
     }
   }, [filePath, spaceId, content, editMode]);
-  
+
   useEffect(() => {
     if (editMode && filePath && spaceId) {
       autoSaveRef.current = setInterval(() => {
         saveDraft(spaceId!, filePath!, editContentRef.current);
       }, 30000);
-      
+
       return () => {
         if (autoSaveRef.current) {
           clearInterval(autoSaveRef.current);
@@ -151,7 +179,7 @@ export default function MarkdownEditor({
       };
     }
   }, [editMode, filePath, spaceId]);
-  
+
   const handleEnterEditMode = useCallback(() => {
     if (content !== null) {
       setEditContent(content);
@@ -159,7 +187,7 @@ export default function MarkdownEditor({
       setSaveError(null);
     }
   }, [content]);
-  
+
   const handleRestoreDraft = useCallback(() => {
     if (draftData) {
       setEditContent(draftData.content);
@@ -168,7 +196,7 @@ export default function MarkdownEditor({
       setDraftData(null);
     }
   }, [draftData]);
-  
+
   const handleDiscardDraft = useCallback(() => {
     if (filePath && spaceId) {
       clearDraft(spaceId, filePath);
@@ -176,33 +204,34 @@ export default function MarkdownEditor({
     setShowDraftPrompt(false);
     setDraftData(null);
   }, [filePath, spaceId]);
-  
+
   const handleSave = useCallback(async () => {
-    if (!filePath || !spaceId || connectionStatus !== 'connected') {
-      setSaveError('Cannot save: not connected');
+    if (!filePath || !spaceId) {
+      setSaveError("Cannot save: missing file or space");
       return;
     }
-    
+
     setIsSaving(true);
     setSaveError(null);
-    
+
     try {
-      const result = await writeFile(filePath, editContent);
+      const result = await writeFileHttp(spaceId, filePath, editContent);
       if (result.success) {
         clearDraft(spaceId, filePath);
         setEditMode(false);
+        setFileVersion(v => v + 1);
         onFileModified?.();
       } else {
-        throw new Error(result.error || 'Failed to save');
+        throw new Error(result.error || "Failed to save");
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Unknown error';
+      const message = err instanceof Error ? err.message : "Unknown error";
       setSaveError(message);
     } finally {
       setIsSaving(false);
     }
-  }, [filePath, spaceId, connectionStatus, writeFile, editContent, onFileModified]);
-  
+  }, [filePath, spaceId, writeFileHttp, editContent, onFileModified]);
+
   const handleCancel = useCallback(() => {
     const hasChanges = editContent !== content;
     if (hasChanges) {
@@ -254,7 +283,7 @@ export default function MarkdownEditor({
   if (error) {
     return (
       <section className="flex-1 flex flex-col bg-surface-container-lowest items-center justify-center p-8">
-        <div className="bg-error-container/10 rounded-xl p-lg max-w-md">
+        <div className="bg-error-container/10 rounded-xl p-lg ">
           <div className="flex items-center gap-sm text-error">
             <span className="material-symbols-outlined">error</span>
             <span className="text-body-md font-medium">
@@ -279,11 +308,11 @@ export default function MarkdownEditor({
       </section>
     );
   }
-  
+
   if (showDraftPrompt && draftData) {
     return (
       <section className="flex-1 flex flex-col bg-surface-container-lowest items-center justify-center p-8">
-        <div className="bg-surface-container rounded-xl p-lg max-w-md shadow-lg">
+        <div className="bg-surface-container rounded-xl p-lg  shadow-lg">
           <div className="flex items-center gap-sm text-on-surface">
             <span className="material-symbols-outlined">draft</span>
             <span className="text-body-md font-medium">
@@ -291,8 +320,9 @@ export default function MarkdownEditor({
             </span>
           </div>
           <p className="text-body-sm text-on-surface-variant mt-sm">
-            You have unsaved changes from {formatRelativeTime(draftData.savedAt)}. 
-            Would you like to restore them?
+            You have unsaved changes from{" "}
+            {formatRelativeTime(draftData.savedAt)}. Would you like to restore
+            them?
           </p>
           <div className="flex gap-sm mt-md">
             <button
@@ -397,7 +427,8 @@ export default function MarkdownEditor({
           <div className="bg-warning-container border-b border-warning text-on-warning-container px-4 py-2 flex items-center gap-2">
             <span className="material-symbols-outlined text-sm">warning</span>
             <span className="text-sm font-medium">
-              This file was modified by the AI while you were editing. Save your changes or cancel to see the new version.
+              This file was modified by the AI while you were editing. Save your
+              changes or cancel to see the new version.
             </span>
             <button
               type="button"
@@ -438,7 +469,7 @@ export default function MarkdownEditor({
               <button
                 type="button"
                 onClick={handleSave}
-                disabled={isSaving || connectionStatus !== 'connected'}
+                disabled={isSaving}
                 className="px-4 py-2 bg-primary text-on-primary rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-2"
               >
                 {isSaving ? (
@@ -448,7 +479,9 @@ export default function MarkdownEditor({
                   </>
                 ) : (
                   <>
-                    <span className="material-symbols-outlined text-sm">save</span>
+                    <span className="material-symbols-outlined text-sm">
+                      save
+                    </span>
                     Save
                   </>
                 )}
@@ -535,7 +568,7 @@ export default function MarkdownEditor({
               </span>
             </div>
           </div>
-          
+
           {canEdit && (isMarkdown || isText) && content !== null && (
             <button
               type="button"
@@ -627,3 +660,4 @@ function formatRelativeTime(dateString: string): string {
 
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
+

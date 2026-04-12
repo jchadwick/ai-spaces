@@ -169,6 +169,39 @@ spacesRouter.get('/:id/files/:filePath{.*}', async (c) => {
   }
 });
 
+const writeFileSchema = z.object({
+  content: z.string(),
+});
+
+spacesRouter.put('/:id/files/:filePath{.*}', zValidator('json', writeFileSchema), async (c) => {
+  const id = c.req.param('id');
+  const filePath = c.req.param('filePath');
+  const { content } = c.req.valid('json');
+  const store = loadStore();
+  const space = store.spaces[id];
+  
+  if (!space) {
+    return c.json({ error: 'Space not found' }, 404);
+  }
+  
+  const fullPath = path.join(space.path, filePath);
+  const normalizedSpacePath = path.normalize(space.path);
+  const normalizedFullPath = path.normalize(fullPath);
+  
+  if (!normalizedFullPath.startsWith(normalizedSpacePath)) {
+    return c.json({ error: 'Access denied: path escape attempt' }, 403);
+  }
+  
+  try {
+    const dir = path.dirname(fullPath);
+    await fs.promises.mkdir(dir, { recursive: true });
+    await fs.promises.writeFile(fullPath, content, 'utf-8');
+    return c.json({ success: true, path: filePath });
+  } catch (error) {
+    return c.json({ error: 'Failed to write file' }, 500);
+  }
+});
+
 function getMimeType(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase();
   const mimeTypes: Record<string, string> = {

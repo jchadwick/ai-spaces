@@ -104,13 +104,83 @@ spacesRouter.get('/:id/files', async (c) => {
     const entries = await fs.promises.readdir(fullPath, { withFileTypes: true });
     const files = entries.map(entry => ({
       name: entry.name,
-      isDirectory: entry.isDirectory(),
+      type: entry.isDirectory() ? 'directory' : 'file',
+      path: entry.name,
     }));
     return c.json({ files });
   } catch (error) {
     return c.json({ error: 'Failed to list files' }, 500);
   }
 });
+
+spacesRouter.get('/:id/files/:filePath{.*}', async (c) => {
+  const id = c.req.param('id');
+  const filePath = c.req.param('filePath');
+  const store = loadStore();
+  const space = store.spaces[id];
+  
+  if (!space) {
+    return c.json({ error: 'Space not found' }, 404);
+  }
+  
+  const fullPath = path.join(space.path, filePath);
+  
+  try {
+    const stats = await fs.promises.stat(fullPath);
+    
+    if (stats.isDirectory()) {
+      return c.json({ error: 'Cannot read directory content' }, 400);
+    }
+    
+    const ext = path.extname(filePath).toLowerCase();
+    const markdownExts = ['.md', '.markdown'];
+    const imageExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
+    const textExts = ['.txt', '.json', '.js', '.ts', '.jsx', '.tsx', '.html', '.css', '.yml', '.yaml', '.xml', '.csv'];
+    
+    let contentType: string;
+    if (markdownExts.includes(ext)) {
+      contentType = 'markdown';
+    } else if (imageExts.includes(ext)) {
+      contentType = 'image';
+    } else if (textExts.includes(ext)) {
+      contentType = 'text';
+    } else {
+      contentType = 'binary';
+    }
+    
+    const size = stats.size;
+    const modified = stats.mtime.toISOString();
+    
+    if (contentType === 'binary') {
+      return c.json({ path: filePath, contentType, size, modified });
+    }
+    
+    if (contentType === 'image') {
+      const imageBuffer = await fs.promises.readFile(fullPath);
+      const base64 = imageBuffer.toString('base64');
+      const mimeType = getMimeType(filePath);
+      return c.json({ path: filePath, content: base64, contentType: 'image', mimeType, size, modified });
+    }
+    
+    const content = await fs.promises.readFile(fullPath, 'utf-8');
+    return c.json({ path: filePath, content, contentType, size, modified });
+  } catch (error) {
+    return c.json({ error: 'Failed to read file' }, 500);
+  }
+});
+
+function getMimeType(filePath: string): string {
+  const ext = path.extname(filePath).toLowerCase();
+  const mimeTypes: Record<string, string> = {
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.svg': 'image/svg+xml',
+  };
+  return mimeTypes[ext] || 'application/octet-stream';
+}
 
 spacesRouter.post('/', zValidator('json', createSpaceSchema), (c) => {
   const { path: spacePath, agentId, agentType } = c.req.valid('json');

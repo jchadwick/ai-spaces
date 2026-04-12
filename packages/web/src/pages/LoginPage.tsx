@@ -25,9 +25,18 @@ function LoginPage() {
       await login(email, password);
       navigate("/spaces");
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Login failed. Please try again.",
-      );
+      console.error('[LoginPage] Login error:', err);
+      let message = "Login failed. Please try again.";
+      if (err instanceof Error) {
+        message = err.message;
+        console.error('[LoginPage] Error message:', message);
+      } else if (err && typeof err === 'object') {
+        message = JSON.stringify(err);
+        console.error('[LoginPage] Object error:', message);
+      } else if (typeof err === 'string') {
+        message = err;
+      }
+      setError(message);
     } finally {
       setIsSubmitting(false);
     }

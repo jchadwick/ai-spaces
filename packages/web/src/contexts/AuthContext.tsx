@@ -119,8 +119,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
       })
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || `Login failed: ${response.status}`)
+        let errMsg = `Login failed: ${response.status}`
+        try {
+          const errorData = await response.json()
+          if (errorData && typeof errorData.error === 'string') {
+            errMsg = errorData.error
+          } else if (errorData && typeof errorData.message === 'string') {
+            errMsg = errorData.message
+          }
+        } catch {
+          const text = await response.text().catch(() => '')
+          if (text) errMsg = text
+        }
+        throw new Error(errMsg)
       }
 
       const data = await response.json()
@@ -140,7 +151,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setAccessToken(data.accessToken)
     } catch (error) {
       clearStoredAuth()
-      throw error
+      let errMsg = 'Login failed. Please try again.'
+      if (error instanceof Error) {
+        errMsg = error.message
+      } else if (error && typeof error === 'object' && 'message' in error) {
+        errMsg = String((error as { message: unknown }).message)
+      } else if (typeof error === 'string') {
+        errMsg = error
+      }
+      throw new Error(errMsg)
     } finally {
       setIsLoading(false)
     }

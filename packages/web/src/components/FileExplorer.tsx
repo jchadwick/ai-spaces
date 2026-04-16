@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useFileTree } from '../hooks/useFileTree'
 import { useToast } from './ui/toast'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog'
+import { Button } from './ui/button'
+import { Input } from './ui/input'
+import { getAccessToken } from '@/contexts/AuthContext'
 import type { FileNode } from '@ai-spaces/shared'
 
 interface FileExplorerProps {
@@ -108,6 +112,13 @@ export default function FileExplorer({ spaceId, role, selectedFile, onFileSelect
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const { showToast } = useToast()
   
+  // Modal states
+  const [showFolderModal, setShowFolderModal] = useState(false)
+  const [showFileModal, setShowFileModal] = useState(false)
+  const [folderName, setFolderName] = useState('')
+  const [fileName, setFileName] = useState('')
+  const [isCreating, setIsCreating] = useState(false)
+  
   const isViewer = role === 'viewer'
   
   useEffect(() => {
@@ -144,6 +155,79 @@ export default function FileExplorer({ spaceId, role, selectedFile, onFileSelect
     })
   }
   
+  const handleCreateFolder = async () => {
+    if (!folderName.trim() || !spaceId) {
+      return
+    }
+    
+    setIsCreating(true)
+    const token = getAccessToken()
+    
+    try {
+      const response = await fetch(`/api/spaces/${spaceId}/directories`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ path: folderName.trim() }),
+      })
+      
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to create folder')
+      }
+      
+      showToast(`Folder "${folderName}" created`, 'success', 3000)
+      setShowFolderModal(false)
+      setFolderName('')
+      refresh()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create folder'
+      showToast(message, 'error', 4000)
+    } finally {
+      setIsCreating(false)
+    }
+  }
+  
+  const handleCreateFile = async () => {
+    if (!fileName.trim() || !spaceId) {
+      return
+    }
+    
+    setIsCreating(true)
+    const token = getAccessToken()
+    
+    try {
+      const response = await fetch(`/api/spaces/${spaceId}/files/${fileName.trim()}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ content: '' }),
+      })
+      
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || 'Failed to create file')
+      }
+      
+      showToast(`File "${fileName}" created`, 'success', 3000)
+      setShowFileModal(false)
+      setFileName('')
+      refresh()
+      
+      // Select the newly created file
+      onFileSelect(fileName.trim())
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to create file'
+      showToast(message, 'error', 4000)
+    } finally {
+      setIsCreating(false)
+    }
+  }
+  
   if (loading) {
     return (
       <aside className="w-64 bg-surface-container-low flex flex-col">
@@ -177,7 +261,12 @@ export default function FileExplorer({ spaceId, role, selectedFile, onFileSelect
             )}
           </div>
           {!isViewer && (
-            <button type="button" className="text-on-surface-variant hover:text-on-surface transition-colors">
+            <button 
+              type="button" 
+              className="text-on-surface-variant hover:text-on-surface transition-colors"
+              onClick={() => setShowFolderModal(true)}
+              title="Create new folder"
+            >
               <span className="material-symbols-outlined text-lg">create_new_folder</span>
             </button>
           )}
@@ -205,7 +294,11 @@ export default function FileExplorer({ spaceId, role, selectedFile, onFileSelect
       
       {!isViewer && (
         <div className="px-4 py-2 border-t border-outline-variant/20">
-          <button type="button" className="w-full bg-surface-container hover:bg-surface-container-high text-on-surface py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all">
+          <button 
+            type="button" 
+            className="w-full bg-surface-container hover:bg-surface-container-high text-on-surface py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all"
+            onClick={() => setShowFileModal(true)}
+          >
             <span className="material-symbols-outlined text-sm">add</span>
             New File
           </button>
@@ -225,6 +318,88 @@ export default function FileExplorer({ spaceId, role, selectedFile, onFileSelect
           </div>
         </div>
       </div>
+      
+      {/* Create Folder Modal */}
+      <Dialog open={showFolderModal} onOpenChange={setShowFolderModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Folder</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              autoFocus
+              placeholder="Folder name"
+              value={folderName}
+              onChange={(e) => setFolderName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !isCreating) {
+                  handleCreateFolder()
+                }
+              }}
+              disabled={isCreating}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowFolderModal(false)
+                setFolderName('')
+              }}
+              disabled={isCreating}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateFolder}
+              disabled={!folderName.trim() || isCreating}
+            >
+              {isCreating ? 'Creating...' : 'Create'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Create File Modal */}
+      <Dialog open={showFileModal} onOpenChange={setShowFileModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New File</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <Input
+              autoFocus
+              placeholder="File name (e.g., notes.md)"
+              value={fileName}
+              onChange={(e) => setFileName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !isCreating) {
+                  handleCreateFile()
+                }
+              }}
+              disabled={isCreating}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowFileModal(false)
+                setFileName('')
+              }}
+              disabled={isCreating}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateFile}
+              disabled={!fileName.trim() || isCreating}
+            >
+              {isCreating ? 'Creating...' : 'Create'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </aside>
   )
 }

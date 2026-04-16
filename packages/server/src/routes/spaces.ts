@@ -202,6 +202,36 @@ spacesRouter.put('/:id/files/:filePath{.*}', zValidator('json', writeFileSchema)
   }
 });
 
+const createDirSchema = z.object({
+  path: z.string().min(1),
+});
+
+spacesRouter.post('/:id/directories', zValidator('json', createDirSchema), async (c) => {
+  const id = c.req.param('id');
+  const { path: dirPath } = c.req.valid('json');
+  const store = loadStore();
+  const space = store.spaces[id];
+  
+  if (!space) {
+    return c.json({ error: 'Space not found' }, 404);
+  }
+  
+  const fullPath = path.join(space.path, dirPath);
+  const normalizedSpacePath = path.normalize(space.path);
+  const normalizedFullPath = path.normalize(fullPath);
+  
+  if (!normalizedFullPath.startsWith(normalizedSpacePath)) {
+    return c.json({ error: 'Access denied: path escape attempt' }, 403);
+  }
+  
+  try {
+    await fs.promises.mkdir(fullPath, { recursive: true });
+    return c.json({ success: true, path: dirPath });
+  } catch (error) {
+    return c.json({ error: 'Failed to create directory' }, 500);
+  }
+});
+
 function getMimeType(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase();
   const mimeTypes: Record<string, string> = {

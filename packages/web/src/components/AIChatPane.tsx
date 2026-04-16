@@ -98,7 +98,7 @@ export default function AIChatPane({ spaceId, role = 'viewer' }: AIChatPaneProps
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const prevMessagesLengthRef = useRef(0);
   
-  const { messages, connectionStatus, reconnectAttempt, sendMessage, reconnect, isStreaming } = useSpaceWebSocket({
+  const { messages, sendMessage, isStreaming } = useSpaceWebSocket({
     spaceId,
   });
 
@@ -114,7 +114,7 @@ export default function AIChatPane({ spaceId, role = 'viewer' }: AIChatPaneProps
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputValue.trim() || isViewer || connectionStatus !== 'connected') return;
+    if (!inputValue.trim() || isViewer || isStreaming) return;
 
     sendMessage(inputValue.trim());
     setInputValue('');
@@ -128,7 +128,7 @@ export default function AIChatPane({ spaceId, role = 'viewer' }: AIChatPaneProps
             <span className="material-symbols-outlined text-tertiary">forum</span>
             <span className="font-headline font-bold text-slate-900 dark:text-white">AI Assistant</span>
           </div>
-          <ConnectionStatusIndicator status={connectionStatus} reconnectAttempt={reconnectAttempt} onRetry={reconnect} />
+          <ConnectionStatusIndicator status={isStreaming ? 'connecting' : 'connected'} />
         </div>
       </div>
 
@@ -155,7 +155,7 @@ export default function AIChatPane({ spaceId, role = 'viewer' }: AIChatPaneProps
             <textarea
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              disabled={isViewer || connectionStatus !== 'connected'}
+              disabled={isViewer || isStreaming}
               className="w-full bg-surface-container-lowest border border-outline-variant/40 rounded-xl px-4 py-3 pr-12 text-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all resize-none h-24 custom-scrollbar disabled:opacity-50 disabled:cursor-not-allowed"
               placeholder={isViewer ? 'Read-only mode - cannot send messages' : 'Ask AI anything...'}
               onKeyDown={(e) => {
@@ -167,7 +167,7 @@ export default function AIChatPane({ spaceId, role = 'viewer' }: AIChatPaneProps
             />
             <button
               type="submit"
-              disabled={isViewer || !inputValue.trim() || connectionStatus !== 'connected'}
+              disabled={isViewer || !inputValue.trim() || isStreaming}
               className="absolute bottom-3 right-3 p-2 bg-primary text-white rounded-lg shadow-md hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
             >
               <span className="material-symbols-outlined text-sm">send</span>

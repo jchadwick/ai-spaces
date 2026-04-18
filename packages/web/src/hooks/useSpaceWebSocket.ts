@@ -16,6 +16,7 @@ interface UseSpaceWebSocketReturn {
   clearReconnected: () => void;
   sendMessage: (content: string) => void;
   writeFile: (path: string, content: string) => Promise<{ success: boolean; path?: string; modified?: string; error?: string }>;
+  writeFileHttp: (spaceId: string, path: string, content: string) => Promise<{ success: boolean; path?: string; modified?: string; error?: string }>;
   reconnect: () => void;
   disconnect: () => void;
   isStreaming: boolean;
@@ -24,15 +25,6 @@ interface UseSpaceWebSocketReturn {
 interface PendingRequest {
   resolve: (value: unknown) => void;
   reject: (error: Error) => void;
-}
-
-const MAX_RECONNECT_ATTEMPTS = 10;
-const INITIAL_RECONNECT_DELAY = 1000;
-const MAX_RECONNECT_DELAY = 30000;
-
-function calculateReconnectDelay(attempt: number): number {
-  const delay = Math.pow(2, attempt) * INITIAL_RECONNECT_DELAY;
-  return Math.min(delay, MAX_RECONNECT_DELAY);
 }
 
 export function useSpaceWebSocket({ spaceId, onMessage }: UseSpaceWebSocketOptions): UseSpaceWebSocketReturn {
@@ -87,72 +79,52 @@ export function useSpaceWebSocket({ spaceId, onMessage }: UseSpaceWebSocketOptio
   useEffect(() => {
     if (!mountedRef.current) return;
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/api/spaces/${spaceId}/ws`;
+    const wsUrl = `ws://${window.location.host}/ws/spaces/${spaceId}`;
 
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
-    ws.onopen = () => {
-      if (!mountedRef.current) return;
-      
-      setConnectionStatus('connected');
-      setReconnectAttempt(0);
-      
-      if (wasReconnectingRef.current) {
-        setWasReconnected(true);
-        wasReconnectingRef.current = false;
-      }
-      
-      intentionalDisconnectRef.current = false;
-      
-      if (isStreaming && pendingMessageIdRef.current) {
-        clearPartialStream();
-      }
-    };
-
-    ws.onclose = () => {
-      if (!mountedRef.current) return;
-      
-      wsRef.current = null;
-
-      if (intentionalDisconnectRef.current) {
-        setConnectionStatus('disconnected');
-        return;
-      }
-
-      clearPartialStream();
-      wasReconnectingRef.current = true;
-
-      if (reconnectAttempt < MAX_RECONNECT_ATTEMPTS) {
-        setConnectionStatus('reconnecting');
-        const delay = calculateReconnectDelay(reconnectAttempt);
-        
-        reconnectTimeoutRef.current = setTimeout(() => {
-          if (mountedRef.current && !intentionalDisconnectRef.current) {
-            setReconnectAttempt(prev => prev + 1);
-          }
-        }, delay);
-      } else {
-        setConnectionStatus('error');
-      }
-    };
-
-    ws.onerror = () => {
-      if (!mountedRef.current) return;
-    };
-
     ws.onmessage = (event) => {
+      if (!mountedRef.current) return;
+
       try {
         const message: WebSocketMessage = JSON.parse(event.data);
-        
-        if (!mountedRef.current) return;
 
+        // Handle connect challenge - send connect request
+        if (message.type === 'event' && message.event === 'connect.challenge') {
+          const connectMessage: WebSocketMessage = {
+            type: 'req',
+            id: 'connect',
+            method: 'connect',
+            params: {
+              protocol: 'v1',
+              timeout: 300000,
+            },
+          };
+          ws.send(JSON.stringify(connectMessage));
+          return;
+        }
+
+        // Handle connected event
+        if (message.type === 'event' && message.event === 'connected') {
+          setConnectionStatus('connected');
+          setReconnectAttempt(0);
+
+          if (wasReconnectingRef.current) {
+            setWasReconnected(true);
+            wasReconnectingRef.current = false;
+          }
+
+          intentionalDisconnectRef.current = false;
+          return;
+        }
+
+        // Handle response messages (pending request completions)
         if (message.type === 'res' && message.id) {
           const pending = pendingRequestsRef.current.get(message.id);
           if (pending) {
             pendingRequestsRef.current.delete(message.id);
-            
+
             if (message.error) {
               pending.reject(new Error(message.error.message));
             } else {
@@ -162,11 +134,9 @@ export function useSpaceWebSocket({ spaceId, onMessage }: UseSpaceWebSocketOptio
           return;
         }
 
+        // Handle event messages
         if (message.type === 'event') {
           switch (message.event) {
-            case 'connected':
-              break;
-            
             case 'history_message': {
               const msgPayload = message.payload as ChatMessage;
               setMessages(prev => {
@@ -179,12 +149,12 @@ export function useSpaceWebSocket({ spaceId, onMessage }: UseSpaceWebSocketOptio
 
             case 'file_modified': {
               const payload = message.payload as { path: string; action: string; triggeredBy?: string };
-              window.dispatchEvent(new CustomEvent('fileModified', { 
-                detail: { 
-                  path: payload.path, 
+              window.dispatchEvent(new CustomEvent('fileModified', {
+                detail: {
+                  path: payload.path,
                   action: payload.action,
                   triggeredBy: payload.triggeredBy || 'user'
-                } 
+                }
               }));
               break;
             }

@@ -1,5 +1,5 @@
 import { useFileContent } from "../hooks/useFileContent";
-import { useSpaceWebSocket } from "../hooks/useSpaceWebSocket";
+import { writeSpaceFileHttp } from "../api/spaceFiles";
 import { useToast } from "./ui/toast";
 import { useState, useEffect, useCallback, useRef } from "react";
 import ReactMarkdown from "react-markdown";
@@ -100,9 +100,6 @@ const [fileVersion, setFileVersion] = useState(0);
     filePath,
     { refreshKey: fileVersion },
   );
-  const { writeFileHttp } = useSpaceWebSocket({
-    spaceId: spaceId || '',
-  });
   const { showToast } = useToast();
 
   const [editMode, setEditMode] = useState(false);
@@ -215,7 +212,7 @@ const [fileVersion, setFileVersion] = useState(0);
     setSaveError(null);
 
     try {
-      const result = await writeFileHttp(spaceId, filePath, editContent);
+      const result = await writeSpaceFileHttp(spaceId, filePath, editContent);
       if (result.success) {
         clearDraft(spaceId, filePath);
         setEditMode(false);
@@ -230,7 +227,7 @@ const [fileVersion, setFileVersion] = useState(0);
     } finally {
       setIsSaving(false);
     }
-  }, [filePath, spaceId, writeFileHttp, editContent, onFileModified]);
+  }, [filePath, spaceId, editContent, onFileModified]);
 
   const handleCancel = useCallback(() => {
     const hasChanges = editContent !== content;

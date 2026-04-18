@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { ChatMessage, WebSocketMessage } from '@ai-spaces/shared';
+import { writeSpaceFileHttp } from '../api/spaceFiles';
 
 type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'reconnecting' | 'error';
 
@@ -93,6 +94,8 @@ export function useSpaceWebSocket({ spaceId, onMessage }: UseSpaceWebSocketOptio
 
   useEffect(() => {
     if (!mountedRef.current) return;
+
+    intentionalDisconnectRef.current = false;
 
     const wsUrl = buildSpaceWebSocketUrl(spaceId);
 
@@ -242,10 +245,18 @@ export function useSpaceWebSocket({ spaceId, onMessage }: UseSpaceWebSocketOptio
     return () => {
       intentionalDisconnectRef.current = true;
       clearReconnectTimeout();
-      
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
+
+      const w = wsRef.current;
+      wsRef.current = null;
+      if (w) {
+        // Defer close so React Strict Mode's mount→unmount→mount cycle can finish
+        // the TCP handshake before we tear the first socket down (fewer console warnings).
+        const toClose = w;
+        queueMicrotask(() => {
+          if (toClose.readyState === WebSocket.CONNECTING || toClose.readyState === WebSocket.OPEN) {
+            toClose.close(1000, 'effect cleanup');
+          }
+        });
       }
     };
   }, [spaceId, reconnectAttempt]);
@@ -299,26 +310,10 @@ export function useSpaceWebSocket({ spaceId, onMessage }: UseSpaceWebSocketOptio
     wsRef.current.send(JSON.stringify(message));
   }, [connectionStatus]);
 
-const writeFileHttp = useCallback(async (spaceId: string, filePath: string, content: string): Promise<{ success: boolean; path?: string; modified?: string; error?: string }> => {
-    try {
-      const response = await fetch(`/api/spaces/${spaceId}/files/${encodeURIComponent(filePath)}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ content }),
-      });
-      
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Failed to write file' }));
-        return { success: false, error: error.error || 'Failed to write file' };
-      }
-      
-      return { success: true, path: filePath };
-    } catch (err) {
-      return { success: false, error: (err as Error).message };
-    }
-  }, []);
+  const writeFileHttp = useCallback(
+    (sid: string, filePath: string, content: string) => writeSpaceFileHttp(sid, filePath, content),
+    [],
+  );
 
   const writeFile = useCallback((path: string, content: string): Promise<{ success: boolean; path?: string; modified?: string; error?: string }> => {
     return new Promise((resolve, reject) => {

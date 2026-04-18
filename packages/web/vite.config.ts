@@ -34,9 +34,23 @@ export default defineConfig({
           });
         },
       },
-      '^/ws/spaces': {
+      '/ws': {
         target: serverHost,
+        changeOrigin: true,
         ws: true,
+        configure(proxy) {
+          proxy.on('error', (err, _req, res) => {
+            const out = res as ServerResponse | undefined;
+            if (out && !out.headersSent) {
+              out.writeHead(502, { 'Content-Type': 'application/json' });
+              out.end(
+                JSON.stringify({
+                  error: `WebSocket proxy: cannot reach ${serverHost} (${(err as Error).message})`,
+                }),
+              );
+            }
+          });
+        },
       },
     },
   },

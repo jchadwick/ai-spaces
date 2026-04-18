@@ -8,7 +8,7 @@ import { handleSpaceWebSocket } from './routes/space-ws.js';
 import * as crypto from 'crypto';
 import * as path from 'path';
 
-const SERVER_URL = process.env.AI_SPACES_URL || 'http://localhost:3001';
+const SERVER_URL = process.env.AI_SPACES_URL || 'http://127.0.0.1:3001';
 
 export default defineChannelPluginEntry({
   id: 'ai-spaces',

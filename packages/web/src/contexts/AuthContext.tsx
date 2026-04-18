@@ -96,14 +96,31 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [accessToken, setAccessToken] = useState<string | null>(null)
 
   useEffect(() => {
-    const storedUser = getStoredUser()
-    const tokens = getStoredTokens()
-    
-    if (storedUser && tokens) {
-      setUser(storedUser)
-      setAccessToken(tokens.accessToken)
+    const validateAndLoad = async () => {
+      const storedUser = getStoredUser()
+      const tokens = getStoredTokens()
+      
+      if (storedUser && tokens) {
+        // Validate token by calling an authenticated endpoint
+        try {
+          const response = await fetch('/api/spaces', {
+            headers: { Authorization: `Bearer ${tokens.accessToken}` },
+          })
+          if (response.ok) {
+            setUser(storedUser)
+            setAccessToken(tokens.accessToken)
+          } else {
+            // Token expired - clear auth
+            clearStoredAuth()
+          }
+        } catch {
+          clearStoredAuth()
+        }
+      }
+      setIsLoading(false)
     }
-    setIsLoading(false)
+    
+    validateAndLoad()
   }, [])
 
   const login = async (email: string, password: string): Promise<void> => {
@@ -119,9 +136,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
       })
 
       if (!response.ok) {
-        let errMsg = `Login failed: ${response.status}`
+        let errMsg =
+          response.status === 502 || response.status === 503
+            ? 'Cannot reach the AI Spaces server. Start it with: npm run dev -w @ai-spaces/server (default http://127.0.0.1:3001).'
+            : `Login failed: ${response.status}`
         try {
-          const errorData = await response.json()
+          const errorData = (await response.json()) as {
+            error?: string
+            message?: string
+          }
           if (errorData && typeof errorData.error === 'string') {
             errMsg = errorData.error
           } else if (errorData && typeof errorData.message === 'string') {

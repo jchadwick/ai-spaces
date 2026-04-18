@@ -12,6 +12,7 @@
     "build:web": "npm run build -w @ai-spaces/web",
     "build:plugin": "npm run build -w @openclaw/ai-spaces",
     "dev:web": "npm run dev -w @ai-spaces/web",
+    "dev:server": "npm run dev -w @ai-spaces/server",
     "dev:plugin": "npm run dev -w @openclaw/ai-spaces",
     "test": "npm run test -ws --if-present"
   },

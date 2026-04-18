@@ -41,10 +41,17 @@ export async function proxyRequest(
     });
 
     proxyReq.on('error', (error) => {
-      console.error('[ai-spaces] Proxy error:', error.message);
+      const target = `${url.hostname}:${url.port || (isHttps ? 443 : 80)}`;
+      console.error('[ai-spaces] Proxy error:', error.message, '→', targetUrl);
       res.statusCode = 502;
       res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ error: 'Bad gateway', message: error.message }));
+      res.end(
+        JSON.stringify({
+          error: `Cannot reach AI Spaces server at ${target} (${error.message}). Start it with: npm run dev -w @ai-spaces/server`,
+          message: error.message,
+          target,
+        }),
+      );
       resolve(true);
     });
 

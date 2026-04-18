@@ -1,6 +1,6 @@
-import type { WebSocketServer as WSServer, WebSocket } from 'ws';
+import WebSocket from 'ws';
+import type { WebSocketServer } from 'ws';
 import * as crypto from 'crypto';
-import type { ChatMessage } from '@ai-spaces/shared';
 import jwt from 'jsonwebtoken';
 import { ACCESS_SECRET } from './middleware/auth.js';
 
@@ -9,15 +9,26 @@ interface WSClient {
   spaceId: string;
   userId: string;
   sessionId: string;
+  gatewayWs: WebSocket | null;
+}
+
+interface GatewayConnection {
+  clientWs: WebSocket;
+  gatewayWs: WebSocket;
+  clientId: string;
 }
 
 const connectedClients: Map<string, WSClient> = new Map();
+const gatewayConnections: Map<string, GatewayConnection> = new Map();
+
+const GATEWAY_PORT = 19000;
+const GATEWAY_HOST = 'localhost';
 
 function generateId(): string {
   return crypto.randomBytes(8).toString('hex');
 }
 
-export function setupWebSocket(wss: WSServer): void {
+export function setupWebSocket(wss: WebSocketServer): void {
   wss.on('connection', (ws: WebSocket, req) => {
     const url = new URL(req.url || '/', `http://${req.headers.host}`);
     const pathMatch = url.pathname.match(/^\/ws\/spaces\/([^\/]+)$/);
@@ -51,74 +62,74 @@ export function setupWebSocket(wss: WSServer): void {
     const spaceId = pathMatch[1];
     const userId = decoded.userId;
     const sessionId = generateId();
-    
     const clientId = generateId();
+    
+    const gatewayUrl = `ws://${GATEWAY_HOST}:${GATEWAY_PORT}/api/spaces/${spaceId}/ws`;
+    const gatewayWs = new WebSocket(gatewayUrl, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    
     const client: WSClient = {
       ws,
       spaceId,
       userId,
       sessionId,
+      gatewayWs,
     };
     
     connectedClients.set(clientId, client);
+    gatewayConnections.set(clientId, { clientWs: ws, gatewayWs, clientId });
     
-    ws.send(JSON.stringify({
-      type: 'event',
-      event: 'connected',
-      payload: {
-        sessionId,
-        spaceId,
-      },
-    }));
+    gatewayWs.on('open', () => {
+      ws.send(JSON.stringify({
+        type: 'event',
+        event: 'connected',
+        payload: { sessionId, spaceId },
+      }));
+    });
+    
+    gatewayWs.on('message', (data) => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(data);
+      }
+    });
+    
+    gatewayWs.on('close', () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close(1000, 'Gateway disconnected');
+      }
+      connectedClients.delete(clientId);
+      gatewayConnections.delete(clientId);
+    });
+    
+    gatewayWs.on('error', (error) => {
+      console.error('Gateway WebSocket error:', error.message);
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close(1011, 'Gateway connection error');
+      }
+    });
     
     ws.on('message', (data) => {
-      try {
-        const message = JSON.parse(data.toString());
-        handleMessage(clientId, message, client);
-      } catch {}
+      if (gatewayWs.readyState === WebSocket.OPEN) {
+        gatewayWs.send(data);
+      }
     });
     
     ws.on('close', () => {
+      if (gatewayWs.readyState === WebSocket.OPEN) {
+        gatewayWs.close(1000, 'Client disconnected');
+      }
       connectedClients.delete(clientId);
+      gatewayConnections.delete(clientId);
+    });
+    
+    ws.on('error', (error) => {
+      console.error('Client WebSocket error:', error.message);
+      if (gatewayWs.readyState === WebSocket.OPEN) {
+        gatewayWs.close(1000, 'Client error');
+      }
     });
   });
-}
-
-function handleMessage(clientId: string, message: any, client: WSClient): void {
-  if (message.type === 'chat.send') {
-    const content = message.params?.content;
-    if (!content) {
-      client.ws.send(JSON.stringify({
-        type: 'res',
-        id: message.id,
-        error: { code: 400, message: 'Content required' },
-      }));
-      return;
-    }
-    
-    client.ws.send(JSON.stringify({
-      type: 'res',
-      id: message.id,
-      result: { success: true },
-      messageId: generateId(),
-    }));
-    
-    client.ws.send(JSON.stringify({
-      type: 'event',
-      event: 'stream_start',
-      payload: { messageId: generateId() },
-    }));
-    
-    client.ws.send(JSON.stringify({
-      type: 'event',
-      event: 'stream_chunk',
-      payload: { text: 'AI response would appear here (agent runtime integration needed)' },
-    }));
-    
-    client.ws.send(JSON.stringify({
-      type: 'event',
-      event: 'stream_end',
-      payload: {},
-    }));
-  }
 }

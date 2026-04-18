@@ -62,7 +62,7 @@ function parseWebSocketFrame(buffer: Buffer): { fin: boolean; opcode: number; pa
     }
     return { fin, opcode, payload };
   }
-  
+
   return { fin, opcode, payload: buffer.slice(offset, offset + payloadLen) };
 }
 
@@ -137,9 +137,16 @@ interface HTTPSocketWithWrite {
 }
 
 export async function handleSpaceWebSocket(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
+  console.log('[ai-spaces] handleSpaceWebSocket called');
+  console.log('[ai-spaces] URL:', req.url);
+  console.log('[ai-spaces] Headers:', JSON.stringify(req.headers));
+  
   const upgradeHeader = req.headers.upgrade || '';
   
+  console.log('[ai-spaces] Upgrade header:', upgradeHeader);
+  
   if (upgradeHeader.toLowerCase() !== 'websocket') {
+    console.log('[ai-spaces] Not a websocket upgrade, returning 200');
     res.statusCode = 200;
     res.setHeader('Content-Type', 'text/plain');
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -148,7 +155,9 @@ export async function handleSpaceWebSocket(req: IncomingMessage, res: ServerResp
   }
   
   const url = new URL(req.url || '/', `http://${req.headers.host}`);
-  const pathMatch = url.pathname.match(/^\/api\/spaces\/([^\/]+)\/ws$/);
+  console.log('[ai-spaces] handleSpaceWebSocket URL:', url.pathname);
+  const pathMatch = url.pathname.match(/^\/api\/spaces\/([^\/]+)\/ws$/) ||
+                    url.pathname.match(/^\/spaces-ws\/([^\/]+)$/);
   
   if (!pathMatch) {
     res.statusCode = 404;
@@ -207,15 +216,16 @@ export async function handleSpaceWebSocket(req: IncomingMessage, res: ServerResp
   
   connectedClients.set(clientId, client);
   
-  sendWebSocketMessage(client, {
-    type: 'event',
-    event: 'connected',
-    payload: {
-      role: userRole,
-      spaceId: spaceId,
-      sessionId: chatSession.id,
-    },
-  });
+  // Don't send connected yet - wait for connect handshake from gateway
+  // sendWebSocketMessage(client, {
+  //   type: 'event',
+  //   event: 'connected',
+  //   payload: {
+  //     role: userRole,
+  //     spaceId: spaceId,
+  //     sessionId: chatSession.id,
+  //   },
+  // });
   
   const historyMessages = getSessionMessages(space.path, userId);
   for (const msg of historyMessages) {
@@ -227,16 +237,34 @@ export async function handleSpaceWebSocket(req: IncomingMessage, res: ServerResp
   }
   
   let messageBuffer: Buffer[] = [];
-  
+
   const onData = (data: Buffer) => {
+    console.log('[DEBUG] onData received:', data.length, 'bytes');
     messageBuffer.push(data);
     
     try {
-      const combined = Buffer.concat(messageBuffer);
-      const frame = parseWebSocketFrame(combined);
-      
-      if (frame && frame.fin) {
-        messageBuffer = [];
+      while (true) {
+        const combined = Buffer.concat(messageBuffer);
+        console.log('[DEBUG] Combined buffer:', combined.length, 'bytes');
+        const frame = parseWebSocketFrame(combined);
+        console.log('[DEBUG] Parsed frame:', frame ? `opcode=${frame.opcode}, payload=${frame.payload.toString().substring(0, 100)}` : 'null');
+        
+        if (!frame) break;
+        
+        // Calculate how many bytes were consumed by this frame
+        // parseWebSocketFrame handles mask bit internally, so we just need to
+        // calculate the frame header size based on payload length
+        let headerSize = 2; // base header (first 2 bytes)
+        const masked = (combined[1] & 0x80) !== 0;
+        if (masked) headerSize += 4; // mask key
+        const payloadLen = combined[1] & 0x7f;
+        if (payloadLen === 126) headerSize += 2;
+        else if (payloadLen === 127) headerSize += 8;
+        
+        const frameSize = headerSize + frame.payload.length;
+        
+        // Remove consumed bytes from buffer
+        messageBuffer = [combined.slice(frameSize)];
         
         if (frame.opcode === 0x8) {
           const abortController = activeStreams.get(clientId);
@@ -253,7 +281,7 @@ export async function handleSpaceWebSocket(req: IncomingMessage, res: ServerResp
         if (frame.opcode === 0x9) {
           const pongFrame = createWebSocketFrame(frame.payload, 0xa);
           socket.write(pongFrame);
-          return;
+          continue;
         }
         
         if (frame.opcode === 0x1 || frame.opcode === 0x2) {
@@ -261,7 +289,12 @@ export async function handleSpaceWebSocket(req: IncomingMessage, res: ServerResp
             const message: WebSocketMessage = JSON.parse(frame.payload.toString());
             handleMessage(clientId, message);
           } catch {}
+          continue;
         }
+        
+        // Unknown opcode, continue to next frame if any
+        if (messageBuffer[0].length === 0) break;
+        continue;
       }
     } catch {}
   };
@@ -546,6 +579,26 @@ function handleMessage(clientId: string, message: WebSocketMessage): void {
   }
   
   switch (message.method) {
+    case 'connect': {
+      console.log('[DEBUG] Processing connect message');
+      sendWebSocketMessage(client, {
+        type: 'res',
+        id: message.id,
+        result: { success: true },
+      });
+      
+      sendWebSocketMessage(client, {
+        type: 'event',
+        event: 'connected',
+        payload: {
+          role: client.role,
+          spaceId: client.spaceId,
+          sessionId: client.sessionId,
+        },
+      });
+      break;
+    }
+    
     case 'chat.send': {
       const content = message.params?.content as string | undefined;
       

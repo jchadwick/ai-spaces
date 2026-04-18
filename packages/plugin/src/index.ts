@@ -1,8 +1,12 @@
 import { defineChannelPluginEntry } from 'openclaw/plugin-sdk/core';
 import { aiSpacesPlugin } from './channel.js';
 import type { IncomingMessage, ServerResponse } from 'http';
-import { setRuntime } from './runtime.js';
+import { setRuntime, tryGetRuntime } from './runtime.js';
+import { getSpace } from './space-store.js';
 import { proxyRequest } from './routes/proxy.js';
+import { handleSpaceWebSocket } from './routes/space-ws.js';
+import * as crypto from 'crypto';
+import * as path from 'path';
 
 const SERVER_URL = process.env.AI_SPACES_URL || 'http://localhost:3001';
 
@@ -21,7 +25,34 @@ export default defineChannelPluginEntry({
       path: '/api/spaces',
       auth: 'plugin',
       handler: async (req: IncomingMessage, res: ServerResponse) => {
-        return proxyRequest(req, res, `${SERVER_URL}/api/spaces`);
+        const url = new URL(req.url || '/', `http://${req.headers.host}`);
+        const isWebSocketUpgrade = req.headers.upgrade?.toLowerCase() === 'websocket';
+        const isWsPath = url.pathname.match(/\/api\/spaces\/[^\/]+\/ws$/);
+        
+        if (isWebSocketUpgrade && isWsPath) {
+          console.log('[ai-spaces] WebSocket upgrade request for:', url.pathname);
+          return handleSpaceWebSocket(req, res);
+        }
+        
+        return proxyRequest(req, res, `${SERVER_URL}${url.pathname}`);
+      },
+    });
+
+    api.registerHttpRoute({
+      path: '/spaces-ws/:spaceId',
+      auth: 'plugin',
+      handler: async (req: IncomingMessage, res: ServerResponse) => {
+        const url = new URL(req.url || '/', `http://${req.headers.host}`);
+        const isWebSocketUpgrade = req.headers.upgrade?.toLowerCase() === 'websocket';
+        
+        if (isWebSocketUpgrade) {
+          return handleSpaceWebSocket(req, res);
+        }
+        
+        res.statusCode = 404;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ error: 'Not found' }));
+        return true;
       },
     });
 
@@ -31,6 +62,13 @@ export default defineChannelPluginEntry({
       match: 'prefix',
       handler: async (req: IncomingMessage, res: ServerResponse) => {
         const url = new URL(req.url || '/', `http://${req.headers.host}`);
+        const isWebSocketUpgrade = req.headers.upgrade?.toLowerCase() === 'websocket';
+        const isWsPath = url.pathname.match(/\/api\/spaces\/[^\/]+\/ws$/);
+        
+        if (isWebSocketUpgrade && isWsPath) {
+          return handleSpaceWebSocket(req, res);
+        }
+        
         const targetPath = url.pathname.replace(/^\/api/, '/api');
         return proxyRequest(req, res, `${SERVER_URL}${targetPath}`);
       },
@@ -57,6 +95,67 @@ export default defineChannelPluginEntry({
       auth: 'plugin',
       handler: async (req: IncomingMessage, res: ServerResponse) => {
         return proxyRequest(req, res, `${SERVER_URL}/api/auth/refresh`);
+      },
+    });
+
+    api.registerHttpRoute({
+      path: '/api/chat/send',
+      auth: 'plugin' as any,
+      handler: async (req: IncomingMessage, res: ServerResponse) => {
+        const runtime = tryGetRuntime();
+        if (!runtime?.agent) {
+          res.statusCode = 500;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'Agent runtime not available' }));
+          return true;
+        }
+
+        let body = '';
+        for await (const chunk of req) {
+          body += chunk;
+        }
+
+        let params: { spaceId: string; content: string };
+        try {
+          params = JSON.parse(body);
+        } catch {
+          res.statusCode = 400;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'Invalid JSON body' }));
+          return true;
+        }
+
+        const { spaceId, content } = params;
+        const space = getSpace(spaceId);
+        if (!space) {
+          res.statusCode = 404;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'Space not found' }));
+          return true;
+        }
+
+        const openclawHome = process.env.OPENCLAW_HOME || '/tmp/openclaw-sandbox';
+        const fullSpacePath = path.join(openclawHome, 'workspace', space.path);
+        const messageId = crypto.randomBytes(8).toString('hex');
+
+        let responseText = '';
+
+        await runtime.agent.runEmbeddedPiAgent({
+          sessionId: `space:${spaceId}:http`,
+          runId: messageId,
+          sessionFile: path.join(openclawHome, 'sessions', `space-${spaceId}-http.jsonl`),
+          workspaceDir: fullSpacePath,
+          prompt: content,
+          timeoutMs: 120000,
+          onPartialReply: (payload: { text?: string }) => {
+            if (payload.text) responseText += payload.text;
+          },
+        });
+
+        res.statusCode = 200;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ response: responseText, messageId }));
+        return true;
       },
     });
 

@@ -27,6 +27,21 @@ interface PendingRequest {
   reject: (error: Error) => void;
 }
 
+/** Hostname safe to use as a WebSocket peer (not a bind-all address). */
+function websocketHostForPage(): string {
+  let { hostname } = window.location;
+  if (hostname === '0.0.0.0' || hostname === '[::]' || hostname === '::') {
+    hostname = '127.0.0.1';
+  }
+  const { port } = window.location;
+  return port ? `${hostname}:${port}` : hostname;
+}
+
+function buildSpaceWebSocketUrl(spaceId: string): string {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${websocketHostForPage()}/ws/spaces/${spaceId}`;
+}
+
 export function useSpaceWebSocket({ spaceId, onMessage }: UseSpaceWebSocketOptions): UseSpaceWebSocketReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
@@ -79,7 +94,7 @@ export function useSpaceWebSocket({ spaceId, onMessage }: UseSpaceWebSocketOptio
   useEffect(() => {
     if (!mountedRef.current) return;
 
-    const wsUrl = `ws://${window.location.host}/ws/spaces/${spaceId}`;
+    const wsUrl = buildSpaceWebSocketUrl(spaceId);
 
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;

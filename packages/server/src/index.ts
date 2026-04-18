@@ -17,6 +17,8 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 
 const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:19000';
+/** OpenClaw gateway HTTP/WS auth (browser WebSockets cannot set headers). */
+const GATEWAY_TOKEN = process.env.GATEWAY_TOKEN || 'secret';
 const PORT = parseInt(process.env.AI_SPACES_PORT || '3001', 10);
 const WEB_DIST = process.env.WEB_DIST || path.join(process.env.HOME || '', 'ai-spaces', 'packages', 'web', 'dist');
 
@@ -83,6 +85,13 @@ app.get('/health', (c) => {
 
 seedAdmin();
 
+function rawDataToBuffer(data: unknown): Buffer {
+  if (Buffer.isBuffer(data)) return data;
+  if (data instanceof ArrayBuffer) return Buffer.from(data);
+  if (Array.isArray(data)) return Buffer.concat(data);
+  return Buffer.from(String(data), 'utf8');
+}
+
 const wss = new WebSocketServer({ noServer: true });
 
 wss.on('upgrade', (request, socket, head) => {
@@ -96,139 +105,76 @@ wss.on('upgrade', (request, socket, head) => {
 
   const spaceId = pathMatch[1];
   const gatewayWsUrl = `${GATEWAY_URL.replace(/^http/, 'ws')}/api/spaces/${spaceId}/ws`;
-  const authHeader = request.headers.authorization || '';
+  const browserAuth = request.headers.authorization?.trim() || '';
+  const gatewayAuth = browserAuth || `Bearer ${GATEWAY_TOKEN}`;
 
   console.log('[WS-PROXY] Proxying WebSocket to gateway:', gatewayWsUrl);
 
   const gatewayWs = new WebSocket(gatewayWsUrl, {
     headers: {
-      Authorization: authHeader,
+      Authorization: gatewayAuth,
     },
   });
 
-  let pendingNonce: string | null = null;
-  let gatewayReady = false;
   let clientWs: WebSocket | null = null;
+  const pendingToClient: Buffer[] = [];
+  const pendingToGateway: Buffer[] = [];
+
+  const flushToClient = () => {
+    if (!clientWs || clientWs.readyState !== WebSocket.OPEN) return;
+    for (const chunk of pendingToClient) {
+      clientWs.send(chunk);
+    }
+    pendingToClient.length = 0;
+  };
+
+  const flushToGateway = () => {
+    if (gatewayWs.readyState !== WebSocket.OPEN) return;
+    for (const chunk of pendingToGateway) {
+      gatewayWs.send(chunk);
+    }
+    pendingToGateway.length = 0;
+  };
 
   gatewayWs.on('open', () => {
     console.log('[WS-PROXY] Gateway connection open');
+    flushToGateway();
   });
 
   gatewayWs.on('message', (data) => {
-    const msgStr = data.toString();
-    const msg = JSON.parse(msgStr);
-    console.log('[WS-PROXY] Message from gateway:', msg.type, msg.event || msg.id || '');
-    
-    // Handle gateway connect challenge - forward to browser
-    if (msg.type === 'event' && msg.event === 'connect.challenge') {
-      pendingNonce = msg.payload.nonce;
-      gatewayReady = true;
-      console.log('[WS-PROXY] Gateway handshake complete, nonce:', pendingNonce);
-      // Forward challenge to browser
-      if (clientWs && clientWs.readyState === WebSocket.OPEN) {
-        console.log('[WS-PROXY] Forwarding challenge to browser');
-        clientWs.send(msgStr);
-      } else {
-        console.log('[WS-PROXY] Client WebSocket not ready, cannot forward challenge');
-      }
-      return;
-    }
-    
-    // Handle gateway connect response
-    if (msg.id === 'connect') {
-      console.log('[WS-PROXY] Gateway connect response:', msg.ok);
-      if (msg.ok) {
-        // Send connected event to browser
-        if (clientWs && clientWs.readyState === WebSocket.OPEN) {
-          console.log('[WS-PROXY] Sending connected event to browser');
-          clientWs.send(JSON.stringify({
-            type: 'event',
-            event: 'connected',
-            payload: { spaceId },
-          }));
-        }
-      } else {
-        // Connect failed, notify browser
-        if (clientWs && clientWs.readyState === WebSocket.OPEN) {
-          console.log('[WS-PROXY] Connection failed, notifying browser');
-          clientWs.send(JSON.stringify({
-            type: 'event',
-            event: 'error',
-            payload: { message: msg.error?.message || 'Connection failed' },
-          }));
-        }
-      }
-      return;
-    }
-    
-    // Forward all other messages to browser
+    const buf = Buffer.isBuffer(data) ? data : Buffer.from(String(data));
     if (clientWs && clientWs.readyState === WebSocket.OPEN) {
-      console.log('[WS-PROXY] Forwarding message to browser:', msg.type, msg.event || msg.id || '');
-      clientWs.send(msgStr);
+      clientWs.send(buf);
+    } else {
+      pendingToClient.push(buf);
     }
   });
 
   gatewayWs.on('error', (err) => {
     console.error('[WS-PROXY] Gateway WebSocket error:', err.message);
-    if (clientWs) clientWs.close();
+    if (clientWs && clientWs.readyState === WebSocket.OPEN) {
+      clientWs.close(1011, 'Gateway error');
+    }
     socket.destroy();
   });
 
   gatewayWs.on('close', () => {
     console.log('[WS-PROXY] Gateway WebSocket closed');
-    if (clientWs) clientWs.close();
+    if (clientWs && clientWs.readyState === WebSocket.OPEN) {
+      clientWs.close(1000, 'Gateway closed');
+    }
   });
 
-  // Wait for upgrade from browser
   wss.handleUpgrade(request, socket, head, (ws) => {
     clientWs = ws;
     console.log('[WS-PROXY] Browser WebSocket connected');
+    flushToClient();
 
     ws.on('message', (data) => {
-      const msgStr = data.toString();
-      console.log('[WS-PROXY] Message from browser:', msgStr.substring(0, 200));
-      
-      // Don't process until gateway handshake is complete
-      if (!gatewayReady || pendingNonce === null) {
-        console.log('[WS-PROXY] Browser message received but gateway not ready yet. gatewayReady:', gatewayReady, 'pendingNonce:', pendingNonce);
-        return;
-      }
-      
-      const msg = JSON.parse(msgStr);
-      
-      // Intercept browser's connect request to transform it
-      if (msg.type === 'req' && msg.method === 'connect') {
-        console.log('[WS-PROXY] Transforming browser connect request');
-        const transformedMsg = {
-          type: 'req',
-          id: 'connect',
-          method: 'connect',
-          params: {
-            auth: {
-              nonce: pendingNonce,
-            },
-            minProtocol: 3,
-            maxProtocol: 3,
-            client: {
-              id: 'webchat',
-              platform: 'web',
-              mode: 'webchat',
-              version: '1.0',
-            },
-          },
-        };
-        pendingNonce = null; // Use nonce only once
-        console.log('[WS-PROXY] Sending transformed message to gateway:', JSON.stringify(transformedMsg));
-        gatewayWs.send(JSON.stringify(transformedMsg));
-        return;
-      }
-      
-      // Forward all other messages to gateway if connected
       if (gatewayWs.readyState === WebSocket.OPEN) {
-        console.log('[WS-PROXY] Forwarding message to gateway');
         gatewayWs.send(data);
       } else {
-        console.log('[WS-PROXY] Gateway not connected, cannot forward message');
+        pendingToGateway.push(rawDataToBuffer(data));
       }
     });
 

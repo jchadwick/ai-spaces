@@ -84,26 +84,34 @@ export function useSpaceWebSocket({ spaceId, onMessage }: UseSpaceWebSocketOptio
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
+    ws.onopen = () => {
+      if (!mountedRef.current) return;
+      const connectMessage: WebSocketMessage = {
+        type: 'req',
+        id: 'connect',
+        method: 'connect',
+        params: {},
+      };
+      ws.send(JSON.stringify(connectMessage));
+    };
+
+    ws.onerror = () => {
+      if (!mountedRef.current) return;
+      setConnectionStatus('error');
+    };
+
+    ws.onclose = () => {
+      if (!mountedRef.current) return;
+      if (!intentionalDisconnectRef.current) {
+        setConnectionStatus('disconnected');
+      }
+    };
+
     ws.onmessage = (event) => {
       if (!mountedRef.current) return;
 
       try {
         const message: WebSocketMessage = JSON.parse(event.data);
-
-        // Handle connect challenge - send connect request
-        if (message.type === 'event' && message.event === 'connect.challenge') {
-          const connectMessage: WebSocketMessage = {
-            type: 'req',
-            id: 'connect',
-            method: 'connect',
-            params: {
-              protocol: 'v1',
-              timeout: 300000,
-            },
-          };
-          ws.send(JSON.stringify(connectMessage));
-          return;
-        }
 
         // Handle connected event
         if (message.type === 'event' && message.event === 'connected') {
@@ -225,7 +233,7 @@ export function useSpaceWebSocket({ spaceId, onMessage }: UseSpaceWebSocketOptio
         wsRef.current = null;
       }
     };
-  }, [spaceId, reconnectAttempt, isStreaming, clearPartialStream, clearReconnectTimeout]);
+  }, [spaceId, reconnectAttempt]);
 
   const reconnect = useCallback(() => {
     setReconnectAttempt(0);

@@ -7,7 +7,6 @@ PORT="${OPENCLAW_GATEWAY_PORT:-19000}"
 
 while true; do
   OPENCLAW_HOME=/tmp/openclaw-sandbox \
-  GOOGLE_GENERATIVE_AI_API_KEY="$GOOGLE_GENERATIVE_AI_API_KEY" \
     openclaw gateway --allow-unconfigured --port "$PORT"
   echo "[run-gateway] gateway exited (code $?), restarting in 2s..."
   sleep 2

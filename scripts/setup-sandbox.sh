@@ -64,18 +64,17 @@ cat > "$OPENCLAW_HOME/.openclaw/openclaw.json" << OPENCLAW_JSON_EOF
   },
   "agents": {
     "defaults": {
-      "model": "google/gemini-flash-lite-latest",
+      "model": "ollama/llama3.2:latest",
       "workspace": "$OPENCLAW_SANDBOX_HOME/workspace",
       "skipBootstrap": true
     }
   },
   "models": {
     "providers": {
-      "google": {
-        "api": "google-generative-ai",
-        "baseUrl": "https://generativelanguage.googleapis.com",
-        "apiKey": "\${GOOGLE_GENERATIVE_AI_API_KEY}",
-        "models": [{ "id": "gemini-flash-lite-latest", "name": "Gemini Flash Lite" }]
+      "ollama": {
+        "api": "ollama",
+        "baseUrl": "http://127.0.0.1:11434",
+        "models": [{ "id": "llama3.2:latest", "name": "Llama 3.2" }]
       }
     }
   },

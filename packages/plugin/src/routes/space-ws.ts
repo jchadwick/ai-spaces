@@ -1,15 +1,18 @@
+import * as http from 'http';
 import type { IncomingMessage, ServerResponse } from 'http';
+import type { Socket } from 'net';
 import * as crypto from 'crypto';
 import * as path from 'path';
 import * as fs from 'fs';
+import { WebSocketServer, WebSocket as WsWebSocket } from 'ws';
 import { getSpace } from '../space-store.js';
-import { tryGetRuntime } from '../runtime.js';
 import { getOrCreateSession, addMessageToSession, getSessionMessages } from '../chat-history.js';
 import { logFileModification } from '../file-history.js';
+import { config } from '../config.js';
 import type { WebSocketMessage, SpaceConfig, ChatMessage } from '@ai-spaces/shared';
 
 interface WebSocketClient {
-  ws: any;
+  ws: WsWebSocket;
   spaceId: string;
   role: string;
   userId: string;
@@ -18,84 +21,21 @@ interface WebSocketClient {
   sessionId: string;
 }
 
+const wss = new WebSocketServer({ noServer: true });
 const connectedClients: Map<string, WebSocketClient> = new Map();
 const activeStreams: Map<string, AbortController> = new Map();
 
 const DEFAULT_DENIED_TOOLS = ['exec', 'messaging', 'spawn_agents', 'browser', 'credentials'];
 const DEFAULT_ALLOWED_TOOLS = ['read', 'write', 'edit', 'glob'];
 
-function getRawSocket(req: IncomingMessage): any {
-  return (req as any).socket;
-}
-
 function generateMessageId(): string {
   return crypto.randomBytes(8).toString('hex');
 }
 
-function parseWebSocketFrame(buffer: Buffer): { fin: boolean; opcode: number; payload: Buffer } | null {
-  if (buffer.length < 2) return null;
-  
-  const fin = (buffer[0] & 0x80) !== 0;
-  const opcode = buffer[0] & 0x0f;
-  const masked = (buffer[1] & 0x80) !== 0;
-  let payloadLen = buffer[1] & 0x7f;
-  
-  let offset = 2;
-  
-  if (payloadLen === 126) {
-    if (buffer.length < 4) return null;
-    payloadLen = buffer.readUInt16BE(2);
-    offset = 4;
-  } else if (payloadLen === 127) {
-    if (buffer.length < 10) return null;
-    payloadLen = Number(buffer.readBigUInt64BE(2));
-    offset = 10;
-  }
-  
-  if (masked) {
-    if (buffer.length < offset + 4) return null;
-    const mask = buffer.slice(offset, offset + 4);
-    offset += 4;
-    const payload = buffer.slice(offset, offset + payloadLen);
-    for (let i = 0; i < payload.length; i++) {
-      payload[i] ^= mask[i % 4];
-    }
-    return { fin, opcode, payload };
-  }
-
-  return { fin, opcode, payload: buffer.slice(offset, offset + payloadLen) };
-}
-
-function createWebSocketFrame(payload: Buffer, opcode: number = 1): Buffer {
-  const len = payload.length;
-  let headerLen = 2;
-  
-  if (len >= 126) headerLen = 4;
-  if (len >= 65536) headerLen = 10;
-  
-  const frame = Buffer.alloc(headerLen + len);
-  frame[0] = 0x80 | opcode;
-  
-  if (len < 126) {
-    frame[1] = len;
-  } else if (len < 65536) {
-    frame[1] = 126;
-    frame.writeUInt16BE(len, 2);
-  } else {
-    frame[1] = 127;
-    frame.writeBigUInt64BE(BigInt(len), 2);
-  }
-  
-  payload.copy(frame, headerLen);
-  return frame;
-}
-
 function sendWebSocketMessage(client: WebSocketClient, message: WebSocketMessage): void {
   try {
-    const payload = JSON.stringify(message);
-    const frame = createWebSocketFrame(Buffer.from(payload));
-    if (client.ws && typeof client.ws.write === 'function') {
-      client.ws.write(frame);
+    if (client.ws.readyState === WsWebSocket.OPEN) {
+      client.ws.send(JSON.stringify(message));
     }
   } catch {}
 }
@@ -103,20 +43,20 @@ function sendWebSocketMessage(client: WebSocketClient, message: WebSocketMessage
 function getEffectiveTools(config: SpaceConfig): { allowed: string[]; denied: string[] } {
   const capabilities = config.agent?.capabilities || DEFAULT_ALLOWED_TOOLS;
   const denied = config.agent?.denied || DEFAULT_DENIED_TOOLS;
-  
+
   return {
     allowed: capabilities,
     denied: [...new Set([...denied, ...DEFAULT_DENIED_TOOLS])],
   };
 }
 
-function buildScopedPrompt(config: SpaceConfig, spacePath: string, userMessage: string): string {
-  const { allowed, denied } = getEffectiveTools(config);
-  
-  const restrictions = [
-    `CONTEXT: You are helping with a space called "${config.name}".`,
-    config.description ? `DESCRIPTION: ${config.description}` : '',
-    `WORKSPACE: You can ONLY access files within the space directory: ${spacePath}`,
+function buildSystemPrompt(spaceConfig: SpaceConfig, fullSpacePath: string): string {
+  const { allowed, denied } = getEffectiveTools(spaceConfig);
+
+  return [
+    `CONTEXT: You are helping with a space called "${spaceConfig.name}".`,
+    spaceConfig.description ? `DESCRIPTION: ${spaceConfig.description}` : '',
+    `WORKSPACE: You can ONLY access files within the space directory: ${fullSpacePath}`,
     `RESTRICTION: You MUST refuse to read files outside this space with: "I don't have access to files outside this space."`,
     `RESTRICTION: You MUST refuse agent memory requests with: "I don't have knowledge of your agent's private memory."`,
     `RESTRICTION: Do NOT load AGENTS.md, MEMORY.md, USER.md, or memory/ directory.`,
@@ -125,203 +65,16 @@ function buildScopedPrompt(config: SpaceConfig, spacePath: string, userMessage: 
     denied.length > 0 ? `RESTRICTION: If asked to use a denied tool, respond: "I cannot perform that action in this space."` : '',
     `REFERENCE: Check .space/SPACE.md if it exists for space-specific preferences.`,
   ].filter(Boolean).join('\n');
-  
-  return `${restrictions}\n\nUSER MESSAGE:\n${userMessage}`;
 }
 
-interface HTTPSocketWithWrite {
-  write: (data: Buffer) => boolean;
-  destroy: (error?: Error) => void;
-  on: (event: string, callback: (data: Buffer) => void) => void;
-  removeListener: (event: string, callback: (data: Buffer) => void) => void;
-}
-
-export async function handleSpaceWebSocket(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
-  console.log('[ai-spaces] handleSpaceWebSocket called');
-  console.log('[ai-spaces] URL:', req.url);
-  console.log('[ai-spaces] Headers:', JSON.stringify(req.headers));
-  
-  const upgradeHeader = req.headers.upgrade || '';
-  
-  console.log('[ai-spaces] Upgrade header:', upgradeHeader);
-  
-  if (upgradeHeader.toLowerCase() !== 'websocket') {
-    console.log('[ai-spaces] Not a websocket upgrade, returning 200');
-    res.statusCode = 200;
-    res.setHeader('Content-Type', 'text/plain');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.end('Space WebSocket: not implemented');
-    return true;
-  }
-  
-  const url = new URL(req.url || '/', `http://${req.headers.host}`);
-  console.log('[ai-spaces] handleSpaceWebSocket URL:', url.pathname);
-  const pathMatch = url.pathname.match(/^\/api\/spaces\/([^\/]+)\/ws$/) ||
-                    url.pathname.match(/^\/spaces-ws\/([^\/]+)$/);
-  
-  if (!pathMatch) {
-    res.statusCode = 404;
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.end(JSON.stringify({ error: 'Not found' }));
-    return true;
-  }
-  
-  const spaceId = pathMatch[1];
-  
-  const space = getSpace(spaceId);
-  if (!space) {
-    res.statusCode = 404;
-    res.setHeader('Content-Type', 'application/json');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.end(JSON.stringify({ error: 'Space not found' }));
-    return true;
-  }
-  
-  const acceptKey = req.headers['sec-websocket-key'] || '';
-  const acceptHash = crypto
-    .createHash('sha1')
-    .update(acceptKey + '258EAFA5-E914-47DA-95CA-C5AB0DC85B11')
-    .digest('base64');
-  
-  const socket = getRawSocket(req) as HTTPSocketWithWrite;
-  
-  const responseHeaders = [
-    'HTTP/1.1 101 Switching Protocols',
-    'Upgrade: websocket',
-    'Connection: Upgrade',
-    `Sec-WebSocket-Accept: ${acceptHash}`,
-    'Access-Control-Allow-Origin: *',
-    '',
-    '',
-  ].join('\r\n');
-  
-  socket.write(Buffer.from(responseHeaders));
-  
-  const userId = 'default-user';
-  const userRole = 'admin';
-  
-  const { session: chatSession, isNew } = getOrCreateSession(space.path, userId);
-  
-  const clientId = generateMessageId();
-  const client: WebSocketClient = {
-    ws: socket,
-    spaceId: spaceId,
-    role: userRole,
-    userId: userId,
-    spacePath: space.path,
-    config: space.config,
-    sessionId: chatSession.id,
-  };
-  
-  connectedClients.set(clientId, client);
-  
-  // Don't send connected yet - wait for connect handshake from gateway
-  // sendWebSocketMessage(client, {
-  //   type: 'event',
-  //   event: 'connected',
-  //   payload: {
-  //     role: userRole,
-  //     spaceId: spaceId,
-  //     sessionId: chatSession.id,
-  //   },
-  // });
-  
-  const historyMessages = getSessionMessages(space.path, userId);
-  for (const msg of historyMessages) {
-    sendWebSocketMessage(client, {
-      type: 'event',
-      event: 'history_message',
-      payload: msg,
-    });
-  }
-  
-  let messageBuffer: Buffer[] = [];
-
-  const onData = (data: Buffer) => {
-    console.log('[DEBUG] onData received:', data.length, 'bytes');
-    messageBuffer.push(data);
-    
-    try {
-      while (true) {
-        const combined = Buffer.concat(messageBuffer);
-        console.log('[DEBUG] Combined buffer:', combined.length, 'bytes');
-        const frame = parseWebSocketFrame(combined);
-        console.log('[DEBUG] Parsed frame:', frame ? `opcode=${frame.opcode}, payload=${frame.payload.toString().substring(0, 100)}` : 'null');
-        
-        if (!frame) break;
-        
-        // Calculate how many bytes were consumed by this frame
-        // parseWebSocketFrame handles mask bit internally, so we just need to
-        // calculate the frame header size based on payload length
-        let headerSize = 2; // base header (first 2 bytes)
-        const masked = (combined[1] & 0x80) !== 0;
-        if (masked) headerSize += 4; // mask key
-        const payloadLen = combined[1] & 0x7f;
-        if (payloadLen === 126) headerSize += 2;
-        else if (payloadLen === 127) headerSize += 8;
-        
-        const frameSize = headerSize + frame.payload.length;
-        
-        // Remove consumed bytes from buffer
-        messageBuffer = [combined.slice(frameSize)];
-        
-        if (frame.opcode === 0x8) {
-          const abortController = activeStreams.get(clientId);
-          if (abortController) {
-            abortController.abort();
-            activeStreams.delete(clientId);
-          }
-          const closeFrame = createWebSocketFrame(Buffer.from([]), 0x8);
-          socket.write(closeFrame);
-          connectedClients.delete(clientId);
-          return;
-        }
-        
-        if (frame.opcode === 0x9) {
-          const pongFrame = createWebSocketFrame(frame.payload, 0xa);
-          socket.write(pongFrame);
-          continue;
-        }
-        
-        if (frame.opcode === 0x1 || frame.opcode === 0x2) {
-          try {
-            const message: WebSocketMessage = JSON.parse(frame.payload.toString());
-            handleMessage(clientId, message);
-          } catch {}
-          continue;
-        }
-        
-        // Unknown opcode, continue to next frame if any
-        if (messageBuffer[0].length === 0) break;
-        continue;
-      }
-    } catch {}
-  };
-  
-  const onClose = () => {
-    const abortController = activeStreams.get(clientId);
-    if (abortController) {
-      abortController.abort();
-      activeStreams.delete(clientId);
-    }
-    connectedClients.delete(clientId);
-  };
-  
-  const onError = () => {
-    const abortController = activeStreams.get(clientId);
-    if (abortController) {
-      abortController.abort();
-      activeStreams.delete(clientId);
-    }
-    connectedClients.delete(clientId);
-  };
-  
-  socket.on('data', onData);
-  socket.on('close', onClose);
-  socket.on('error', onError);
-  
-  return true;
+// Strip openclaw internal <think>...</think> blocks and <final>...</final> wrappers.
+// Returns the cleaned answer text, or the raw content if no tags are present.
+function extractFinalContent(raw: string): string {
+  const withoutThinking = raw.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+  const finalMatch = withoutThinking.match(/<final>([\s\S]*?)<\/final>/);
+  if (finalMatch) return finalMatch[1].trim();
+  // No <final> wrapper — strip any partial/orphaned tags and return what's left
+  return withoutThinking.replace(/<\/?(?:think|final)[^>]*>/g, '').trim();
 }
 
 async function handleChatSend(
@@ -330,174 +83,83 @@ async function handleChatSend(
   content: string,
   client: WebSocketClient
 ): Promise<void> {
-  const runtime = tryGetRuntime();
-  
   const userMessage: ChatMessage = {
     id: messageId,
     role: 'user',
     content: content,
     timestamp: new Date().toISOString(),
   };
-  
   addMessageToSession(client.spacePath, client.userId, userMessage);
-  
-  if (!runtime) {
-    sendWebSocketMessage(client, {
-      type: 'event',
-      event: 'stream_start',
-      payload: { messageId: generateMessageId() },
-    });
-    sendWebSocketMessage(client, {
-      type: 'event',
-      event: 'stream_chunk',
-      payload: { text: 'Error: Agent runtime not available. Please try again later.' },
-    });
-    sendWebSocketMessage(client, {
-      type: 'event',
-      event: 'stream_end',
-      payload: {},
-    });
-    return;
-  }
-  
+
   if (client.role === 'viewer') {
-    sendWebSocketMessage(client, {
-      type: 'event',
-      event: 'stream_start',
-      payload: { messageId: generateMessageId() },
-    });
-    sendWebSocketMessage(client, {
-      type: 'event',
-      event: 'stream_chunk',
-      payload: { text: 'I cannot modify files as a viewer. Ask the owner to upgrade your role if you need edit access.' },
-    });
-    sendWebSocketMessage(client, {
-      type: 'event',
-      event: 'stream_end',
-      payload: {},
-    });
+    sendWebSocketMessage(client, { type: 'event', event: 'stream_start', payload: { messageId: generateMessageId() } });
+    sendWebSocketMessage(client, { type: 'event', event: 'stream_chunk', payload: { text: 'I cannot modify files as a viewer. Ask the owner to upgrade your role if you need edit access.' } });
+    sendWebSocketMessage(client, { type: 'event', event: 'stream_end', payload: {} });
     return;
   }
-  
-  const openclawHome = process.env.OPENCLAW_HOME || path.join(process.env.HOME || '', '.openclaw');
-  const workspaceDir = path.join(openclawHome, 'workspace');
-  const fullSpacePath = path.join(workspaceDir, client.spacePath);
-  
-  const scopedPrompt = buildScopedPrompt(client.config, client.spacePath, content);
-  
+
+  const openclawHome = config.OPENCLAW_HOME;
+  const fullSpacePath = path.join(openclawHome, 'workspace', client.spacePath);
+  const systemPrompt = buildSystemPrompt(client.config, fullSpacePath);
+
+  const history = getSessionMessages(client.spacePath, client.userId);
+  const MAX_HISTORY = 40;
+  const recentHistory = history.slice(-MAX_HISTORY);
+
+  const messages = [
+    { role: 'system', content: systemPrompt },
+    ...recentHistory.map(m => ({ role: m.role as 'user' | 'assistant', content: m.content })),
+    { role: 'user' as const, content },
+  ];
+
   const abortController = new AbortController();
   activeStreams.set(clientId, abortController);
-  
+
   const streamMessageId = generateMessageId();
   let fullResponse = '';
-  
+
+  sendWebSocketMessage(client, { type: 'event', event: 'stream_start', payload: { messageId: streamMessageId } });
+
   try {
-    sendWebSocketMessage(client, {
-      type: 'event',
-      event: 'stream_start',
-      payload: { messageId: streamMessageId },
+    const res = await fetch(`${config.GATEWAY_URL}/v1/chat/completions`, {
+      method: 'POST',
+      signal: abortController.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.GATEWAY_TOKEN}`,
+      },
+      body: JSON.stringify({ model: 'openclaw', stream: false, messages }),
     });
-    
-    await runtime.agent.runEmbeddedPiAgent({
-      sessionId: `space:${client.spaceId}:${client.userId}`,
-      runId: messageId,
-      sessionFile: path.join(openclawHome, 'sessions', `space-${client.spaceId}-${client.userId}.jsonl`),
-      workspaceDir: fullSpacePath,
-      prompt: scopedPrompt,
-      timeoutMs: 120000,
-      onPartialReply: (payload: { text?: string; mediaUrls?: string[] }) => {
-        if (abortController.signal.aborted) return;
-        const text = payload.text || '';
-        if (text) {
-          fullResponse += text;
-          sendWebSocketMessage(client, {
-            type: 'event',
-            event: 'stream_chunk',
-            payload: { text },
-          });
-        }
-      },
-      onBlockReply: (payload: { text?: string; mediaUrls?: string[] }) => {
-        if (abortController.signal.aborted) return;
-        const text = payload.text;
-        if (text && text !== fullResponse) {
-          const newText = text.startsWith(fullResponse) 
-            ? text.slice(fullResponse.length) 
-            : text;
-          if (newText) {
-            fullResponse = text;
-            sendWebSocketMessage(client, {
-              type: 'event',
-              event: 'stream_chunk',
-              payload: { text: newText },
-            });
-          }
-        }
-      },
-      onToolResult: (payload: any) => {
-        if (abortController.signal.aborted) return;
-        
-        if (payload && payload.toolName && (payload.toolName === 'write' || payload.toolName === 'edit')) {
-          const toolInput = payload.toolInput || {};
-          const filePath = toolInput.file || toolInput.path || toolInput.filePath;
-          
-          if (filePath && typeof filePath === 'string') {
-            const relativePath = path.relative(fullSpacePath, filePath);
-            const action: 'created' | 'modified' | 'deleted' = toolInput.action || 'modified';
-            
-            logFileModification(
-              client.spacePath,
-              relativePath,
-              action,
-              client.sessionId,
-              'agent'
-            );
-            
-            for (const [id, otherClient] of connectedClients) {
-              sendWebSocketMessage(otherClient, {
-                type: 'event',
-                event: 'file_modified',
-                payload: {
-                  path: relativePath,
-                  action: action,
-                  triggeredBy: 'agent',
-                },
-              });
-            }
-          }
-        }
-      },
-    });
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => res.statusText);
+      throw new Error(`Gateway error ${res.status}: ${errText}`);
+    }
+
+    const json = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
+    const rawContent = json?.choices?.[0]?.message?.content ?? '';
+
+    // Strip openclaw's <think>...</think> blocks and <final>...</final> wrappers
+    const extracted = extractFinalContent(rawContent);
+    if (extracted) {
+      fullResponse = extracted;
+      sendWebSocketMessage(client, { type: 'event', event: 'stream_chunk', payload: { text: extracted } });
+    }
   } catch (error) {
     if ((error as Error).name === 'AbortError') {
-      sendWebSocketMessage(client, {
-        type: 'event',
-        event: 'stream_chunk',
-        payload: { text: '\n[Stream cancelled]\n' },
-      });
+      sendWebSocketMessage(client, { type: 'event', event: 'stream_chunk', payload: { text: '\n[Stream cancelled]\n' } });
     } else {
-      sendWebSocketMessage(client, {
-        type: 'event',
-        event: 'stream_chunk',
-        payload: { text: `\n[Error: ${(error as Error).message}]\n` },
-      });
+      sendWebSocketMessage(client, { type: 'event', event: 'stream_chunk', payload: { text: `\n[Error: ${(error as Error).message}]\n` } });
     }
   } finally {
     activeStreams.delete(clientId);
-    
-    const assistantMessage: ChatMessage = {
+    addMessageToSession(client.spacePath, client.userId, {
       id: streamMessageId,
       role: 'assistant',
       content: fullResponse,
       timestamp: new Date().toISOString(),
-    };
-    addMessageToSession(client.spacePath, client.userId, assistantMessage);
-    
-    sendWebSocketMessage(client, {
-      type: 'event',
-      event: 'stream_end',
-      payload: {},
     });
+    sendWebSocketMessage(client, { type: 'event', event: 'stream_end', payload: {} });
   }
 }
 
@@ -511,24 +173,24 @@ async function handleFileWrite(
   try {
     const dir = path.dirname(filePath);
     await fs.promises.mkdir(dir, { recursive: true });
-    
-    const openclawHome = process.env.OPENCLAW_HOME || path.join(process.env.HOME || '', '.openclaw');
+
+    const openclawHome = config.OPENCLAW_HOME;
     const workspaceDir = path.join(openclawHome, 'workspace');
     const fullSpacePath = path.join(workspaceDir, client.spacePath);
-    
+
     const relativePath = path.relative(fullSpacePath, filePath);
-    
+
     let action: 'created' | 'modified' | 'deleted' = 'modified';
     try {
       await fs.promises.access(filePath);
     } catch {
       action = 'created';
     }
-    
+
     await fs.promises.writeFile(filePath, content, 'utf8');
-    
+
     const stats = await fs.promises.stat(filePath);
-    
+
     logFileModification(
       client.spacePath,
       relativePath,
@@ -536,7 +198,7 @@ async function handleFileWrite(
       client.sessionId,
       'user'
     );
-    
+
     sendWebSocketMessage(client, {
       type: 'res',
       id: messageId,
@@ -546,7 +208,7 @@ async function handleFileWrite(
         modified: stats.mtime.toISOString(),
       },
     });
-    
+
     for (const [id, otherClient] of connectedClients) {
       if (id !== clientId) {
         sendWebSocketMessage(otherClient, {
@@ -571,22 +233,21 @@ async function handleFileWrite(
 
 function handleMessage(clientId: string, message: WebSocketMessage): void {
   const client = connectedClients.get(clientId);
-  
+
   if (!client) return;
-  
+
   if (message.type !== 'req' || !message.method || !message.id) {
     return;
   }
-  
+
   switch (message.method) {
     case 'connect': {
-      console.log('[DEBUG] Processing connect message');
       sendWebSocketMessage(client, {
         type: 'res',
         id: message.id,
         result: { success: true },
       });
-      
+
       sendWebSocketMessage(client, {
         type: 'event',
         event: 'connected',
@@ -598,10 +259,10 @@ function handleMessage(clientId: string, message: WebSocketMessage): void {
       });
       break;
     }
-    
+
     case 'chat.send': {
       const content = message.params?.content as string | undefined;
-      
+
       if (!content || typeof content !== 'string') {
         sendWebSocketMessage(client, {
           type: 'res',
@@ -610,13 +271,13 @@ function handleMessage(clientId: string, message: WebSocketMessage): void {
         });
         return;
       }
-      
+
       sendWebSocketMessage(client, {
         type: 'res',
         id: message.id,
         result: { success: true },
       });
-      
+
       handleChatSend(clientId, message.id, content, client).catch((error) => {
         console.error('[ai-spaces] Chat error:', error);
         sendWebSocketMessage(client, {
@@ -635,10 +296,10 @@ function handleMessage(clientId: string, message: WebSocketMessage): void {
           payload: {},
         });
       });
-      
+
       break;
     }
-    
+
     case 'file.write': {
       if (client.role === 'viewer') {
         sendWebSocketMessage(client, {
@@ -648,10 +309,10 @@ function handleMessage(clientId: string, message: WebSocketMessage): void {
         });
         return;
       }
-      
+
       const filePath = message.params?.path as string | undefined;
       const fileContent = message.params?.content as string | undefined;
-      
+
       if (!filePath || typeof filePath !== 'string') {
         sendWebSocketMessage(client, {
           type: 'res',
@@ -660,7 +321,7 @@ function handleMessage(clientId: string, message: WebSocketMessage): void {
         });
         return;
       }
-      
+
       if (fileContent === undefined || fileContent === null) {
         sendWebSocketMessage(client, {
           type: 'res',
@@ -669,7 +330,7 @@ function handleMessage(clientId: string, message: WebSocketMessage): void {
         });
         return;
       }
-      
+
       if (typeof fileContent !== 'string') {
         sendWebSocketMessage(client, {
           type: 'res',
@@ -678,7 +339,7 @@ function handleMessage(clientId: string, message: WebSocketMessage): void {
         });
         return;
       }
-      
+
       const contentSize = Buffer.byteLength(fileContent, 'utf8');
       if (contentSize > 10 * 1024 * 1024) {
         sendWebSocketMessage(client, {
@@ -688,15 +349,15 @@ function handleMessage(clientId: string, message: WebSocketMessage): void {
         });
         return;
       }
-      
-      const openclawHome = process.env.OPENCLAW_HOME || path.join(process.env.HOME || '', '.openclaw');
+
+      const openclawHome = config.OPENCLAW_HOME;
       const workspaceDir = path.join(openclawHome, 'workspace');
       const fullSpacePath = path.join(workspaceDir, client.spacePath);
       const fullFilePath = path.join(fullSpacePath, filePath);
-      
+
       const normalizedSpacePath = path.normalize(fullSpacePath);
       const normalizedFilePath = path.normalize(fullFilePath);
-      
+
       if (!normalizedFilePath.startsWith(normalizedSpacePath)) {
         sendWebSocketMessage(client, {
           type: 'res',
@@ -705,7 +366,7 @@ function handleMessage(clientId: string, message: WebSocketMessage): void {
         });
         return;
       }
-      
+
       handleFileWrite(clientId, message.id, normalizedFilePath, fileContent, client).catch((error) => {
         console.error('[ai-spaces] File write error:', error);
         sendWebSocketMessage(client, {
@@ -714,10 +375,10 @@ function handleMessage(clientId: string, message: WebSocketMessage): void {
           error: { code: 500, message: `Failed to write file: ${(error as Error).message}` },
         });
       });
-      
+
       break;
     }
-    
+
     default:
       sendWebSocketMessage(client, {
         type: 'res',
@@ -725,4 +386,152 @@ function handleMessage(clientId: string, message: WebSocketMessage): void {
         error: { code: 404, message: 'Method not found' },
       });
   }
+}
+
+function setupWebSocketClient(ws: WsWebSocket, spaceId: string, space: ReturnType<typeof getSpace> & {}): void {
+  const userId = 'default-user';
+  const userRole = 'admin';
+
+  const { session: chatSession } = getOrCreateSession(space.path, userId);
+
+  const clientId = generateMessageId();
+  const client: WebSocketClient = {
+    ws,
+    spaceId,
+    role: userRole,
+    userId,
+    spacePath: space.path,
+    config: space.config,
+    sessionId: chatSession.id,
+  };
+
+  connectedClients.set(clientId, client);
+
+  const historyMessages = getSessionMessages(space.path, userId);
+  for (const msg of historyMessages) {
+    sendWebSocketMessage(client, {
+      type: 'event',
+      event: 'history_message',
+      payload: msg,
+    });
+  }
+
+  ws.on('message', (data) => {
+    try {
+      const message: WebSocketMessage = JSON.parse(String(data));
+      handleMessage(clientId, message);
+    } catch {}
+  });
+
+  ws.on('close', () => {
+    const abortController = activeStreams.get(clientId);
+    if (abortController) {
+      abortController.abort();
+      activeStreams.delete(clientId);
+    }
+    connectedClients.delete(clientId);
+  });
+
+  ws.on('error', () => {
+    const abortController = activeStreams.get(clientId);
+    if (abortController) {
+      abortController.abort();
+      activeStreams.delete(clientId);
+    }
+    connectedClients.delete(clientId);
+  });
+}
+
+/**
+ * Starts a dedicated HTTP+WebSocket server for the plugin.
+ * The gateway does not route WebSocket upgrades to plugin HTTP routes —
+ * it treats all WS connections to its port as gateway control-plane clients.
+ * This standalone server bypasses that limitation entirely.
+ */
+export function startWebSocketServer(port: number): void {
+  console.log(`[ai-spaces] Starting WebSocket server on port ${port}`);
+  const httpServer = http.createServer((_req, res) => {
+    res.statusCode = 200;
+    res.end('AI Spaces WebSocket server');
+  });
+
+  httpServer.on('error', (err) => {
+    console.error(`[ai-spaces] WebSocket server error:`, err.message);
+  });
+
+  const wsServer = new WebSocketServer({ noServer: true });
+
+  httpServer.on('upgrade', (req, socket, head) => {
+    const url = new URL(req.url || '/', `http://${req.headers.host}`);
+    const pathMatch =
+      url.pathname.match(/^\/api\/spaces\/([^/]+)\/ws$/) ||
+      url.pathname.match(/^\/ws\/spaces\/([^/]+)$/);
+
+    if (!pathMatch) {
+      socket.destroy();
+      return;
+    }
+
+    const spaceId = pathMatch[1];
+    const space = getSpace(spaceId);
+    if (!space) {
+      socket.destroy();
+      return;
+    }
+
+    wsServer.handleUpgrade(req, socket, head, (ws) => {
+      setupWebSocketClient(ws, spaceId, space);
+    });
+  });
+
+  httpServer.listen(port, '127.0.0.1', () => {
+    console.log(`[ai-spaces] WebSocket server listening on ws://127.0.0.1:${port}`);
+  });
+}
+
+export async function handleSpaceWebSocket(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
+  console.log('[ai-spaces] handleSpaceWebSocket called, url:', req.url);
+
+  if (req.headers.upgrade?.toLowerCase() !== 'websocket') {
+    res.statusCode = 400;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: 'WebSocket upgrade required' }));
+    return true;
+  }
+
+  const url = new URL(req.url || '/', `http://${req.headers.host}`);
+  const pathMatch =
+    url.pathname.match(/^\/api\/spaces\/([^/]+)\/ws$/) ||
+    url.pathname.match(/^\/spaces-ws\/([^/]+)$/);
+
+  if (!pathMatch) {
+    res.statusCode = 404;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: 'Not found' }));
+    return true;
+  }
+
+  const spaceId = pathMatch[1];
+  const space = getSpace(spaceId);
+  if (!space) {
+    res.statusCode = 404;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: 'Space not found' }));
+    return true;
+  }
+
+  console.log('[ai-spaces] Upgrading WebSocket for space:', spaceId);
+
+  // Keep this promise pending until the WS session ends.
+  // This prevents the gateway's HTTP framework from finalizing/destroying
+  // the socket while the WebSocket session is active.
+  await new Promise<void>((resolve) => {
+    wss.handleUpgrade(req, req.socket as Socket, Buffer.alloc(0), (ws) => {
+      setupWebSocketClient(ws, spaceId, space);
+      ws.on('close', resolve);
+      ws.on('error', () => resolve());
+    });
+  });
+
+  return true;
 }

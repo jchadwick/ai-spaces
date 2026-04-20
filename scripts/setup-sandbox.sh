@@ -49,38 +49,54 @@ mkdir -p "$OPENCLAW_HOME/agents/main/agent"
 echo "  Created sandbox directories"
 
 # Step 3: Create gateway config
+# OpenClaw reads config from $OPENCLAW_HOME/.openclaw/openclaw.json
 echo -e "${YELLOW}Step 3: Create gateway configuration...${NC}"
-cat > "$OPENCLAW_HOME/openclaw.json" << 'OPENCLAW_JSON_EOF'
+mkdir -p "$OPENCLAW_HOME/.openclaw"
+PLUGIN_DIST="$PLUGIN_PACKAGE_DIR/dist/index.js"
+cat > "$OPENCLAW_HOME/.openclaw/openclaw.json" << OPENCLAW_JSON_EOF
 {
+  "gateway": {
+    "http": {
+      "endpoints": {
+        "chatCompletions": { "enabled": true }
+      }
+    }
+  },
   "agents": {
     "defaults": {
-      "workspace": "/tmp/openclaw-sandbox/workspace",
+      "model": "google/gemini-flash-lite-latest",
+      "workspace": "$OPENCLAW_SANDBOX_HOME/workspace",
       "skipBootstrap": true
     }
   },
-  "gateway": {
-    "mode": "local",
-    "port": 19000,
-    "bind": "loopback",
-    "auth": {
-      "token": "secret"
+  "models": {
+    "providers": {
+      "google": {
+        "api": "google-generative-ai",
+        "baseUrl": "https://generativelanguage.googleapis.com",
+        "apiKey": "\${GOOGLE_GENERATIVE_AI_API_KEY}",
+        "models": [{ "id": "gemini-flash-lite-latest", "name": "Gemini Flash Lite" }]
+      }
     }
   },
   "plugins": {
-    "load": {
-      "paths": [
-        "/Users/jchadwick/repos/jchadwick/ai-spaces/packages/plugin"
-      ]
-    },
     "entries": {
       "ai-spaces": {
         "enabled": true
+      }
+    },
+    "installs": {
+      "ai-spaces": {
+        "source": "path",
+        "sourcePath": "$PLUGIN_DIST",
+        "installPath": "$PLUGIN_DIST",
+        "installedAt": "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
       }
     }
   }
 }
 OPENCLAW_JSON_EOF
-echo "  Created gateway config"
+echo "  Created gateway config at $OPENCLAW_HOME/.openclaw/openclaw.json"
 
 # Step 4: Build plugin
 echo -e "${YELLOW}Step 4: Build the plugin...${NC}"
@@ -114,7 +130,34 @@ COSTA_MD_EOF
 
 echo "  Created test space"
 
-# Step 6: Verify
+# Step 6: Create plugin space store (synced with server's space ID)
+echo -e "${YELLOW}Step 6: Create plugin space store...${NC}"
+SPACE_ID=$(echo -n "default:TestSpace" | sha256sum | cut -c1-8 2>/dev/null || echo -n "default:TestSpace" | shasum -a 256 | cut -c1-8)
+cat > "$OPENCLAW_HOME/spaces.json" << SPACES_STORE_EOF
+{
+  "spaces": {
+    "$SPACE_ID": {
+      "id": "$SPACE_ID",
+      "agentId": "default",
+      "agentType": "default",
+      "path": "TestSpace",
+      "configPath": "$OPENCLAW_SANDBOX_HOME/workspace/TestSpace/.space/spaces.json",
+      "config": {
+        "name": "Test Space",
+        "description": "A test space for development"
+      },
+      "createdAt": "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)",
+      "updatedAt": "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
+    }
+  },
+  "byPath": {
+    "default:TestSpace": "$SPACE_ID"
+  }
+}
+SPACES_STORE_EOF
+echo "  Created plugin spaces.json (space ID: $SPACE_ID)"
+
+# Done
 echo ""
 echo -e "${GREEN}Sandbox setup complete!${NC}"
 echo ""

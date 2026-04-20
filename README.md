@@ -318,10 +318,10 @@ npm run build
 npm run dev:web
 
 # Test the API
-curl http://localhost:18789/api/spaces
+curl http://localhost:19000/api/spaces
 
 # Test auth (default admin credentials)
-curl -X POST http://localhost:18789/api/auth/login \
+curl -X POST http://localhost:19000/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"admin","password":"ai-spaces"}'
 ```

@@ -1,8 +1,6 @@
 import { createMiddleware } from 'hono/factory';
 import jwt from 'jsonwebtoken';
-
-export const ACCESS_SECRET = process.env.JWT_SECRET || 'ai-spaces-dev-secret-change-in-production';
-export const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'ai-spaces-refresh-secret-change-in-production';
+import { config } from '../config.js';
 
 export interface AuthVariables {
   user: {
@@ -14,15 +12,20 @@ export interface AuthVariables {
 
 export const authMiddleware = createMiddleware<{ Variables: AuthVariables }>(async (c, next) => {
   const authHeader = c.req.header('Authorization');
+  const path = c.req.path;
+  console.log('[DEBUG-AUTH] Path:', path, 'Auth:', authHeader?.substring(0, 30));
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    console.log('[DEBUG-AUTH] No token');
     return c.json({ error: 'No token provided' }, 401);
   }
 
   const token = authHeader.substring(7);
 
   try {
-    const decoded = jwt.verify(token, ACCESS_SECRET) as jwt.JwtPayload;
+    console.log('[DEBUG-AUTH] Verifying with secret:', config.JWT_SECRET);
+    const decoded = jwt.verify(token, config.JWT_SECRET) as jwt.JwtPayload;
+    console.log('[DEBUG-AUTH] Decoded:', decoded);
     
     if (!decoded.userId) {
       return c.json({ error: 'Invalid token' }, 401);
@@ -36,6 +39,7 @@ export const authMiddleware = createMiddleware<{ Variables: AuthVariables }>(asy
 
     await next();
   } catch (error) {
+    console.log('[DEBUG-AUTH] Verify error:', error);
     if (error instanceof jwt.TokenExpiredError) {
       return c.json({ error: 'Token expired', code: 'TOKEN_EXPIRED' }, 401);
     }
@@ -45,7 +49,7 @@ export const authMiddleware = createMiddleware<{ Variables: AuthVariables }>(asy
 
 export function verifyRefreshToken(token: string): jwt.JwtPayload | null {
   try {
-    const decoded = jwt.verify(token, REFRESH_SECRET) as jwt.JwtPayload;
+    const decoded = jwt.verify(token, config.JWT_REFRESH_SECRET) as jwt.JwtPayload;
     if (decoded.type !== 'refresh' || !decoded.userId) {
       return null;
     }

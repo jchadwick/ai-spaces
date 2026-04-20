@@ -4,6 +4,7 @@ import * as crypto from 'crypto';
 import type { Space, SpaceConfig } from '@ai-spaces/shared';
 import { SpaceConfigSchema } from '@ai-spaces/shared';
 import { logAudit } from './audit.js';
+import { config } from './config.js';
 
 interface SpaceRecord {
   id: string;
@@ -22,7 +23,7 @@ interface SpaceStore {
 }
 
 function getDataDir(): string {
-  return process.env.AI_SPACES_DATA || path.join(process.env.HOME || '', '.ai-spaces');
+  return config.AI_SPACES_DATA;
 }
 
 function getStoreFilePath(): string {

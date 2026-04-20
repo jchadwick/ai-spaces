@@ -1,9 +1,9 @@
-import 'dotenv/config';
 import { serve } from '@hono/node-server';
 import * as http from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import * as fs from 'fs';
 import * as path from 'path';
+import { config } from './config.js';
 import { authRouter } from './routes/auth.js';
 import { spacesRouter } from './routes/spaces.js';
 import { filesRouter, setFileProvider } from './routes/files.js';
@@ -16,11 +16,6 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 
-const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:19000';
-/** OpenClaw gateway HTTP/WS auth (browser WebSockets cannot set headers). */
-const GATEWAY_TOKEN = process.env.GATEWAY_TOKEN || 'secret';
-const PORT = parseInt(process.env.AI_SPACES_PORT || '3001', 10);
-const WEB_DIST = process.env.WEB_DIST || path.join(process.env.HOME || '', 'ai-spaces', 'packages', 'web', 'dist');
 
 setFileProvider(createFileProvider());
 
@@ -46,24 +41,24 @@ app.route('/api/files', filesRouter.use(authMiddleware));
 app.route('/api/chat', chatRouter.use(authMiddleware));
 app.route('/api/audit', auditRouter.use(authMiddleware));
 
-if (fs.existsSync(WEB_DIST)) {
+if (fs.existsSync(config.WEB_DIST)) {
   app.use('*', async (c, next) => {
     if (c.req.path.startsWith('/api/')) {
       return next();
     }
-    const filePath = path.join(WEB_DIST, c.req.path);
+    const filePath = path.join(config.WEB_DIST, c.req.path);
     if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
       const content = fs.readFileSync(filePath);
       return c.text(content, 200, {
         'Content-Type': getContentType(filePath),
       });
     }
-    const indexContent = fs.readFileSync(path.join(WEB_DIST, 'index.html'), 'utf-8');
+    const indexContent = fs.readFileSync(path.join(config.WEB_DIST, 'index.html'), 'utf-8');
     return c.text(indexContent, 200, {
       'Content-Type': 'text/html',
     });
   });
-  console.log(`Serving static files from: ${WEB_DIST}`);
+  console.log(`Serving static files from: ${config.WEB_DIST}`);
 }
 
 function getContentType(filePath: string): string {
@@ -104,17 +99,14 @@ wss.on('upgrade', (request, socket, head) => {
   }
 
   const spaceId = pathMatch[1];
-  const gatewayWsUrl = `${GATEWAY_URL.replace(/^http/, 'ws')}/api/spaces/${spaceId}/ws`;
-  const browserAuth = request.headers.authorization?.trim() || '';
-  const gatewayAuth = browserAuth || `Bearer ${GATEWAY_TOKEN}`;
+  // The gateway's port 19000 is its own control-plane WebSocket protocol and
+  // does not route upgrades to plugin HTTP routes. The plugin runs a dedicated
+  // WebSocket server (default: 3002) that we proxy to instead.
+  const pluginWsUrl = `${config.PLUGIN_WS_URL}/api/spaces/${spaceId}/ws`;
 
-  console.log('[WS-PROXY] Proxying WebSocket to gateway:', gatewayWsUrl);
+  console.log('[WS-PROXY] Proxying WebSocket to plugin:', pluginWsUrl);
 
-  const gatewayWs = new WebSocket(gatewayWsUrl, {
-    headers: {
-      Authorization: gatewayAuth,
-    },
-  });
+  const gatewayWs = new WebSocket(pluginWsUrl);
 
   let clientWs: WebSocket | null = null;
   const pendingToClient: Buffer[] = [];
@@ -141,12 +133,11 @@ wss.on('upgrade', (request, socket, head) => {
     flushToGateway();
   });
 
-  gatewayWs.on('message', (data) => {
-    const buf = Buffer.isBuffer(data) ? data : Buffer.from(String(data));
+  gatewayWs.on('message', (data, isBinary) => {
     if (clientWs && clientWs.readyState === WebSocket.OPEN) {
-      clientWs.send(buf);
+      clientWs.send(data, { binary: isBinary });
     } else {
-      pendingToClient.push(buf);
+      pendingToClient.push(rawDataToBuffer(data));
     }
   });
 
@@ -192,7 +183,7 @@ wss.on('upgrade', (request, socket, head) => {
 
 const server = serve({
   fetch: app.fetch,
-  port: PORT,
+  port: config.AI_SPACES_PORT,
   overrideGlobalObjects: false,
 });
 
@@ -200,6 +191,6 @@ server.on('upgrade', (request, socket, head) => {
   wss.emit('upgrade', request, socket, head);
 });
 
-console.log(`Server started on port ${PORT}`);
+console.log(`Server started on port ${config.AI_SPACES_PORT}`);
 
 export { app };

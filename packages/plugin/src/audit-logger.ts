@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { config } from './config.js';
 
 export interface AuditLogEntry {
   timestamp: string;
@@ -14,12 +15,10 @@ export interface AuditLogEntry {
   message: string;
 }
 
-const AUDIT_LOG_DIR = '/tmp/openclaw-sandbox/logs';
 const AUDIT_LOG_FILE = 'ai-spaces-audit.log';
 
 function getAuditLogPath(): string {
-  const openclawHome = process.env.OPENCLAW_HOME || path.join(process.env.HOME || '', '.openclaw');
-  return path.join(openclawHome, 'logs', AUDIT_LOG_FILE);
+  return path.join(config.OPENCLAW_HOME, 'logs', AUDIT_LOG_FILE);
 }
 
 function ensureLogDirectory(): void {

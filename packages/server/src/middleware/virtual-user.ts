@@ -3,8 +3,7 @@ import jwt from 'jsonwebtoken';
 import { db } from '../db/connection.js';
 import { users } from '../db/index.js';
 import { eq } from 'drizzle-orm';
-
-const ACCESS_SECRET = process.env.JWT_SECRET || 'ai-spaces-dev-secret-change-in-production';
+import { config } from '../config.js';
 
 export interface AuthenticatedRequest extends Request {
   user?: {
@@ -25,7 +24,7 @@ export function virtualUser(req: Request, res: Response, next: NextFunction) {
   
   let decoded: jwt.JwtPayload;
   try {
-    decoded = jwt.verify(token, ACCESS_SECRET) as jwt.JwtPayload;
+    decoded = jwt.verify(token, config.JWT_SECRET) as jwt.JwtPayload;
   } catch {
     return res.status(401).json({ error: 'Invalid token' });
   }

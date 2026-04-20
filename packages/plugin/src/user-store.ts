@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import type { User, UserRole } from '@ai-spaces/shared';
+import { config } from './config.js';
 
 interface UserStore {
   users: Record<string, User>;
@@ -11,7 +12,7 @@ interface UserStore {
 export { hashPassword, verifyPassword } from './password-utils.js';
 
 function getOpenClawHome(): string {
-  return process.env.OPENCLAW_HOME || path.join(process.env.HOME || '', '.openclaw');
+  return config.OPENCLAW_HOME;
 }
 
 function getUsersFilePath(): string {

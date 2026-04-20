@@ -356,7 +356,7 @@
 ### Test 1: Basic Chat
 ```bash
 # Connect WebSocket
-wscat -c "ws://localhost:18789/spaces/Test/ws?share=$TOKEN"
+wscat -c "ws://localhost:19000/spaces/Test/ws?share=$TOKEN"
 
 # Send message
 > {"type":"req","id":"1","method":"chat.send","params":{"message":"Hello"}}

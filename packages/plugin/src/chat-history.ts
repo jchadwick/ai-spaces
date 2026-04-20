@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import type { ChatMessage } from '@ai-spaces/shared';
+import { config } from './config.js';
 
 interface ChatSession {
   id: string;
@@ -15,7 +16,7 @@ interface ChatHistoryStore {
 }
 
 function getOpenClawHome(): string {
-  return process.env.OPENCLAW_HOME || path.join(process.env.HOME || '', '.openclaw');
+  return config.OPENCLAW_HOME;
 }
 
 function getHistoryFilePath(spacePath: string): string {

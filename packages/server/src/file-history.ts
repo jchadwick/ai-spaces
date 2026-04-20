@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { config } from './config.js';
 
 interface FileModification {
   path: string;
@@ -14,7 +15,7 @@ interface FileHistoryStore {
 }
 
 function getDataDir(): string {
-  return process.env.AI_SPACES_DATA || path.join(process.env.HOME || '', '.ai-spaces');
+  return config.AI_SPACES_DATA;
 }
 
 function getHistoryFilePath(spacePath: string): string {

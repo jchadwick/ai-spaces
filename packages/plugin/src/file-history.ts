@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { config } from './config.js';
 
 interface FileModification {
   path: string;
@@ -14,7 +15,7 @@ interface FileHistoryStore {
 }
 
 function getOpenClawHome(): string {
-  return process.env.OPENCLAW_HOME || path.join(process.env.HOME || '', '.openclaw');
+  return config.OPENCLAW_HOME;
 }
 
 function getHistoryFilePath(spacePath: string): string {

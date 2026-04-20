@@ -5,6 +5,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import type { Space, SpaceConfig } from '@ai-spaces/shared';
+import { config } from '../config.js';
 
 export const spacesRouter = new Hono();
 
@@ -31,7 +32,7 @@ const createSpaceSchema = z.object({
 });
 
 function getDataDir(): string {
-  return process.env.AI_SPACES_DATA || path.join(process.env.HOME || '', '.ai-spaces');
+  return config.AI_SPACES_DATA;
 }
 
 function getStoreFilePath(): string {
@@ -353,12 +354,12 @@ async function findSpacesInWorkspace(workspaceDir: string, agentName: string): P
 }
 
 function getAgentsHome(): string {
-  const openclawHome = process.env.OPENCLAW_HOME || path.join(process.env.HOME || '', '.openclaw');
+  const openclawHome = config.OPENCLAW_HOME;
   return path.join(openclawHome, 'agents');
 }
 
 function getAgentWorkspace(agentName: string): string | null {
-  const openclawHome = process.env.OPENCLAW_HOME || path.join(process.env.HOME || '', '.openclaw');
+  const openclawHome = config.OPENCLAW_HOME;
   const agentsDir = getAgentsHome();
   const agentFile = path.join(agentsDir, agentName, 'agent.json');
   
@@ -375,7 +376,7 @@ function getAgentWorkspace(agentName: string): string | null {
 }
 
 spacesRouter.post('/scan', async (c) => {
-  const openclawHome = process.env.OPENCLAW_HOME || path.join(process.env.HOME || '', '.openclaw');
+  const openclawHome = config.OPENCLAW_HOME;
   const agentsHome = getAgentsHome();
   
   if (!fs.existsSync(agentsHome)) {

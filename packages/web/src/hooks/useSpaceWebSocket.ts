@@ -114,12 +114,12 @@ export function useSpaceWebSocket({ spaceId, onMessage }: UseSpaceWebSocketOptio
     };
 
     ws.onerror = () => {
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || wsRef.current !== ws) return;
       setConnectionStatus('error');
     };
 
     ws.onclose = () => {
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || wsRef.current !== ws) return;
       if (!intentionalDisconnectRef.current) {
         setConnectionStatus('disconnected');
       }

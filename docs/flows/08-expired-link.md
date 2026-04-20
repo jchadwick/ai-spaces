@@ -282,7 +282,7 @@ openclaw spaces share create Test --expires -1d --format json
 # (or manually edit shares.json with past date)
 
 # Access with expired token
-curl "http://localhost:18789/spaces/Test?share=$TOKEN"
+curl "http://localhost:19000/spaces/Test?share=$TOKEN"
 
 # Expected: HTTP 410 with error page
 ```
@@ -293,7 +293,7 @@ curl "http://localhost:18789/spaces/Test?share=$TOKEN"
 openclaw spaces share create Test --expires 7d --format json
 
 # Access with valid token
-curl "http://localhost:18789/spaces/Test?share=$TOKEN"
+curl "http://localhost:19000/spaces/Test?share=$TOKEN"
 
 # Expected: HTTP 200 with Space UI
 ```
@@ -301,7 +301,7 @@ curl "http://localhost:18789/spaces/Test?share=$TOKEN"
 ### Test 3: During Session
 ```bash
 # Connect with valid token
-wscat -c "ws://localhost:18789/spaces/Test/ws?share=$TOKEN" &
+wscat -c "ws://localhost:19000/spaces/Test/ws?share=$TOKEN" &
 
 # Manually expire token
 openclaw spaces share expire Test $SHARE_ID

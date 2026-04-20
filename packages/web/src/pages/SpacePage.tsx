@@ -52,9 +52,9 @@ export default function SpacePage() {
         }
         return res.json()
       })
-      .then(data => {
+      .then((data: { space?: Space } & Partial<Space>) => {
         if (!mounted) return
-        setSpace(data)
+        setSpace(data.space ?? (data as Space))
         setLoading(false)
       })
       .catch(err => {

@@ -22,7 +22,7 @@ Key concepts:
 
 The central daemon process that:
 - Maintains connections to messaging channels (WhatsApp, Telegram, etc.)
-- Exposes WebSocket API on port 18789 (configurable)
+- Exposes WebSocket API on port 19000 (configurable)
 - Validates inbound frames against JSON Schema
 - Emits events: `agent`, `chat`, `presence`, `health`, `heartbeat`, `cron`
 - Serves static files for Control UI and other web surfaces

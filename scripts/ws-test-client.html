@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>WS Test Client</title>
+  <style>
+    body { font-family: monospace; padding: 16px; background: #111; color: #eee; }
+    #log { border: 1px solid #444; padding: 8px; height: 400px; overflow-y: auto; white-space: pre-wrap; }
+    #stream { border: 1px solid #444; padding: 8px; min-height: 60px; white-space: pre-wrap; color: #afa; margin-top: 8px; }
+    input, button, select { margin: 4px; padding: 6px 10px; }
+    input[type=text] { width: 400px; background: #222; color: #eee; border: 1px solid #555; }
+    select { background: #222; color: #eee; border: 1px solid #555; }
+    button { background: #333; color: #eee; border: 1px solid #555; cursor: pointer; }
+    .sent { color: #8cf; }
+    .recv { color: #8fc; }
+    .info { color: #fc8; }
+    .err  { color: #f88; }
+    .chunk { color: #afa; }
+  </style>
+</head>
+<body>
+  <h2>AI Spaces WebSocket Test Client</h2>
+
+  <div>
+    <label>Server URL:</label>
+    <input type="text" id="url" value="ws://127.0.0.1:3002/api/spaces/" />
+    <button onclick="connect()">Connect</button>
+    <button onclick="disconnect()">Disconnect</button>
+  </div>
+  <div style="margin-top:8px">
+    <label>Space ID:</label>
+    <input type="text" id="spaceId" value="24ffed02542a0fa1c27c17e27c1dac78" style="width:200px" onchange="updateWsUrl()" />
+    <button onclick="lookupSpaceId()" disabled>Lookup Space ID (plugin has no HTTP API)</button>
+  </div>
+  <div style="margin-top:8px">
+    <label>Chat message:</label>
+    <input type="text" id="chatMsg" value="what files are in this space?" style="width:400px" />
+    <button onclick="sendConnect()">1. Send connect</button>
+    <button onclick="sendChat()">2. Send chat</button>
+  </div>
+  <div style="margin-top:8px">
+    <label>Raw JSON:</label>
+    <input type="text" id="msg" placeholder='{"type":"req","id":"1","method":"connect","params":{}}' />
+    <button onclick="sendRaw()">Send Raw</button>
+  </div>
+
+  <div style="margin-top:8px"><strong>Streamed response:</strong></div>
+  <div id="stream">(waiting for stream...)</div>
+  <div style="margin-top:8px"><strong>Log:</strong></div>
+  <div id="log"></div>
+
+  <script>
+    let ws = null;
+    let streamBuffer = '';
+
+    function log(cls, text) {
+      const el = document.getElementById('log');
+      const line = document.createElement('div');
+      line.className = cls;
+      line.textContent = `[${new Date().toISOString().slice(11,23)}] ${text}`;
+      el.appendChild(line);
+      el.scrollTop = el.scrollHeight;
+    }
+
+    async function lookupSpaceId() {
+      try {
+        const res = await fetch('http://127.0.0.1:3002/api/spaces');
+        const data = await res.json();
+        const spaces = data.spaces ?? [];
+        if (spaces.length === 0) { log('err', 'No spaces found'); return; }
+        const spaceId = spaces[0].id;
+        document.getElementById('spaceId').value = spaceId;
+        document.getElementById('url').value = `ws://127.0.0.1:3002/api/spaces/${spaceId}/ws`;
+        log('info', `Found space: ${spaces[0].name} (${spaceId})`);
+      } catch (e) {
+        log('err', `Lookup failed: ${e.message}`);
+      }
+    }
+
+    function updateWsUrl() {
+      const spaceId = document.getElementById('spaceId').value.trim();
+      const baseUrl = document.getElementById('url').value.trim().replace(/\/[^/]*$/, '');
+      document.getElementById('url').value = `${baseUrl}/${spaceId}/ws`;
+    }
+
+    function connect() {
+      const url = document.getElementById('url').value.trim();
+      if (ws) ws.close();
+      log('info', `Connecting to ${url}`);
+      ws = new WebSocket(url);
+      ws.onopen = () => log('info', 'WebSocket OPEN');
+      ws.onclose = (e) => log('info', `WebSocket CLOSED code=${e.code} reason=${e.reason}`);
+      ws.onerror = () => log('err', 'WebSocket ERROR');
+      ws.onmessage = (e) => {
+        let parsed;
+        try { parsed = JSON.parse(e.data); } catch { log('recv', `← ${e.data}`); return; }
+
+        // Show stream chunks in the stream box
+        if (parsed.type === 'event' && parsed.event === 'stream_start') {
+          streamBuffer = '';
+          document.getElementById('stream').textContent = '';
+          log('info', `← stream_start (msgId: ${parsed.payload?.messageId})`);
+        } else if (parsed.type === 'event' && parsed.event === 'stream_chunk') {
+          streamBuffer += parsed.payload?.text ?? '';
+          document.getElementById('stream').textContent = streamBuffer;
+        } else if (parsed.type === 'event' && parsed.event === 'stream_end') {
+          log('info', `← stream_end (${streamBuffer.length} chars)`);
+        } else {
+          log('recv', `← ${e.data}`);
+        }
+      };
+    }
+
+    function disconnect() {
+      if (ws) { ws.close(); ws = null; }
+    }
+
+    function sendRaw() {
+      const text = document.getElementById('msg').value.trim();
+      if (!ws || ws.readyState !== WebSocket.OPEN) { log('err', 'Not connected'); return; }
+      ws.send(text);
+      log('sent', `→ ${text}`);
+    }
+
+    function sendConnect() {
+      const msg = JSON.stringify({ type: 'req', id: 'connect-1', method: 'connect', params: {} });
+      if (!ws || ws.readyState !== WebSocket.OPEN) { log('err', 'Not connected'); return; }
+      ws.send(msg);
+      log('sent', `→ ${msg}`);
+    }
+
+    function sendChat() {
+      const content = document.getElementById('chatMsg').value.trim() || 'hello';
+      const msg = JSON.stringify({ type: 'req', id: crypto.randomUUID(), method: 'chat.send', params: { content } });
+      if (!ws || ws.readyState !== WebSocket.OPEN) { log('err', 'Not connected'); return; }
+      ws.send(msg);
+      log('sent', `→ ${msg}`);
+    }
+  </script>
+</body>
+</html>

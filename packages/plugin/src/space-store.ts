@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import type { Space, SpaceConfig } from '@ai-spaces/shared';
 import { SpaceConfigSchema } from '@ai-spaces/shared';
+import { config } from './config.js';
 
 interface SpaceRecord {
   id: string;
@@ -21,7 +22,7 @@ interface SpaceStore {
 }
 
 function getOpenClawHome(): string {
-  return process.env.OPENCLAW_HOME || path.join(process.env.HOME || '', '.openclaw');
+  return config.OPENCLAW_HOME;
 }
 
 function getStoreFilePath(): string {

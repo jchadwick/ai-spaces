@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { config } from '../config.js';
 
 interface CreateSpaceOptions {
   json?: boolean;
@@ -9,7 +10,7 @@ interface CreateSpaceOptions {
 }
 
 function getAgentWorkspace(): string {
-  const openclawHome = process.env.OPENCLAW_HOME || path.join(process.env.HOME || '', '.openclaw');
+  const openclawHome = config.OPENCLAW_HOME;
   return path.join(openclawHome, 'workspace');
 }
 

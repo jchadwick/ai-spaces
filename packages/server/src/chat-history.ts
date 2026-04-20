@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import type { ChatMessage } from '@ai-spaces/shared';
+import { config } from './config.js';
 
 interface ChatSession {
   id: string;
@@ -15,7 +16,7 @@ interface ChatHistoryStore {
 }
 
 function getDataDir(): string {
-  return process.env.AI_SPACES_DATA || path.join(process.env.HOME || '', '.ai-spaces');
+  return config.AI_SPACES_DATA;
 }
 
 function getHistoryFilePath(spacePath: string): string {

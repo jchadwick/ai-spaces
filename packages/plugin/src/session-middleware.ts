@@ -1,8 +1,7 @@
 import type { IncomingMessage } from 'http';
 import jwt from 'jsonwebtoken';
+import { config } from './config.js';
 
-// Use the same secret as auth.ts
-const ACCESS_SECRET = process.env.JWT_SECRET || 'ai-spaces-dev-secret-change-in-production';
 
 /**
  * Extended IncomingMessage with user info
@@ -38,7 +37,7 @@ export function validateSession(req: IncomingMessage): jwt.JwtPayload | null {
   const token = parts[1];
 
   try {
-    const decoded = jwt.verify(token, ACCESS_SECRET) as jwt.JwtPayload;
+    const decoded = jwt.verify(token, config.JWT_SECRET) as jwt.JwtPayload;
     return decoded;
   } catch {
     return null;

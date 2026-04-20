@@ -6,6 +6,7 @@ import type { FileNode, Role } from '@ai-spaces/shared';
 import { validatePath, isPathContained } from '../validation.js';
 import { logPathEscapeAttempt, logFileAccess } from '../audit-logger.js';
 import { validateSession } from '../session-middleware.js';
+import { config } from '../config.js';
 
 interface SpaceConfig {
   name: string;
@@ -34,7 +35,7 @@ function generateSpaceId(agentName: string, spacePath: string): string {
 }
 
 async function findSpaceById(spaceId: string): Promise<DiscoveredSpace | null> {
-  const openclawHome = process.env.OPENCLAW_HOME || path.join(process.env.HOME || '', '.openclaw');
+  const openclawHome = config.OPENCLAW_HOME;
   const agentsHome = path.join(openclawHome, 'agents');
   
   if (!fs.existsSync(agentsHome)) {
@@ -203,7 +204,7 @@ function getClientIp(req: IncomingMessage): string | undefined {
 }
 
 function getSpaceRootPath(space: DiscoveredSpace): string {
-  const openclawHome = process.env.OPENCLAW_HOME || path.join(process.env.HOME || '', '.openclaw');
+  const openclawHome = config.OPENCLAW_HOME;
   
   if (space.agentName === 'main') {
     return path.join(openclawHome, 'workspace', space.spacePath);

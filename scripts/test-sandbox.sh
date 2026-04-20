@@ -223,7 +223,7 @@ else
   
   # Wait for gateway to start
   for i in {1..30}; do
-    if curl -s http://localhost:18789/health > /dev/null 2>&1; then
+    if curl -s http://localhost:19000/health > /dev/null 2>&1; then
       GATEWAY_RUNNING=true
       break
     fi
@@ -241,14 +241,14 @@ fi
 # Test HTTP endpoint if gateway is running
 if [ "$GATEWAY_RUNNING" = true ]; then
   # Test health endpoint
-  if curl -s http://localhost:18789/health > /dev/null 2>&1; then
+  if curl -s http://localhost:19000/health > /dev/null 2>&1; then
     pass "Health endpoint responds"
   else
     fail "Health endpoint not responding"
   fi
   
   # Test spaces endpoint (will fail without auth, but endpoint should exist)
-  HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:18789/spaces/TestSpace 2>&1 || echo "000")
+  HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:19000/spaces/TestSpace 2>&1 || echo "000")
   if [ "$HTTP_CODE" != "000" ]; then
     pass "Spaces endpoint exists (HTTP $HTTP_CODE)"
   else

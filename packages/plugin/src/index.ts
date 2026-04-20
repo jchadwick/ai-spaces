@@ -4,11 +4,10 @@ import type { IncomingMessage, ServerResponse } from 'http';
 import { setRuntime, tryGetRuntime } from './runtime.js';
 import { getSpace } from './space-store.js';
 import { proxyRequest } from './routes/proxy.js';
-import { handleSpaceWebSocket } from './routes/space-ws.js';
+import { handleSpaceWebSocket, startWebSocketServer } from './routes/space-ws.js';
 import * as crypto from 'crypto';
 import * as path from 'path';
-
-const SERVER_URL = process.env.AI_SPACES_URL || 'http://127.0.0.1:3001';
+import { config } from './config.js';
 
 export default defineChannelPluginEntry({
   id: 'ai-spaces',
@@ -19,7 +18,9 @@ export default defineChannelPluginEntry({
 
   async registerFull(api) {
     console.log('[ai-spaces] Registering proxy plugin');
-    console.log('[ai-spaces] Proxying to:', SERVER_URL);
+    console.log('[ai-spaces] Proxying to:', config.AI_SPACES_URL);
+
+    startWebSocketServer(config.AI_SPACES_WS_PORT);
 
     api.registerHttpRoute({
       path: '/api/spaces',
@@ -34,7 +35,7 @@ export default defineChannelPluginEntry({
           return handleSpaceWebSocket(req, res);
         }
         
-        return proxyRequest(req, res, `${SERVER_URL}${url.pathname}`);
+        return proxyRequest(req, res, `${config.AI_SPACES_URL}${url.pathname}`);
       },
     });
 
@@ -70,7 +71,7 @@ export default defineChannelPluginEntry({
         }
         
         const targetPath = url.pathname.replace(/^\/api/, '/api');
-        return proxyRequest(req, res, `${SERVER_URL}${targetPath}`);
+        return proxyRequest(req, res, `${config.AI_SPACES_URL}${targetPath}`);
       },
     });
 
@@ -78,7 +79,7 @@ export default defineChannelPluginEntry({
       path: '/api/auth/login',
       auth: 'plugin',
       handler: async (req: IncomingMessage, res: ServerResponse) => {
-        return proxyRequest(req, res, `${SERVER_URL}/api/auth/login`);
+        return proxyRequest(req, res, `${config.AI_SPACES_URL}/api/auth/login`);
       },
     });
 
@@ -86,7 +87,7 @@ export default defineChannelPluginEntry({
       path: '/api/auth/logout',
       auth: 'plugin',
       handler: async (req: IncomingMessage, res: ServerResponse) => {
-        return proxyRequest(req, res, `${SERVER_URL}/api/auth/logout`);
+        return proxyRequest(req, res, `${config.AI_SPACES_URL}/api/auth/logout`);
       },
     });
 
@@ -94,7 +95,7 @@ export default defineChannelPluginEntry({
       path: '/api/auth/refresh',
       auth: 'plugin',
       handler: async (req: IncomingMessage, res: ServerResponse) => {
-        return proxyRequest(req, res, `${SERVER_URL}/api/auth/refresh`);
+        return proxyRequest(req, res, `${config.AI_SPACES_URL}/api/auth/refresh`);
       },
     });
 
@@ -134,8 +135,7 @@ export default defineChannelPluginEntry({
           return true;
         }
 
-        const openclawHome = process.env.OPENCLAW_HOME || '/tmp/openclaw-sandbox';
-        const fullSpacePath = path.join(openclawHome, 'workspace', space.path);
+        const fullSpacePath = path.join(config.OPENCLAW_HOME, 'workspace', space.path);
         const messageId = crypto.randomBytes(8).toString('hex');
 
         let responseText = '';
@@ -143,7 +143,7 @@ export default defineChannelPluginEntry({
         await runtime.agent.runEmbeddedPiAgent({
           sessionId: `space:${spaceId}:http`,
           runId: messageId,
-          sessionFile: path.join(openclawHome, 'sessions', `space-${spaceId}-http.jsonl`),
+          sessionFile: path.join(config.OPENCLAW_HOME, 'sessions', `space-${spaceId}-http.jsonl`),
           workspaceDir: fullSpacePath,
           prompt: content,
           timeoutMs: 120000,

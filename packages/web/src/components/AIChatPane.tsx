@@ -98,7 +98,7 @@ export default function AIChatPane({ spaceId, role = 'viewer' }: AIChatPaneProps
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const prevMessagesLengthRef = useRef(0);
   
-  const { messages, sendMessage, isStreaming } = useSpaceWebSocket({
+  const { messages, sendMessage, isStreaming, connectionStatus } = useSpaceWebSocket({
     spaceId,
   });
 
@@ -128,7 +128,11 @@ export default function AIChatPane({ spaceId, role = 'viewer' }: AIChatPaneProps
             <span className="material-symbols-outlined text-tertiary">forum</span>
             <span className="font-headline font-bold text-slate-900 dark:text-white">AI Assistant</span>
           </div>
-          <ConnectionStatusIndicator status={isStreaming ? 'connecting' : 'connected'} />
+          <div data-testid="chat-ws-status" data-status={connectionStatus}>
+            <ConnectionStatusIndicator
+              status={isStreaming ? 'connecting' : connectionStatus}
+            />
+          </div>
         </div>
       </div>
 

@@ -9,7 +9,7 @@
 ### Test Results (2026-04-07):
 ###   All tests passing. Plugin loads and routes work correctly.
 
-@baseUrl = http://localhost:18789
+@baseUrl = http://localhost:19000
 
 ### ============================================================================
 ### Health Check
@@ -109,9 +109,9 @@ Content-Type: application/json
 ### ============================================================================
 ### Note: WebSocket connections cannot be tested with HTTP file format.
 ### Use a WebSocket client like:
-###   - wscat: wscat -c ws://localhost:18789/api/spaces/0306b10f/ws
-###   - Browser: new WebSocket('ws://localhost:18789/api/spaces/0306b10f/ws')
-###   - Postman: WebSocket request to ws://localhost:18789/api/spaces/0306b10f/ws
+###   - wscat: wscat -c ws://localhost:19000/api/spaces/0306b10f/ws
+###   - Browser: new WebSocket('ws://localhost:19000/api/spaces/0306b10f/ws')
+###   - Postman: WebSocket request to ws://localhost:19000/api/spaces/0306b10f/ws
 ###
 ### WebSocket message format (JSON):
 ###   - Request: { "type": "...", "payload": {...} }

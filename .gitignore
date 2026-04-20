@@ -9,3 +9,7 @@ repomix*
 *.png
 .playwright-cli/
 .ai-spaces.db*
+playwright/.e2e-data/
+test-results/
+playwright-report/
+blob-report/

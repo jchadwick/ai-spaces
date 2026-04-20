@@ -298,7 +298,7 @@ openclaw spaces share list Test
 ```bash
 # Connect with share
 TOKEN=$(create_token)
-wscat -c "ws://localhost:18789/spaces/Test/ws?share=$TOKEN" &
+wscat -c "ws://localhost:19000/spaces/Test/ws?share=$TOKEN" &
 WS_PID=$!
 
 # Revoke share
@@ -315,7 +315,7 @@ wait $WS_PID
 openclaw spaces share revoke Test $SHARE_ID --force
 
 # Try to access
-curl "http://localhost:18789/spaces/Test?share=$TOKEN"
+curl "http://localhost:19000/spaces/Test?share=$TOKEN"
 # Expected: Error page "Invalid Share Link"
 ```
 

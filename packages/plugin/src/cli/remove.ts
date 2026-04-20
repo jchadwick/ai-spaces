@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { config } from '../config.js';
 
 interface RemoveSpaceOptions {
   json?: boolean;
@@ -15,7 +16,7 @@ function generateSpaceId(agentName: string, spacePath: string): string {
 }
 
 async function findSpaceById(spaceId: string): Promise<{ spacePath: string; configPath: string; spaceName: string } | null> {
-  const openclawHome = process.env.OPENCLAW_HOME || path.join(process.env.HOME || '', '.openclaw');
+  const openclawHome = config.OPENCLAW_HOME;
   const agentsHome = path.join(openclawHome, 'agents');
   
   if (!fs.existsSync(agentsHome)) {

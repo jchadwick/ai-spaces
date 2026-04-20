@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { config } from './config.js';
 
 export type AuditAction = 
   | 'space.create'
@@ -19,7 +20,7 @@ export interface AuditLogEntry {
 }
 
 function getLogDir(): string {
-  return process.env.AI_SPACES_DATA || path.join(process.env.HOME || '', '.ai-spaces');
+  return config.AI_SPACES_DATA;
 }
 
 function getAuditLogPath(): string {

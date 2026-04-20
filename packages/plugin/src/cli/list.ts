@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import { config } from '../config.js';
 
 interface SpaceConfig {
   name: string;
@@ -73,7 +74,7 @@ spaces.push({
 }
 
 function getAgentsHome(): string {
-  const openclawHome = process.env.OPENCLAW_HOME || path.join(process.env.HOME || '', '.openclaw');
+  const openclawHome = config.OPENCLAW_HOME;
   return path.join(openclawHome, 'agents');
 }
 
@@ -94,7 +95,7 @@ function getAgentWorkspace(agentName: string, openclawHome: string): string | nu
 }
 
 export async function listSpaces(options: { json?: boolean } = {}) {
-  const openclawHome = process.env.OPENCLAW_HOME || path.join(process.env.HOME || '', '.openclaw');
+  const openclawHome = config.OPENCLAW_HOME;
   const agentsHome = getAgentsHome();
   
   if (!fs.existsSync(agentsHome)) {

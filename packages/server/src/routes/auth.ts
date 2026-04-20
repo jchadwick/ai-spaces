@@ -4,9 +4,7 @@ import { zValidator } from '@hono/zod-validator';
 import { getUserByEmail, getUserById, verifyPassword } from '../user-service.js';
 import type { User } from '@ai-spaces/shared';
 import jwt from 'jsonwebtoken';
-
-const ACCESS_SECRET = process.env.JWT_SECRET || 'ai-spaces-dev-secret-change-in-production';
-const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'ai-spaces-refresh-secret-change-in-production';
+import { config } from '../config.js';
 
 export const authRouter = new Hono();
 
@@ -20,15 +18,19 @@ const refreshSchema = z.object({
 });
 
 authRouter.post('/login', zValidator('json', loginSchema), async (c) => {
+  console.log('[DEBUG] Login route entered');
   const { email, password } = c.req.valid('json');
+  console.log('[DEBUG] Login attempt for:', email);
 
   const user = getUserByEmail(email);
+  console.log('[DEBUG] User found:', !!user);
 
   if (!user) {
     return c.json({ error: 'Invalid credentials' }, 401);
   }
 
   const validPassword = await verifyPassword(password, user.passwordHash);
+  console.log('[DEBUG] Password valid:', validPassword);
 
   if (!validPassword) {
     return c.json({ error: 'Invalid credentials' }, 401);
@@ -57,7 +59,7 @@ authRouter.post('/refresh', zValidator('json', refreshSchema), async (c) => {
 
   let decoded: jwt.JwtPayload;
   try {
-    decoded = jwt.verify(refreshToken, REFRESH_SECRET) as jwt.JwtPayload;
+    decoded = jwt.verify(refreshToken, config.JWT_REFRESH_SECRET) as jwt.JwtPayload;
   } catch {
     return c.json({ error: 'Invalid or expired refresh token' }, 401);
   }
@@ -89,13 +91,13 @@ authRouter.post('/refresh', zValidator('json', refreshSchema), async (c) => {
 function generateTokens(user: User): { accessToken: string; refreshToken: string } {
   const accessToken = jwt.sign(
     { userId: user.id, email: user.email, role: user.role },
-    ACCESS_SECRET,
+    config.JWT_SECRET,
     { expiresIn: '1h'}
   );
-  
+
   const refreshToken = jwt.sign(
     { userId: user.id, type: 'refresh' },
-    REFRESH_SECRET,
+    config.JWT_REFRESH_SECRET,
     { expiresIn: '7d' }
   );
   

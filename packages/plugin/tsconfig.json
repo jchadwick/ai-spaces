@@ -5,7 +5,7 @@
     "rootDir": "./src",
     "declaration": true,
     "declarationMap": true,
-    "composite": true
+    "composite": false
   },
   "include": ["src/**/*"],
   "references": [

@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import type { FileProvider, FileEntry } from '@ai-spaces/shared';
+import { config } from './config.js';
 
 export class LocalFileProvider implements FileProvider {
   private readonly rootPath: string;
@@ -90,6 +91,5 @@ export class LocalFileProvider implements FileProvider {
 }
 
 export function createFileProvider(): FileProvider {
-  const rootPath = process.env.AI_SPACES_ROOT || path.join(process.env.HOME || '', 'ai-spaces-workspace');
-  return new LocalFileProvider(rootPath);
+  return new LocalFileProvider(config.AI_SPACES_ROOT);
 }

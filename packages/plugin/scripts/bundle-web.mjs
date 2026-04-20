@@ -1,4 +1,4 @@
-import { cpSync, mkdirSync, existsSync } from 'fs';
+import { cpSync, mkdirSync, existsSync, writeFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -26,4 +26,12 @@ if (existsSync(webDist)) {
   console.log('Bundled web assets into plugin');
 } else {
   console.log('Web dist not found, skipping bundle');
+}
+
+// Copy plugin manifest to dist
+const manifestSource = resolve(pluginDir, 'openclaw.plugin.json');
+const manifestTarget = resolve(pluginDist, 'openclaw.plugin.json');
+if (existsSync(manifestSource)) {
+  cpSync(manifestSource, manifestTarget);
+  console.log('Bundled plugin manifest');
 }

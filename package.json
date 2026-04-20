@@ -14,10 +14,15 @@
     "dev:web": "npm run dev -w @ai-spaces/web",
     "dev:server": "npm run dev -w @ai-spaces/server",
     "dev:plugin": "npm run dev -w @openclaw/ai-spaces",
-    "test": "npm run test -ws --if-present"
+    "test": "npm run test -ws --if-present",
+    "test:e2e": "playwright test",
+    "test:e2e:install": "playwright install chromium"
   },
   "devDependencies": {
-    "typescript": "^6.0.2"
+    "@playwright/test": "^1.49.1",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
+    "ws": "^8.18.0"
   },
   "keywords": [
     "openclaw",

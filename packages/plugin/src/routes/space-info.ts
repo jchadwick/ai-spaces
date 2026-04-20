@@ -6,6 +6,7 @@ import { createSpace, type CreateSpaceInput } from '../space-store.js';
 import { SpaceConfigSchema } from '@ai-spaces/shared';
 import { logSpaceAccessed } from '../audit-logger.js';
 import { validateSession } from '../session-middleware.js';
+import { config } from '../config.js';
 
 interface SpaceConfig {
   name: string;
@@ -76,7 +77,7 @@ async function findSpacesInWorkspace(workspaceDir: string, agentName: string): P
 }
 
 function getAgentsHome(): string {
-  const openclawHome = process.env.OPENCLAW_HOME || path.join(process.env.HOME || '', '.openclaw');
+  const openclawHome = config.OPENCLAW_HOME;
   return path.join(openclawHome, 'agents');
 }
 
@@ -97,7 +98,7 @@ function getAgentWorkspace(agentName: string, openclawHome: string): string | nu
 }
 
 export async function handleListSpaces(req: IncomingMessage, res: ServerResponse) {
-  const openclawHome = process.env.OPENCLAW_HOME || path.join(process.env.HOME || '', '.openclaw');
+  const openclawHome = config.OPENCLAW_HOME;
   const agentsHome = getAgentsHome();
   
   if (!fs.existsSync(agentsHome)) {
@@ -145,7 +146,7 @@ export async function handleListSpaces(req: IncomingMessage, res: ServerResponse
 }
 
 export async function handleGetSpace(req: IncomingMessage, res: ServerResponse, spaceId: string) {
-  const openclawHome = process.env.OPENCLAW_HOME || path.join(process.env.HOME || '', '.openclaw');
+  const openclawHome = config.OPENCLAW_HOME;
   const agentsHome = getAgentsHome();
   
   if (!fs.existsSync(agentsHome)) {

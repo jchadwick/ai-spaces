@@ -372,7 +372,7 @@
 ```bash
 # Connect as editor
 TOKEN=$(create_editor_token)
-wscat -c "ws://localhost:18789/spaces/Test/ws?share=$TOKEN"
+wscat -c "ws://localhost:19000/spaces/Test/ws?share=$TOKEN"
 
 # Send chat message
 > {"type":"req","id":"1","method":"chat.send","params":{"message":"Add 'test note' to Test.md"}}

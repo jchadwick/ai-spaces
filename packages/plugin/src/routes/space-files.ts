@@ -1,172 +1,109 @@
 import type { IncomingMessage, ServerResponse } from 'http';
 import * as fs from 'fs';
+import * as fsPromises from 'fs/promises';
 import * as path from 'path';
-import * as crypto from 'crypto';
 import type { FileNode, Role } from '@ai-spaces/shared';
 import { validatePath, isPathContained } from '../validation.js';
 import { logPathEscapeAttempt, logFileAccess } from '../audit-logger.js';
 import { validateSession } from '../session-middleware.js';
-import { config } from '../config.js';
+import { getSpace, resolveSpaceRoot, type SpaceRecord } from '../space-store.js';
 
-interface SpaceConfig {
-  name: string;
-  description?: string;
-  collaborators?: string[];
-  agent?: {
-    capabilities?: string[];
-    denied?: string[];
-  };
+const DEFAULT_MAX_DEPTH = 10;
+
+interface QueueItem {
+  dir: string;
+  basePath: string;
+  depth: number;
+  parentChildren: FileNode[];
 }
 
-interface DiscoveredSpace {
-  id: string;
-  agentName: string;
-  spaceName: string;
-  spacePath: string;
-  configPath: string;
-  config: SpaceConfig;
-}
-
-function generateSpaceId(agentName: string, spacePath: string): string {
-  const hash = crypto.createHash('sha256');
-  hash.update(`${agentName}:${spacePath}`);
-  const hex = hash.digest('hex');
-  return hex.slice(0, 8);
-}
-
-async function findSpaceById(spaceId: string): Promise<DiscoveredSpace | null> {
-  const openclawHome = config.OPENCLAW_HOME;
-  const agentsHome = path.join(openclawHome, 'agents');
-  
-  if (!fs.existsSync(agentsHome)) {
-    return null;
-  }
-  
-  const agentDirs = fs.readdirSync(agentsHome, { withFileTypes: true })
-    .filter(entry => entry.isDirectory())
-    .map(entry => entry.name);
-  
-  for (const agentName of agentDirs) {
-    let workspacePath: string;
-    
-    if (agentName === 'main') {
-      workspacePath = path.join(openclawHome, 'workspace');
-    } else {
-      const agentFile = path.join(agentsHome, agentName, 'agent.json');
-      let workspace = null;
-      if (fs.existsSync(agentFile)) {
-        try {
-          const agentData = JSON.parse(fs.readFileSync(agentFile, 'utf-8'));
-          workspace = agentData.workspace || null;
-        } catch {}
-      }
-      workspacePath = workspace || path.join(openclawHome, 'workspace', agentName);
-    }
-    
-    const space = await scanForSpace(workspacePath, agentName, spaceId);
-    if (space) {
-      return space;
-    }
-  }
-  
-  return null;
-}
-
-async function scanForSpace(dir: string, agentName: string, targetId: string, relativePath: string = ''): Promise<DiscoveredSpace | null> {
-  if (!fs.existsSync(dir)) {
-    return null;
-  }
-  
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
-  
-  for (const entry of entries) {
-    if (entry.isDirectory()) {
-      const spaceDir = path.join(dir, entry.name);
-      const spaceConfigPath = path.join(spaceDir, '.space', 'spaces.json');
-      
-      if (fs.existsSync(spaceConfigPath)) {
-        try {
-          const configContent = fs.readFileSync(spaceConfigPath, 'utf-8');
-          const config: SpaceConfig = JSON.parse(configContent);
-          const spacePath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
-          const id = generateSpaceId(agentName, spacePath);
-          
-          if (id === targetId) {
-            return {
-              id,
-              agentName,
-              spaceName: config.name || entry.name,
-              spacePath,
-              configPath: spaceConfigPath,
-              config,
-            };
-          }
-        } catch {}
-      }
-      
-      const found = await scanForSpace(spaceDir, agentName, targetId, relativePath ? `${relativePath}/${entry.name}` : entry.name);
-      if (found) return found;
-    }
-  }
-  
-  return null;
-}
-
-function buildFileTree(dir: string, basePath: string, hideSpaceFolder: boolean, spaceRoot: string): FileNode[] {
-  if (!fs.existsSync(dir)) {
+async function buildFileTree(
+  dir: string,
+  basePath: string,
+  hideSpaceFolder: boolean,
+  spaceRoot: string,
+  maxDepth = DEFAULT_MAX_DEPTH,
+): Promise<FileNode[]> {
+  try {
+    await fsPromises.access(dir);
+  } catch {
     return [];
   }
-  
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
-  const nodes: FileNode[] = [];
-  
-  for (const entry of entries) {
-    if (hideSpaceFolder && entry.name === '.space') {
+
+  const roots: FileNode[] = [];
+  const queue: QueueItem[] = [{ dir, basePath, depth: 0, parentChildren: roots }];
+
+  while (queue.length > 0) {
+    const { dir: currentDir, basePath: currentBase, depth, parentChildren } = queue.shift()!;
+
+    if (depth > maxDepth) {
       continue;
     }
-    
-    const fullPath = path.join(dir, entry.name);
-    const relativePath = basePath ? `${basePath}/${entry.name}` : entry.name;
-    
+
+    let entries: fs.Dirent[];
     try {
-      if (entry.isSymbolicLink()) {
-        const linkTarget = fs.readlinkSync(fullPath);
-        const resolvedTarget = path.resolve(dir, linkTarget);
-        
-        if (!isPathContained(resolvedTarget, spaceRoot)) {
-          continue;
-        }
-      }
-      
-      const stats = fs.statSync(fullPath);
-      
-      if (entry.isDirectory()) {
-        const children = buildFileTree(fullPath, relativePath, hideSpaceFolder, spaceRoot);
-        nodes.push({
-          name: entry.name,
-          type: 'directory',
-          path: relativePath,
-          children,
-          modified: stats.mtime.toISOString(),
-        });
-      } else {
-        nodes.push({
-          name: entry.name,
-          type: 'file',
-          path: relativePath,
-          size: stats.size,
-          modified: stats.mtime.toISOString(),
-        });
-      }
-    } catch {}
-  }
-  
-  return nodes.sort((a, b) => {
-    if (a.type !== b.type) {
-      return a.type === 'directory' ? -1 : 1;
+      entries = await fsPromises.readdir(currentDir, { withFileTypes: true });
+    } catch {
+      continue;
     }
-    return a.name.localeCompare(b.name);
-  });
+
+    const nodes: FileNode[] = [];
+
+    for (const entry of entries) {
+      if (hideSpaceFolder && entry.name === '.space') {
+        continue;
+      }
+
+      const fullPath = path.join(currentDir, entry.name);
+      const relativePath = currentBase ? `${currentBase}/${entry.name}` : entry.name;
+
+      try {
+        if (entry.isSymbolicLink()) {
+          const linkTarget = await fsPromises.readlink(fullPath);
+          const resolvedTarget = path.resolve(currentDir, linkTarget);
+
+          if (!isPathContained(resolvedTarget, spaceRoot)) {
+            continue;
+          }
+        }
+
+        const stats = await fsPromises.stat(fullPath);
+
+        if (entry.isDirectory()) {
+          const children: FileNode[] = [];
+          nodes.push({
+            name: entry.name,
+            type: 'directory',
+            path: relativePath,
+            children,
+            modified: stats.mtime.toISOString(),
+          });
+          if (depth < maxDepth) {
+            queue.push({ dir: fullPath, basePath: relativePath, depth: depth + 1, parentChildren: children });
+          }
+        } else {
+          nodes.push({
+            name: entry.name,
+            type: 'file',
+            path: relativePath,
+            size: stats.size,
+            modified: stats.mtime.toISOString(),
+          });
+        }
+      } catch {}
+    }
+
+    nodes.sort((a, b) => {
+      if (a.type !== b.type) {
+        return a.type === 'directory' ? -1 : 1;
+      }
+      return a.name.localeCompare(b.name);
+    });
+
+    parentChildren.push(...nodes);
+  }
+
+  return roots;
 }
 
 function detectContentType(filePath: string): 'markdown' | 'text' | 'image' | 'binary' {
@@ -203,30 +140,8 @@ function getClientIp(req: IncomingMessage): string | undefined {
   return req.socket?.remoteAddress;
 }
 
-function getSpaceRootPath(space: DiscoveredSpace): string {
-  const openclawHome = config.OPENCLAW_HOME;
-  
-  if (space.agentName === 'main') {
-    return path.join(openclawHome, 'workspace', space.spacePath);
-  }
-  
-  const agentsHome = path.join(openclawHome, 'agents');
-  const agentFile = path.join(agentsHome, space.agentName, 'agent.json');
-  
-  if (fs.existsSync(agentFile)) {
-    try {
-      const agentData = JSON.parse(fs.readFileSync(agentFile, 'utf-8'));
-      if (agentData.workspace) {
-        return path.join(agentData.workspace, space.spacePath);
-      }
-    } catch {}
-  }
-  
-  return path.join(openclawHome, 'workspace', space.agentName, space.spacePath);
-}
-
 export async function handleFileTree(req: IncomingMessage, res: ServerResponse, spaceId: string, role: Role) {
-  const space = await findSpaceById(spaceId);
+  const space = getSpace(spaceId);
   
   if (!space) {
     res.statusCode = 404;
@@ -236,10 +151,10 @@ export async function handleFileTree(req: IncomingMessage, res: ServerResponse, 
     return true;
   }
   
-  const spaceRoot = getSpaceRootPath(space);
+  const spaceRoot = resolveSpaceRoot(space);
   const hideSpaceFolder = role !== 'admin';
   
-  const files = buildFileTree(spaceRoot, '', hideSpaceFolder, spaceRoot);
+  const files = await buildFileTree(spaceRoot, '', hideSpaceFolder, spaceRoot);
   
   res.statusCode = 200;
   res.setHeader('Content-Type', 'application/json');
@@ -249,7 +164,7 @@ export async function handleFileTree(req: IncomingMessage, res: ServerResponse, 
 }
 
 export async function handleFileContent(req: IncomingMessage, res: ServerResponse, spaceId: string, filePath: string) {
-  const space = await findSpaceById(spaceId);
+  const space = getSpace(spaceId);
   
   if (!space) {
     res.statusCode = 404;
@@ -259,7 +174,7 @@ export async function handleFileContent(req: IncomingMessage, res: ServerRespons
     return true;
   }
   
-  const spaceRoot = getSpaceRootPath(space);
+  const spaceRoot = resolveSpaceRoot(space);
   const clientIp = getClientIp(req);
   const validation = validatePath(filePath, spaceRoot);
   

@@ -2,10 +2,15 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type { ChatMessage, WebSocketMessage } from '@ai-spaces/shared';
 import { writeSpaceFileHttp } from '../api/spaceFiles';
 
+const generateId = () =>
+  crypto.randomUUID?.() ??
+  `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+
 type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'reconnecting' | 'error';
 
 interface UseSpaceWebSocketOptions {
   spaceId: string;
+  accessToken?: string | null;
   onMessage?: (message: ChatMessage) => void;
 }
 
@@ -38,12 +43,13 @@ function websocketHostForPage(): string {
   return port ? `${hostname}:${port}` : hostname;
 }
 
-function buildSpaceWebSocketUrl(spaceId: string): string {
+function buildSpaceWebSocketUrl(spaceId: string, accessToken?: string | null): string {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${protocol}//${websocketHostForPage()}/ws/spaces/${spaceId}`;
+  const base = `${protocol}//${websocketHostForPage()}/ws/spaces/${spaceId}`;
+  return accessToken ? `${base}?token=${encodeURIComponent(accessToken)}` : base;
 }
 
-export function useSpaceWebSocket({ spaceId, onMessage }: UseSpaceWebSocketOptions): UseSpaceWebSocketReturn {
+export function useSpaceWebSocket({ spaceId, accessToken, onMessage }: UseSpaceWebSocketOptions): UseSpaceWebSocketReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
@@ -71,15 +77,6 @@ export function useSpaceWebSocket({ spaceId, onMessage }: UseSpaceWebSocketOptio
     }
   }, []);
 
-  const clearPartialStream = useCallback(() => {
-    if (pendingMessageIdRef.current) {
-      setMessages(prev => prev.filter(msg => msg.id !== pendingMessageIdRef.current));
-      pendingMessageIdRef.current = null;
-      currentStreamContentRef.current = '';
-      setIsStreaming(false);
-    }
-  }, []);
-
   const clearReconnected = useCallback(() => {
     setWasReconnected(false);
   }, []);
@@ -97,7 +94,7 @@ export function useSpaceWebSocket({ spaceId, onMessage }: UseSpaceWebSocketOptio
 
     intentionalDisconnectRef.current = false;
 
-    const wsUrl = buildSpaceWebSocketUrl(spaceId);
+    const wsUrl = buildSpaceWebSocketUrl(spaceId, accessToken);
 
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
@@ -259,7 +256,7 @@ export function useSpaceWebSocket({ spaceId, onMessage }: UseSpaceWebSocketOptio
         });
       }
     };
-  }, [spaceId, reconnectAttempt]);
+  }, [spaceId, accessToken, reconnectAttempt]);
 
   const reconnect = useCallback(() => {
     setReconnectAttempt(0);
@@ -291,7 +288,7 @@ export function useSpaceWebSocket({ spaceId, onMessage }: UseSpaceWebSocketOptio
     }
 
     const userMessage: ChatMessage = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       role: 'user',
       content,
       timestamp: new Date().toISOString(),
@@ -299,7 +296,7 @@ export function useSpaceWebSocket({ spaceId, onMessage }: UseSpaceWebSocketOptio
 
     setMessages(prev => [...prev, userMessage]);
 
-    const requestId = crypto.randomUUID();
+    const requestId = generateId();
     const message: WebSocketMessage = {
       type: 'req',
       id: requestId,
@@ -322,7 +319,7 @@ export function useSpaceWebSocket({ spaceId, onMessage }: UseSpaceWebSocketOptio
         return;
       }
 
-      const requestId = crypto.randomUUID();
+      const requestId = generateId();
       const message: WebSocketMessage = {
         type: 'req',
         id: requestId,

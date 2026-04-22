@@ -5,7 +5,8 @@ import * as crypto from 'crypto';
 import * as path from 'path';
 import * as fs from 'fs';
 import { WebSocketServer, WebSocket as WsWebSocket } from 'ws';
-import { getSpace } from '../space-store.js';
+import { getSpace, resolveSpaceRoot, type SpaceRecord } from '../space-store.js';
+import { validatePath } from '../validation.js';
 import { getOrCreateSession, addMessageToSession, getSessionMessages } from '../chat-history.js';
 import { logFileModification } from '../file-history.js';
 import { config } from '../config.js';
@@ -17,6 +18,7 @@ interface WebSocketClient {
   role: string;
   userId: string;
   spacePath: string;
+  spaceRoot: string;
   config: SpaceConfig;
   sessionId: string;
 }
@@ -98,9 +100,7 @@ async function handleChatSend(
     return;
   }
 
-  const openclawHome = config.OPENCLAW_HOME;
-  const fullSpacePath = path.join(openclawHome, 'workspace', client.spacePath);
-  const systemPrompt = buildSystemPrompt(client.config, fullSpacePath);
+  const systemPrompt = buildSystemPrompt(client.config, client.spaceRoot);
 
   const history = getSessionMessages(client.spacePath, client.userId);
   const MAX_HISTORY = 40;
@@ -116,7 +116,10 @@ async function handleChatSend(
   activeStreams.set(clientId, abortController);
 
   const streamMessageId = generateMessageId();
-  let fullResponse = '';
+  // Accumulates the raw SSE text so we can strip think/final wrappers at the end.
+  let rawAccumulated = '';
+  // Tracks how many chars of rawAccumulated have already been forwarded after stripping.
+  let sentLength = 0;
 
   sendWebSocketMessage(client, { type: 'event', event: 'stream_start', payload: { messageId: streamMessageId } });
 
@@ -128,7 +131,7 @@ async function handleChatSend(
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${config.GATEWAY_TOKEN}`,
       },
-      body: JSON.stringify({ model: 'openclaw', stream: false, messages }),
+      body: JSON.stringify({ model: 'openclaw', stream: true, messages }),
     });
 
     if (!res.ok) {
@@ -136,14 +139,52 @@ async function handleChatSend(
       throw new Error(`Gateway error ${res.status}: ${errText}`);
     }
 
-    const json = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
-    const rawContent = json?.choices?.[0]?.message?.content ?? '';
+    if (!res.body) {
+      throw new Error('Gateway returned no response body');
+    }
 
-    // Strip openclaw's <think>...</think> blocks and <final>...</final> wrappers
-    const extracted = extractFinalContent(rawContent);
-    if (extracted) {
-      fullResponse = extracted;
-      sendWebSocketMessage(client, { type: 'event', event: 'stream_chunk', payload: { text: extracted } });
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let sseBuffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      sseBuffer += decoder.decode(value, { stream: true });
+
+      // Process complete SSE lines
+      const lines = sseBuffer.split('\n');
+      // Keep the last (potentially incomplete) line in the buffer
+      sseBuffer = lines.pop() ?? '';
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed === 'data: [DONE]') continue;
+        if (!trimmed.startsWith('data: ')) continue;
+
+        try {
+          const jsonStr = trimmed.slice('data: '.length);
+          const chunk = JSON.parse(jsonStr) as {
+            choices?: Array<{ delta?: { content?: string }; finish_reason?: string | null }>;
+          };
+
+          const deltaContent = chunk.choices?.[0]?.delta?.content;
+          if (deltaContent) {
+            rawAccumulated += deltaContent;
+
+            // Strip think/final tags incrementally and forward only the visible portion
+            const cleaned = extractFinalContent(rawAccumulated);
+            if (cleaned.length > sentLength) {
+              const newText = cleaned.slice(sentLength);
+              sentLength = cleaned.length;
+              sendWebSocketMessage(client, { type: 'event', event: 'stream_chunk', payload: { text: newText } });
+            }
+          }
+        } catch {
+          // Ignore malformed SSE chunks
+        }
+      }
     }
   } catch (error) {
     if ((error as Error).name === 'AbortError') {
@@ -153,6 +194,8 @@ async function handleChatSend(
     }
   } finally {
     activeStreams.delete(clientId);
+    // Use the final cleaned content for storage
+    const fullResponse = extractFinalContent(rawAccumulated);
     addMessageToSession(client.spacePath, client.userId, {
       id: streamMessageId,
       role: 'assistant',
@@ -174,11 +217,7 @@ async function handleFileWrite(
     const dir = path.dirname(filePath);
     await fs.promises.mkdir(dir, { recursive: true });
 
-    const openclawHome = config.OPENCLAW_HOME;
-    const workspaceDir = path.join(openclawHome, 'workspace');
-    const fullSpacePath = path.join(workspaceDir, client.spacePath);
-
-    const relativePath = path.relative(fullSpacePath, filePath);
+    const relativePath = path.relative(client.spaceRoot, filePath);
 
     let action: 'created' | 'modified' | 'deleted' = 'modified';
     try {
@@ -350,15 +389,8 @@ function handleMessage(clientId: string, message: WebSocketMessage): void {
         return;
       }
 
-      const openclawHome = config.OPENCLAW_HOME;
-      const workspaceDir = path.join(openclawHome, 'workspace');
-      const fullSpacePath = path.join(workspaceDir, client.spacePath);
-      const fullFilePath = path.join(fullSpacePath, filePath);
-
-      const normalizedSpacePath = path.normalize(fullSpacePath);
-      const normalizedFilePath = path.normalize(fullFilePath);
-
-      if (!normalizedFilePath.startsWith(normalizedSpacePath)) {
+      const pathValidation = validatePath(filePath, client.spaceRoot);
+      if (!pathValidation.valid) {
         sendWebSocketMessage(client, {
           type: 'res',
           id: message.id,
@@ -367,7 +399,7 @@ function handleMessage(clientId: string, message: WebSocketMessage): void {
         return;
       }
 
-      handleFileWrite(clientId, message.id, normalizedFilePath, fileContent, client).catch((error) => {
+      handleFileWrite(clientId, message.id, pathValidation.resolvedPath!, fileContent, client).catch((error) => {
         console.error('[ai-spaces] File write error:', error);
         sendWebSocketMessage(client, {
           type: 'res',
@@ -388,9 +420,9 @@ function handleMessage(clientId: string, message: WebSocketMessage): void {
   }
 }
 
-function setupWebSocketClient(ws: WsWebSocket, spaceId: string, space: ReturnType<typeof getSpace> & {}): void {
-  const userId = 'default-user';
-  const userRole = 'admin';
+function setupWebSocketClient(ws: WsWebSocket, spaceId: string, space: SpaceRecord, req: IncomingMessage): void {
+  const userId = (req.headers['x-user-id'] as string | undefined) || 'anonymous';
+  const userRole = (req.headers['x-user-role'] as string | undefined) || 'viewer';
 
   const { session: chatSession } = getOrCreateSession(space.path, userId);
 
@@ -401,6 +433,7 @@ function setupWebSocketClient(ws: WsWebSocket, spaceId: string, space: ReturnTyp
     role: userRole,
     userId,
     spacePath: space.path,
+    spaceRoot: resolveSpaceRoot(space),
     config: space.config,
     sessionId: chatSession.id,
   };
@@ -480,7 +513,7 @@ export function startWebSocketServer(port: number): void {
     }
 
     wsServer.handleUpgrade(req, socket, head, (ws) => {
-      setupWebSocketClient(ws, spaceId, space);
+      setupWebSocketClient(ws, spaceId, space, req);
     });
   });
 
@@ -527,7 +560,7 @@ export async function handleSpaceWebSocket(req: IncomingMessage, res: ServerResp
   // the socket while the WebSocket session is active.
   await new Promise<void>((resolve) => {
     wss.handleUpgrade(req, req.socket as Socket, Buffer.alloc(0), (ws) => {
-      setupWebSocketClient(ws, spaceId, space);
+      setupWebSocketClient(ws, spaceId, space, req);
       ws.on('close', resolve);
       ws.on('error', () => resolve());
     });

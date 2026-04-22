@@ -43,16 +43,31 @@ export function validatePath(
 }
 
 export function isPathContained(resolvedPath: string, containerPath: string): boolean {
-  const normalizedResolved = path.normalize(resolvedPath);
-  const normalizedContainer = path.normalize(containerPath);
-  
-  const relativePath = path.relative(normalizedContainer, normalizedResolved);
-  
-  if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) {
-    return false;
-  }
-  
-  return true;
+  // Use path.resolve to canonicalize both paths (handles .., ., extra separators)
+  const canonicalResolved = path.resolve(resolvedPath);
+  const canonicalContainer = path.resolve(containerPath);
+
+  // Ensure the container path ends with the separator so that a directory named
+  // "/foo/barExtra" is not considered contained within "/foo/bar".
+  const containerWithSep = canonicalContainer.endsWith(path.sep)
+    ? canonicalContainer
+    : canonicalContainer + path.sep;
+
+  // On case-insensitive filesystems (macOS APFS/HFS+, Windows NTFS) the OS
+  // treats paths differing only in case as identical.  A string comparison
+  // without case normalisation can be bypassed by supplying a path whose
+  // upper/lower-case letters differ from those of the resolved base directory.
+  // Lowercasing both sides makes the containment check immune to that attack.
+  const lowerResolved = canonicalResolved.toLowerCase();
+  const lowerContainerWithSep = containerWithSep.toLowerCase();
+
+  // The resolved path is contained if it equals the container dir exactly
+  // (i.e. the path points to the root itself) or if it starts with the
+  // container dir prefix (i.e. it is a file/dir inside).
+  return (
+    lowerResolved === canonicalContainer.toLowerCase() ||
+    lowerResolved.startsWith(lowerContainerWithSep)
+  );
 }
 
 function validateSymlink(

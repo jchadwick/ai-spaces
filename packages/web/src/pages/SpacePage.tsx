@@ -6,7 +6,7 @@ import MarkdownEditor from '../components/MarkdownEditor'
 import AIChatPane from '../components/AIChatPane'
 import { ErrorBoundary, WebSocketErrorBoundary } from '../components/errors'
 import { ToastProvider } from '../components/ui/toast'
-import { getAccessToken } from '@/contexts/AuthContext'
+import { getAccessToken, useAuth } from '@/contexts/AuthContext'
 
 interface Space {
   id: string
@@ -22,7 +22,8 @@ interface Space {
 export default function SpacePage() {
   const { spaceId } = useParams()
   const navigate = useNavigate()
-  
+  const { user } = useAuth()
+
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [space, setSpace] = useState<Space | null>(null)
@@ -131,7 +132,7 @@ export default function SpacePage() {
     )
   }
 
-  const role = 'admin'
+  const role = (user?.role as 'viewer' | 'editor' | 'admin' | undefined) ?? 'viewer'
 
   return (
     <ToastProvider>

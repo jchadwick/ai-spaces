@@ -3,9 +3,10 @@ import * as http from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import * as fs from 'fs';
 import * as path from 'path';
+import jwt from 'jsonwebtoken';
 import { config } from './config.js';
 import { authRouter } from './routes/auth.js';
-import { spacesRouter } from './routes/spaces.js';
+import { spacesRouter, getSpaceById } from './routes/spaces.js';
 import { filesRouter, setFileProvider } from './routes/files.js';
 import { chatRouter } from './routes/chat.js';
 import { auditRouter } from './routes/audit.js';
@@ -99,14 +100,40 @@ wss.on('upgrade', (request, socket, head) => {
   }
 
   const spaceId = pathMatch[1];
-  // The gateway's port 19000 is its own control-plane WebSocket protocol and
-  // does not route upgrades to plugin HTTP routes. The plugin runs a dedicated
-  // WebSocket server (default: 3002) that we proxy to instead.
+
+  const serverSpace = getSpaceById(spaceId);
+  if (!serverSpace) {
+    socket.destroy();
+    return;
+  }
+
+  // Verify JWT from query param (browsers cannot set custom WS headers)
+  const token = url.searchParams.get('token');
+  let userId = 'anonymous';
+  let userRole = 'viewer';
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, config.JWT_SECRET) as jwt.JwtPayload;
+      if (decoded.userId) {
+        userId = decoded.userId as string;
+        userRole = (decoded.role as string) || 'viewer';
+      }
+    } catch {
+      // Invalid/expired token — treat as unauthenticated viewer
+      console.warn('[WS-PROXY] Invalid token on WebSocket upgrade; proceeding as anonymous viewer');
+    }
+  }
+
   const pluginWsUrl = `${config.PLUGIN_WS_URL}/api/spaces/${spaceId}/ws`;
 
-  console.log('[WS-PROXY] Proxying WebSocket to plugin:', pluginWsUrl);
+  console.log('[WS-PROXY] Proxying WebSocket to plugin:', pluginWsUrl, '(userId:', userId, 'role:', userRole, ')');
 
-  const gatewayWs = new WebSocket(pluginWsUrl);
+  const gatewayWs = new WebSocket(pluginWsUrl, {
+    headers: {
+      'x-user-id': userId,
+      'x-user-role': userRole,
+    },
+  });
 
   let clientWs: WebSocket | null = null;
   const pendingToClient: Buffer[] = [];

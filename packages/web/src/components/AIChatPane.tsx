@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useSpaceWebSocket } from '../hooks/useSpaceWebSocket';
+import { useAuth } from '../contexts/AuthContext';
 import type { ChatMessage } from '@ai-spaces/shared';
 
 type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'reconnecting' | 'error';
@@ -97,9 +98,11 @@ export default function AIChatPane({ spaceId, role = 'viewer' }: AIChatPaneProps
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const prevMessagesLengthRef = useRef(0);
-  
+  const { accessToken } = useAuth();
+
   const { messages, sendMessage, isStreaming, connectionStatus } = useSpaceWebSocket({
     spaceId,
+    accessToken,
   });
 
   const isViewer = role === 'viewer';

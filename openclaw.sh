@@ -7,7 +7,8 @@ if [ "$1" = "gateway" ]; then
     echo "Run: openclaw daemon uninstall" >&2
     exit 1
   fi
-  pkill -f 'openclaw gateway' 2>/dev/null
+  pkill -f 'openclaw' 2>/dev/null
+  find /var/folders -type d -name 'openclaw-*' 2>&1 | grep -v "Operation not permitted" | grep claw | xargs rm -rf $1
   sleep 1
 fi
 

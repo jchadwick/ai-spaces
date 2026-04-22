@@ -1,272 +1,114 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import * as crypto from 'crypto';
-import type { Space, SpaceConfig } from '@ai-spaces/shared';
+import type { SpaceConfig } from '@ai-spaces/shared';
 import { SpaceConfigSchema } from '@ai-spaces/shared';
+import { computeSpaceId } from './space-id.js';
 import { config } from './config.js';
 
-interface SpaceRecord {
+export interface SpaceRecord {
   id: string;
   agentId: string;
   agentType: string;
-  path: string;
-  configPath: string;
-  config: SpaceConfig;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface SpaceStore {
-  spaces: Record<string, SpaceRecord>;
-  byPath: Record<string, string>;
-}
-
-function getOpenClawHome(): string {
-  return config.OPENCLAW_HOME;
-}
-
-function getStoreFilePath(): string {
-  return path.join(getOpenClawHome(), 'spaces.json');
-}
-
-function loadStore(): SpaceStore {
-  const filePath = getStoreFilePath();
-  
-  if (!fs.existsSync(filePath)) {
-    return { spaces: {}, byPath: {} };
-  }
-  
-  try {
-    const content = fs.readFileSync(filePath, 'utf-8');
-    return JSON.parse(content);
-  } catch {
-    return { spaces: {}, byPath: {} };
-  }
-}
-
-function saveStore(store: SpaceStore): void {
-  const filePath = getStoreFilePath();
-  const openclawHome = getOpenClawHome();
-  
-  if (!fs.existsSync(openclawHome)) {
-    fs.mkdirSync(openclawHome, { recursive: true });
-  }
-  
-  fs.writeFileSync(filePath, JSON.stringify(store, null, 2));
-}
-
-export function generateSpaceId(): string {
-  return crypto.randomBytes(16).toString('hex');
-}
-
-export interface CreateSpaceInput {
-  agentId: string;
-  agentType: string;
-  path: string;
+  path: string;       // relative path from agent workspace root
+  configPath: string; // absolute path to .space/spaces.json
   config: SpaceConfig;
 }
 
-export type CreateSpaceResult = {
-  success: true;
-  space: SpaceRecord;
-} | {
-  success: false;
-  error: string;
-  details?: string;
-};
-
-export function validatePath(inputPath: string): { valid: true; absolutePath: string } | { valid: false; error: string } {
-  if (!inputPath || inputPath.trim() === '') {
-    return { valid: false, error: 'Path is required' };
+function getAgentWorkspace(agentName: string): string {
+  const openclawHome = config.OPENCLAW_HOME;
+  if (agentName === 'main') {
+    return path.join(openclawHome, 'workspace');
   }
-  
-  if (inputPath.includes('..')) {
-    return { valid: false, error: 'Path cannot contain ".." segments' };
+  const agentFile = path.join(openclawHome, 'agents', agentName, 'agent.json');
+  if (fs.existsSync(agentFile)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(agentFile, 'utf-8'));
+      if (data.workspace) return data.workspace;
+    } catch {}
   }
-  
-  if (inputPath.includes('\0')) {
-    return { valid: false, error: 'Path cannot contain null bytes' };
-  }
-  
-  let absolutePath: string;
-  
-  if (path.isAbsolute(inputPath)) {
-    absolutePath = path.resolve(inputPath);
-  } else {
-    const workspaceDir = getWorkspaceForAgent();
-    if (!workspaceDir) {
-      return { valid: false, error: 'Cannot determine workspace directory' };
-    }
-    absolutePath = path.resolve(workspaceDir, inputPath);
-  }
-  
-  return { valid: true, absolutePath };
+  return path.join(openclawHome, 'workspace', agentName);
 }
 
-export function validateSpacePath(spacePath: string): { valid: true; config: SpaceConfig; absolutePath: string; relativePath: string } | { valid: false; error: string; details?: string } {
-  const pathValidation = validatePath(spacePath);
-  
-  if (!pathValidation.valid) {
-    return pathValidation;
+function scanWorkspace(workspaceDir: string, agentName: string): SpaceRecord[] {
+  const results: SpaceRecord[] = [];
+  if (!fs.existsSync(workspaceDir)) return results;
+
+  function scan(dir: string, relativePath: string) {
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch { return; }
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const childRelPath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
+      const childDir = path.join(dir, entry.name);
+      const configPath = path.join(childDir, '.space', 'spaces.json');
+
+      if (fs.existsSync(configPath)) {
+        try {
+          const raw = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+          const parsed = SpaceConfigSchema.safeParse(raw);
+          if (parsed.success) {
+            results.push({
+              id: computeSpaceId(agentName, childRelPath),
+              agentId: agentName,
+              agentType: agentName === 'main' ? 'main' : 'agent',
+              path: childRelPath,
+              configPath,
+              config: parsed.data,
+            });
+          }
+        } catch {}
+      }
+
+      scan(childDir, childRelPath);
+    }
   }
-  
-  const { absolutePath } = pathValidation;
-  const workspaceDir = getWorkspaceForAgent();
-  
-  if (!workspaceDir) {
-    return { valid: false, error: 'Cannot determine workspace directory' };
-  }
-  
-  if (!absolutePath.startsWith(workspaceDir)) {
-    return { 
-      valid: false, 
-      error: 'Path must be within the workspace',
-      details: `Workspace: ${workspaceDir}, Path: ${absolutePath}`
-    };
-  }
-  
-  if (!fs.existsSync(absolutePath)) {
-    return { 
-      valid: false, 
-      error: 'Path does not exist',
-      details: absolutePath
-    };
-  }
-  
-  const configPath = path.join(absolutePath, '.space', 'spaces.json');
-  
-  if (!fs.existsSync(configPath)) {
-    return { 
-      valid: false, 
-      error: 'Space config not found',
-      details: `Expected: ${configPath}`
-    };
-  }
-  
+
+  scan(workspaceDir, '');
+  return results;
+}
+
+function getAllSpaces(): SpaceRecord[] {
+  const openclawHome = config.OPENCLAW_HOME;
+  const agentsHome = path.join(openclawHome, 'agents');
+
+  if (!fs.existsSync(agentsHome)) return [];
+
+  let agentNames: string[];
   try {
-    const configContent = fs.readFileSync(configPath, 'utf-8');
-    const rawConfig = JSON.parse(configContent);
-    
-    const parseResult = SpaceConfigSchema.safeParse(rawConfig);
-    
-    if (!parseResult.success) {
-      return {
-        valid: false,
-        error: 'Invalid space config schema',
-        details: parseResult.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')
-      };
-    }
-    
-    const relativePath = path.relative(workspaceDir, absolutePath);
-    
-    return {
-      valid: true,
-      config: parseResult.data,
-      absolutePath,
-      relativePath
-    };
-  } catch (err) {
-    return {
-      valid: false,
-      error: 'Failed to read space config',
-      details: err instanceof Error ? err.message : 'Unknown error'
-    };
-  }
+    agentNames = fs.readdirSync(agentsHome, { withFileTypes: true })
+      .filter(e => e.isDirectory())
+      .map(e => e.name);
+  } catch { return []; }
+
+  return agentNames.flatMap(name => scanWorkspace(getAgentWorkspace(name), name));
 }
 
-function getWorkspaceForAgent(): string | null {
-  const openclawHome = getOpenClawHome();
-  return path.join(openclawHome, 'workspace');
-}
+export function resolveSpaceRoot(space: SpaceRecord): string {
+  const openclawHome = config.OPENCLAW_HOME;
 
-export function createSpace(input: CreateSpaceInput): CreateSpaceResult {
-  const validation = validateSpacePath(input.path);
-  
-  if (!validation.valid) {
-    return {
-      success: false,
-      error: validation.error,
-      details: validation.details
-    };
+  if (space.agentId === 'main') {
+    return path.join(openclawHome, 'workspace', space.path);
   }
-  
-  const store = loadStore();
-  
-  const pathKey = `${input.agentId}:${validation.relativePath}`;
-  
-  if (store.byPath[pathKey]) {
-    const existingId = store.byPath[pathKey];
-    const existing = store.spaces[existingId];
-    
-    return {
-      success: false,
-      error: 'Space already registered',
-      details: `Space ID: ${existingId}, Path: ${existing.path}`
-    };
+
+  const agentFile = path.join(openclawHome, 'agents', space.agentId, 'agent.json');
+  if (fs.existsSync(agentFile)) {
+    try {
+      const data = JSON.parse(fs.readFileSync(agentFile, 'utf-8'));
+      if (data.workspace) return path.join(data.workspace, space.path);
+    } catch {}
   }
-  
-  const id = generateSpaceId();
-  const now = new Date().toISOString();
-  
-  const space: SpaceRecord = {
-    id,
-    agentId: input.agentId,
-    agentType: input.agentType,
-    path: validation.relativePath,
-    configPath: path.join(validation.absolutePath, '.space', 'spaces.json'),
-    config: validation.config,
-    createdAt: now,
-    updatedAt: now,
-  };
-  
-  store.spaces[id] = space;
-  store.byPath[pathKey] = id;
-  
-  saveStore(store);
-  
-  return { success: true, space };
+
+  return path.join(openclawHome, 'workspace', space.agentId, space.path);
 }
 
 export function getSpace(id: string): SpaceRecord | null {
-  const store = loadStore();
-  return store.spaces[id] || null;
-}
-
-export function getSpaceByPath(agentId: string, spacePath: string): SpaceRecord | null {
-  const store = loadStore();
-  const pathKey = `${agentId}:${spacePath}`;
-  const id = store.byPath[pathKey];
-  
-  if (!id) {
-    return null;
-  }
-  
-  return store.spaces[id] || null;
+  return getAllSpaces().find(s => s.id === id) ?? null;
 }
 
 export function listSpaces(agentId?: string): SpaceRecord[] {
-  const store = loadStore();
-  const spaces = Object.values(store.spaces);
-  
-  if (agentId) {
-    return spaces.filter(s => s.agentId === agentId);
-  }
-  
-  return spaces;
-}
-
-export function deleteSpace(id: string): boolean {
-  const store = loadStore();
-  const space = store.spaces[id];
-  
-  if (!space) {
-    return false;
-  }
-  
-  const pathKey = `${space.agentId}:${space.path}`;
-  delete store.byPath[pathKey];
-  delete store.spaces[id];
-  
-  saveStore(store);
-  return true;
+  const all = getAllSpaces();
+  return agentId ? all.filter(s => s.agentId === agentId) : all;
 }

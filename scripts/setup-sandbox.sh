@@ -23,6 +23,7 @@ GOOGLE_API_KEY="${GOOGLE_API_KEY:-${GOOGLE_GENERATIVE_AI_API_KEY:-${GEMINI_API_K
 
 PLUGIN_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && cd .. && pwd )"
 PLUGIN_PACKAGE_DIR="$PLUGIN_DIR/packages/plugin"
+TEMPLATE_DIR="$PLUGIN_DIR/scripts/sandbox-template"
 
 echo ""
 echo -e "${YELLOW}Configuration:${NC}"
@@ -48,53 +49,14 @@ mkdir -p "$OPENCLAW_SANDBOX_HOME/data/ai-spaces"
 mkdir -p "$OPENCLAW_HOME/agents/main/agent"
 echo "  Created sandbox directories"
 
-# Step 3: Create gateway config
-# OpenClaw reads config from $OPENCLAW_HOME/.openclaw/openclaw.json
+# Step 3: Create gateway config from template
 echo -e "${YELLOW}Step 3: Create gateway configuration...${NC}"
 mkdir -p "$OPENCLAW_HOME/.openclaw"
-PLUGIN_DIST="$PLUGIN_PACKAGE_DIR/dist/index.js"
-cat > "$OPENCLAW_HOME/.openclaw/openclaw.json" << OPENCLAW_JSON_EOF
-{
-  "gateway": {
-    "http": {
-      "endpoints": {
-        "chatCompletions": { "enabled": true }
-      }
-    }
-  },
-  "agents": {
-    "defaults": {
-      "model": "ollama/llama3.2:latest",
-      "workspace": "$OPENCLAW_SANDBOX_HOME/workspace",
-      "skipBootstrap": true
-    }
-  },
-  "models": {
-    "providers": {
-      "ollama": {
-        "api": "ollama",
-        "baseUrl": "http://127.0.0.1:11434",
-        "models": [{ "id": "llama3.2:latest", "name": "Llama 3.2" }]
-      }
-    }
-  },
-  "plugins": {
-    "entries": {
-      "ai-spaces": {
-        "enabled": true
-      }
-    },
-    "installs": {
-      "ai-spaces": {
-        "source": "path",
-        "sourcePath": "$PLUGIN_DIST",
-        "installPath": "$PLUGIN_DIST",
-        "installedAt": "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
-      }
-    }
-  }
-}
-OPENCLAW_JSON_EOF
+export PLUGIN_DIST="$PLUGIN_PACKAGE_DIR/dist/index.js"
+export CURRENT_TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
+envsubst '${OPENCLAW_SANDBOX_HOME}${PLUGIN_DIST}${CURRENT_TIMESTAMP}' \
+  < "$TEMPLATE_DIR/.openclaw/openclaw.json" \
+  > "$OPENCLAW_HOME/.openclaw/openclaw.json"
 echo "  Created gateway config at $OPENCLAW_HOME/.openclaw/openclaw.json"
 
 # Step 4: Build plugin
@@ -103,57 +65,17 @@ cd "$PLUGIN_DIR"
 npm run build 2>&1 || echo "Build failed"
 echo "  Plugin built"
 
-# Step 5: Create test space
+# Step 5: Copy workspace files from template
 echo -e "${YELLOW}Step 5: Create test space...${NC}"
-mkdir -p "$OPENCLAW_SANDBOX_HOME/workspace/TestSpace/.space"
-mkdir -p "$OPENCLAW_SANDBOX_HOME/workspace/TestSpace/Budget"
-
-cat > "$OPENCLAW_SANDBOX_HOME/workspace/TestSpace/.space/spaces.json" << 'SPACES_JSON_EOF'
-{
-  "name": "Test Space",
-  "description": "A test space for development"
-}
-SPACES_JSON_EOF
-
-cat > "$OPENCLAW_SANDBOX_HOME/workspace/TestSpace/Maine.md" << 'MAINE_MD_EOF'
-# Maine Vacation
-
-Our upcoming summer trip to the Northeast.
-MAINE_MD_EOF
-
-cat > "$OPENCLAW_SANDBOX_HOME/workspace/TestSpace/CostaRica.md" << 'COSTA_MD_EOF'
-# Costa Rica Trip
-
-Tropical adventure planned for winter.
-COSTA_MD_EOF
-
+cp -r "$TEMPLATE_DIR/workspace/." "$OPENCLAW_SANDBOX_HOME/workspace/"
 echo "  Created test space"
 
-# Step 6: Create plugin space store (synced with server's space ID)
+# Step 6: Create plugin space store from template
 echo -e "${YELLOW}Step 6: Create plugin space store...${NC}"
-SPACE_ID=$(echo -n "default:TestSpace" | sha256sum | cut -c1-8 2>/dev/null || echo -n "default:TestSpace" | shasum -a 256 | cut -c1-8)
-cat > "$OPENCLAW_HOME/spaces.json" << SPACES_STORE_EOF
-{
-  "spaces": {
-    "$SPACE_ID": {
-      "id": "$SPACE_ID",
-      "agentId": "default",
-      "agentType": "default",
-      "path": "TestSpace",
-      "configPath": "$OPENCLAW_SANDBOX_HOME/workspace/TestSpace/.space/spaces.json",
-      "config": {
-        "name": "Test Space",
-        "description": "A test space for development"
-      },
-      "createdAt": "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)",
-      "updatedAt": "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
-    }
-  },
-  "byPath": {
-    "default:TestSpace": "$SPACE_ID"
-  }
-}
-SPACES_STORE_EOF
+export SPACE_ID=$(echo -n "default:TestSpace" | sha256sum | cut -c1-64 2>/dev/null || echo -n "default:TestSpace" | shasum -a 256 | cut -c1-64)
+envsubst '${SPACE_ID}${OPENCLAW_SANDBOX_HOME}${CURRENT_TIMESTAMP}' \
+  < "$TEMPLATE_DIR/spaces.json" \
+  > "$OPENCLAW_HOME/spaces.json"
 echo "  Created plugin spaces.json (space ID: $SPACE_ID)"
 
 # Done

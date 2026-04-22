@@ -1,12 +1,12 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import * as crypto from 'crypto';
 import type { Space, SpaceConfig } from '@ai-spaces/shared';
 import { SpaceConfigSchema } from '@ai-spaces/shared';
+import { computeSpaceId } from './space-id.js';
 import { logAudit } from './audit.js';
 import { config } from './config.js';
 
-interface SpaceRecord {
+export interface SpaceRecord {
   id: string;
   agentId: string;
   agentType: string;
@@ -17,7 +17,7 @@ interface SpaceRecord {
   updatedAt: string;
 }
 
-interface SpaceStore {
+export interface SpaceStore {
   spaces: Record<string, SpaceRecord>;
   byAgentPath: Record<string, string>;
 }
@@ -30,7 +30,7 @@ function getStoreFilePath(): string {
   return path.join(getDataDir(), 'spaces.json');
 }
 
-function loadStore(): SpaceStore {
+export function loadStore(): SpaceStore {
   const filePath = getStoreFilePath();
   
   if (!fs.existsSync(filePath)) {
@@ -45,7 +45,7 @@ function loadStore(): SpaceStore {
   }
 }
 
-function saveStore(store: SpaceStore): void {
+export function saveStore(store: SpaceStore): void {
   const filePath = getStoreFilePath();
   const dataDir = getDataDir();
   
@@ -56,8 +56,8 @@ function saveStore(store: SpaceStore): void {
   fs.writeFileSync(filePath, JSON.stringify(store, null, 2));
 }
 
-export function generateSpaceId(): string {
-  return crypto.randomBytes(16).toString('hex');
+export function generateSpaceId(agentId: string, relativePath: string): string {
+  return computeSpaceId(agentId, relativePath);
 }
 
 export interface CreateSpaceInput {
@@ -141,7 +141,7 @@ export function createSpace(input: CreateSpaceInput, userId: string = 'system'):
     };
   }
   
-  const id = generateSpaceId();
+  const id = generateSpaceId(input.agentId, validation.relativePath);
   const now = new Date().toISOString();
   
   const space: SpaceRecord = {

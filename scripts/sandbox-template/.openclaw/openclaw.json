@@ -1,0 +1,47 @@
+{
+  "gateway": {
+    "http": {
+      "endpoints": {
+        "chatCompletions": { "enabled": true }
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": "opencode-go/minimax-m2.5",
+      "workspace": "${OPENCLAW_SANDBOX_HOME}/workspace",
+      "skipBootstrap": true,
+      "models": {
+        "opencode-go/minimax-m2.5": {
+          "alias": "MiniMax"
+        }
+      },
+      "heartbeat": {
+        "every": "0"
+      }
+    }
+  },
+  "auth": {
+    "profiles": {
+      "opencode-go:default": {
+        "provider": "opencode-go",
+        "mode": "api_key"
+      }
+    }
+  },
+  "plugins": {
+    "entries": {
+      "ai-spaces": {
+        "enabled": true
+      }
+    },
+    "installs": {
+      "ai-spaces": {
+        "source": "path",
+        "sourcePath": "${PLUGIN_DIST}",
+        "installPath": "${PLUGIN_DIST}",
+        "installedAt": "${CURRENT_TIMESTAMP}"
+      }
+    }
+  }
+}

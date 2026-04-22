@@ -1,5 +1,6 @@
 import path from 'path'
 import type { ServerResponse } from 'http'
+import type { Socket } from 'net'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
@@ -22,8 +23,8 @@ export default defineConfig({
         changeOrigin: true,
         configure(proxy) {
           proxy.on('error', (err, _req, res) => {
-            const out = res as ServerResponse | undefined;
-            if (out && !out.headersSent) {
+            const out = res as ServerResponse | Socket;
+            if ('writeHead' in out && !out.headersSent) {
               out.writeHead(502, { 'Content-Type': 'application/json' });
               out.end(
                 JSON.stringify({
@@ -39,15 +40,10 @@ export default defineConfig({
         changeOrigin: true,
         ws: true,
         configure(proxy) {
-          proxy.on('error', (err, _req, res) => {
-            const out = res as ServerResponse | undefined;
-            if (out && !out.headersSent) {
-              out.writeHead(502, { 'Content-Type': 'application/json' });
-              out.end(
-                JSON.stringify({
-                  error: `WebSocket proxy: cannot reach ${serverHost} (${(err as Error).message})`,
-                }),
-              );
+          proxy.on('error', (_err, _req, res) => {
+            const out = res as ServerResponse | Socket;
+            if ('destroy' in out) {
+              out.destroy();
             }
           });
         },

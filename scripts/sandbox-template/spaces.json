@@ -1,0 +1,20 @@
+{
+  "spaces": {
+    "${SPACE_ID}": {
+      "id": "${SPACE_ID}",
+      "agentId": "default",
+      "agentType": "default",
+      "path": "TestSpace",
+      "configPath": "${OPENCLAW_SANDBOX_HOME}/workspace/TestSpace/.space/spaces.json",
+      "config": {
+        "name": "Test Space",
+        "description": "A test space for development"
+      },
+      "createdAt": "${CURRENT_TIMESTAMP}",
+      "updatedAt": "${CURRENT_TIMESTAMP}"
+    }
+  },
+  "byPath": {
+    "default:TestSpace": "${SPACE_ID}"
+  }
+}

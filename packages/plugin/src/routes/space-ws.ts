@@ -10,6 +10,7 @@ import { validatePath } from '../validation.js';
 import { getOrCreateSession, addMessageToSession, getSessionMessages } from '../chat-history.js';
 import { logFileModification } from '../file-history.js';
 import { config } from '../config.js';
+import { validateSession } from '../session-middleware.js';
 import type { WebSocketMessage, SpaceConfig, ChatMessage } from '@ai-spaces/shared';
 
 interface WebSocketClient {
@@ -420,10 +421,7 @@ function handleMessage(clientId: string, message: WebSocketMessage): void {
   }
 }
 
-function setupWebSocketClient(ws: WsWebSocket, spaceId: string, space: SpaceRecord, req: IncomingMessage): void {
-  const userId = (req.headers['x-user-id'] as string | undefined) || 'anonymous';
-  const userRole = (req.headers['x-user-role'] as string | undefined) || 'viewer';
-
+function setupWebSocketClient(ws: WsWebSocket, spaceId: string, space: SpaceRecord, userId: string, userRole: string): void {
   const { session: chatSession } = getOrCreateSession(space.path, userId);
 
   const clientId = generateMessageId();
@@ -512,8 +510,17 @@ export function startWebSocketServer(port: number): void {
       return;
     }
 
+    const session = validateSession(req);
+    if (!session) {
+      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+      socket.destroy();
+      return;
+    }
+    const userId = (session.userId as string) || 'anonymous';
+    const userRole = (session.role as string) || 'viewer';
+
     wsServer.handleUpgrade(req, socket, head, (ws) => {
-      setupWebSocketClient(ws, spaceId, space, req);
+      setupWebSocketClient(ws, spaceId, space, userId, userRole);
     });
   });
 
@@ -553,6 +560,16 @@ export async function handleSpaceWebSocket(req: IncomingMessage, res: ServerResp
     return true;
   }
 
+  const session = validateSession(req);
+  if (!session) {
+    res.statusCode = 401;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: 'Unauthorized' }));
+    return true;
+  }
+  const userId = (session.userId as string) || 'anonymous';
+  const userRole = (session.role as string) || 'viewer';
+
   console.log('[ai-spaces] Upgrading WebSocket for space:', spaceId);
 
   // Keep this promise pending until the WS session ends.
@@ -560,7 +577,7 @@ export async function handleSpaceWebSocket(req: IncomingMessage, res: ServerResp
   // the socket while the WebSocket session is active.
   await new Promise<void>((resolve) => {
     wss.handleUpgrade(req, req.socket as Socket, Buffer.alloc(0), (ws) => {
-      setupWebSocketClient(ws, spaceId, space, req);
+      setupWebSocketClient(ws, spaceId, space, userId, userRole);
       ws.on('close', resolve);
       ws.on('error', () => resolve());
     });

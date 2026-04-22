@@ -109,6 +109,8 @@ export function setupWebSocket(wss: WebSocketServer): void {
       if (ws.readyState === WebSocket.OPEN) {
         ws.close(1011, 'Gateway connection error');
       }
+      connectedClients.delete(clientId);
+      gatewayConnections.delete(clientId);
     });
     
     ws.on('message', (data) => {
@@ -130,6 +132,8 @@ export function setupWebSocket(wss: WebSocketServer): void {
       if (gatewayWs.readyState === WebSocket.OPEN) {
         gatewayWs.close(1000, 'Client error');
       }
+      connectedClients.delete(clientId);
+      gatewayConnections.delete(clientId);
     });
   });
 }

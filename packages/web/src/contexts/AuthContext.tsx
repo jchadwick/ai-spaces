@@ -17,6 +17,7 @@ interface AuthContextType {
   isLoading: boolean
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
+  refresh: () => Promise<string | null>
   isAuthenticated: boolean
   accessToken: string | null
 }
@@ -189,6 +190,49 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }
 
+  const refresh = async (): Promise<string | null> => {
+    const tokens = getStoredTokens()
+    if (!tokens?.refreshToken) {
+      clearStoredAuth()
+      setUser(null)
+      setAccessToken(null)
+      return null
+    }
+
+    try {
+      const response = await fetch('/api/auth/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: tokens.refreshToken }),
+      })
+
+      if (!response.ok) {
+        clearStoredAuth()
+        setUser(null)
+        setAccessToken(null)
+        return null
+      }
+
+      const data = await response.json()
+      const newTokens: AuthTokens = {
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+      }
+      setStoredTokens(newTokens)
+      if (data.user) {
+        setStoredUser(data.user)
+        setUser(data.user)
+      }
+      setAccessToken(data.accessToken)
+      return data.accessToken
+    } catch {
+      clearStoredAuth()
+      setUser(null)
+      setAccessToken(null)
+      return null
+    }
+  }
+
   const logout = async (): Promise<void> => {
     try {
       const tokens = getStoredTokens()
@@ -215,6 +259,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     isLoading,
     login,
     logout,
+    refresh,
     isAuthenticated: user !== null,
     accessToken,
   }

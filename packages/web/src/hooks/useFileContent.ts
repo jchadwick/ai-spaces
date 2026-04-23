@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { getAccessToken } from '@/contexts/AuthContext'
+import { useAPI } from './useAPI'
 
 export type FileType = 'markdown' | 'text' | 'image' | 'binary' | 'unknown'
 
@@ -38,7 +38,8 @@ interface UseFileContentOptions {
 
 export function useFileContent(spaceId: string | undefined, filePath: string | undefined, options?: UseFileContentOptions): FileContent {
   const refreshKey = options?.refreshKey ?? 0;
-  
+  const apiFetch = useAPI()
+
   const [content, setContent] = useState<string | null>(null)
   const [fileInfo, setFileInfo] = useState<FileInfo | null>(null)
   const [loading, setLoading] = useState(false)
@@ -65,9 +66,7 @@ export function useFileContent(spaceId: string | undefined, filePath: string | u
       try {
         const [currentSpaceId, currentFilePath] = fetchKey.split(':')
         const encodedPath = encodeURIComponent(currentFilePath)
-        const token = getAccessToken()
-        const response = await fetch(`/api/spaces/${currentSpaceId}/files/${encodedPath}`, {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        const response = await apiFetch(`/api/spaces/${currentSpaceId}/files/${encodedPath}`, {
           signal: controller.signal,
         })
 
@@ -153,7 +152,7 @@ export function useFileContent(spaceId: string | undefined, filePath: string | u
     return () => {
       controller.abort()
     }
-  }, [fetchKey])
+  }, [fetchKey, apiFetch])
 
   if (!spaceId || !filePath) {
     return { content: null, fileInfo: null, loading: false, error: null }

@@ -1,18 +1,13 @@
 import { useState, useCallback } from 'react';
 import type { ChatMessage } from '@ai-spaces/shared';
-
-function getAuthToken(): string | null {
-  try {
-    return localStorage.getItem('auth_access_token');
-  } catch {}
-  return null;
-}
+import { useAPI } from './useAPI';
 
 interface UseChatApiOptions {
   spaceId: string;
 }
 
 export function useChatApi({ spaceId }: UseChatApiOptions) {
+  const apiFetch = useAPI();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -31,13 +26,9 @@ export function useChatApi({ spaceId }: UseChatApiOptions) {
     setMessages(prev => [...prev, userMessage]);
 
     try {
-      const token = getAuthToken();
-      const response = await fetch(`/api/chat/${spaceId}/messages`, {
+      const response = await apiFetch(`/api/chat/${spaceId}/messages`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content }),
       });
 
@@ -52,7 +43,7 @@ export function useChatApi({ spaceId }: UseChatApiOptions) {
     } finally {
       setIsLoading(false);
     }
-  }, [spaceId]);
+  }, [spaceId, apiFetch]);
 
   const clearMessages = useCallback(() => {
     setMessages([]);

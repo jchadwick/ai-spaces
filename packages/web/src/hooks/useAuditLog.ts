@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { getAccessToken } from '@/contexts/AuthContext'
+import { useAuth } from '@/contexts/AuthContext'
+import { useAPI } from './useAPI'
 
 export interface AuditEntry {
   id: string
@@ -18,6 +19,8 @@ interface UseAuditLogResult {
 }
 
 export function useAuditLog(spaceId?: string, limit: number = 50): UseAuditLogResult {
+  const { isLoading: authLoading, isAuthenticated } = useAuth()
+  const apiFetch = useAPI()
   const [entries, setEntries] = useState<AuditEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -26,6 +29,8 @@ export function useAuditLog(spaceId?: string, limit: number = 50): UseAuditLogRe
   const refresh = () => setRefreshKey(k => k + 1)
 
   useEffect(() => {
+    if (authLoading || !isAuthenticated) return
+
     let mounted = true
     setLoading(true)
     setError(null)
@@ -36,12 +41,7 @@ export function useAuditLog(spaceId?: string, limit: number = 50): UseAuditLogRe
       params.set('spaceId', spaceId)
     }
 
-    const url = `/api/audit?${params.toString()}`
-    const token = getAccessToken()
-
-    fetch(url, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    })
+    apiFetch(`/api/audit?${params.toString()}`)
       .then(res => {
         if (!res.ok) {
           throw new Error('Failed to fetch audit log')
@@ -62,7 +62,7 @@ export function useAuditLog(spaceId?: string, limit: number = 50): UseAuditLogRe
     return () => {
       mounted = false
     }
-  }, [spaceId, limit, refreshKey])
+  }, [spaceId, limit, refreshKey, apiFetch, authLoading, isAuthenticated])
 
   return { entries, loading, error, refresh }
 }

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/toast'
-import { getAccessToken } from '@/contexts/AuthContext'
+import { useAPI } from '@/hooks/useAPI'
 import RecentActivity from '@/components/RecentActivity'
 
 interface Space {
@@ -17,6 +17,7 @@ interface Space {
 }
 
 function HomePage() {
+  const apiFetch = useAPI()
   const [spaces, setSpaces] = useState<Space[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -24,10 +25,7 @@ function HomePage() {
   const { showToast } = useToast()
 
   const fetchSpaces = useCallback(() => {
-    const token = getAccessToken()
-    fetch(`/api/spaces`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    })
+    apiFetch(`/api/spaces`)
       .then(res => {
         if (!res.ok) throw new Error(`Failed to fetch spaces: ${res.status}`)
         return res.json()
@@ -40,7 +38,7 @@ function HomePage() {
         setError(err.message)
         setLoading(false)
       })
-  }, [])
+  }, [apiFetch])
 
   useEffect(() => {
     fetchSpaces()
@@ -49,11 +47,7 @@ function HomePage() {
   const handleScan = async () => {
     setScanning(true)
     try {
-      const token = getAccessToken()
-      const res = await fetch('/api/spaces/scan', {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
+      const res = await apiFetch('/api/spaces/scan', { method: 'POST' })
       if (!res.ok) {
         const data = await res.json()
         throw new Error(data.error || 'Scan failed')

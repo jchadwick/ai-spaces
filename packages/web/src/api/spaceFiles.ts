@@ -1,3 +1,5 @@
+import { getAccessToken } from '@/contexts/AuthContext'
+
 /**
  * Save a file in a space via REST (no WebSocket).
  */
@@ -7,10 +9,12 @@ export async function writeSpaceFileHttp(
   content: string,
 ): Promise<{ success: boolean; path?: string; modified?: string; error?: string }> {
   try {
+    const token = getAccessToken()
     const response = await fetch(`/api/spaces/${spaceId}/files/${encodeURIComponent(filePath)}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: JSON.stringify({ content }),
     });

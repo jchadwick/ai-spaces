@@ -10,7 +10,6 @@ import { spacesRouter, getSpaceById } from './routes/spaces.js';
 import { filesRouter, setFileProvider } from './routes/files.js';
 import { chatRouter } from './routes/chat.js';
 import { auditRouter } from './routes/audit.js';
-import { authMiddleware } from './middleware/auth.js';
 import { createFileProvider } from './file-provider.js';
 import { seedAdmin } from './seed-admin.js';
 import { Hono } from 'hono';
@@ -37,10 +36,10 @@ app.use('/api/*', cors({
 }));
 
 app.route('/api/auth', authRouter);
-app.route('/api/spaces', spacesRouter.use(authMiddleware));
-app.route('/api/files', filesRouter.use(authMiddleware));
-app.route('/api/chat', chatRouter.use(authMiddleware));
-app.route('/api/audit', auditRouter.use(authMiddleware));
+app.route('/api/spaces', spacesRouter);
+app.route('/api/files', filesRouter);
+app.route('/api/chat', chatRouter);
+app.route('/api/audit', auditRouter);
 
 if (fs.existsSync(config.WEB_DIST)) {
   app.use('*', async (c, next) => {
@@ -107,21 +106,27 @@ wss.on('upgrade', (request, socket, head) => {
     return;
   }
 
-  // Verify JWT from query param (browsers cannot set custom WS headers)
-  const token = url.searchParams.get('token');
-  let userId = 'anonymous';
-  let userRole = 'viewer';
-  if (token) {
-    try {
-      const decoded = jwt.verify(token, config.JWT_SECRET) as jwt.JwtPayload;
-      if (decoded.userId) {
-        userId = decoded.userId as string;
-        userRole = (decoded.role as string) || 'viewer';
-      }
-    } catch {
-      // Invalid/expired token — treat as unauthenticated viewer
-      console.warn('[WS-PROXY] Invalid token on WebSocket upgrade; proceeding as anonymous viewer');
-    }
+  // Require JWT — check Authorization header first, then ?token= query param
+  const authHeader = request.headers.authorization;
+  const rawToken = authHeader?.startsWith('Bearer ')
+    ? authHeader.substring(7)
+    : url.searchParams.get('token');
+
+  if (!rawToken) {
+    wss.handleUpgrade(request, socket, head, (ws) => ws.close(1008, 'Authentication required'));
+    return;
+  }
+
+  let userId: string;
+  let userRole: string;
+  try {
+    const decoded = jwt.verify(rawToken, config.JWT_SECRET) as jwt.JwtPayload;
+    if (!decoded.userId) throw new Error('Missing userId');
+    userId = decoded.userId as string;
+    userRole = (decoded.role as string) || 'viewer';
+  } catch {
+    wss.handleUpgrade(request, socket, head, (ws) => ws.close(1008, 'Invalid token'));
+    return;
   }
 
   const pluginWsUrl = `${config.PLUGIN_WS_URL}/api/spaces/${spaceId}/ws`;
@@ -130,8 +135,7 @@ wss.on('upgrade', (request, socket, head) => {
 
   const gatewayWs = new WebSocket(pluginWsUrl, {
     headers: {
-      'x-user-id': userId,
-      'x-user-role': userRole,
+      Authorization: `Bearer ${rawToken}`,
     },
   });
 

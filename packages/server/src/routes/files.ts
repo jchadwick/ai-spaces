@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import type { FileProvider } from '@ai-spaces/shared';
+import { authMiddleware } from '../middleware/auth.js';
 
 let fileProvider: FileProvider;
 
@@ -10,6 +11,7 @@ export function setFileProvider(provider: FileProvider) {
 }
 
 export const filesRouter = new Hono();
+filesRouter.use('*', authMiddleware);
 
 const readSchema = z.object({
   path: z.string(),

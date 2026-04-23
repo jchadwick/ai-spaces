@@ -7,39 +7,64 @@
     #log { border: 1px solid #444; padding: 8px; height: 400px; overflow-y: auto; white-space: pre-wrap; }
     #stream { border: 1px solid #444; padding: 8px; min-height: 60px; white-space: pre-wrap; color: #afa; margin-top: 8px; }
     input, button, select { margin: 4px; padding: 6px 10px; }
-    input[type=text] { width: 400px; background: #222; color: #eee; border: 1px solid #555; }
+    input[type=text], input[type=password], input[type=email] { width: 300px; background: #222; color: #eee; border: 1px solid #555; }
     select { background: #222; color: #eee; border: 1px solid #555; }
     button { background: #333; color: #eee; border: 1px solid #555; cursor: pointer; }
     .sent { color: #8cf; }
     .recv { color: #8fc; }
     .info { color: #fc8; }
     .err  { color: #f88; }
-    .chunk { color: #afa; }
+    .section { border: 1px solid #333; padding: 10px; margin-bottom: 10px; }
+    .section h3 { margin: 0 0 8px 0; font-size: 14px; color: #aaa; }
+    #jwt-status { font-size: 12px; color: #8fc; margin-left: 8px; }
   </style>
 </head>
 <body>
   <h2>AI Spaces WebSocket Test Client</h2>
 
-  <div>
-    <label>Server URL:</label>
-    <input type="text" id="url" value="ws://127.0.0.1:3002/api/spaces/" />
+  <div class="section">
+    <h3>Target</h3>
+    <label>Mode:</label>
+    <select id="target" onchange="onTargetChange()">
+      <option value="server">Server (port 3001, JWT required)</option>
+      <option value="plugin">Plugin (port 3002, no auth)</option>
+    </select>
+  </div>
+
+  <div class="section" id="login-section">
+    <h3>Login (Server mode)</h3>
+    <label>Email:</label>
+    <input type="email" id="email" value="admin@ai-spaces.test" style="width:200px" />
+    <label>Password:</label>
+    <input type="password" id="password" value="ai-spaces" style="width:120px" />
+    <button onclick="doLogin()">Login</button>
+    <span id="jwt-status"></span>
+  </div>
+
+  <div class="section">
+    <h3>Connection</h3>
+    <label>Space ID:</label>
+    <input type="text" id="spaceId" value="24ffed02542a0fa1c27c17e27c1dac78" style="width:240px" onchange="updateWsUrl()" />
+    <button id="lookupBtn" onclick="lookupSpaceId()">Lookup Space ID</button>
+    <br/>
+    <label>WS URL:</label>
+    <input type="text" id="url" value="" style="width:440px" />
     <button onclick="connect()">Connect</button>
     <button onclick="disconnect()">Disconnect</button>
   </div>
-  <div style="margin-top:8px">
-    <label>Space ID:</label>
-    <input type="text" id="spaceId" value="24ffed02542a0fa1c27c17e27c1dac78" style="width:200px" onchange="updateWsUrl()" />
-    <button onclick="lookupSpaceId()" disabled>Lookup Space ID (plugin has no HTTP API)</button>
-  </div>
-  <div style="margin-top:8px">
-    <label>Chat message:</label>
+
+  <div class="section">
+    <h3>Chat</h3>
+    <label>Message:</label>
     <input type="text" id="chatMsg" value="what files are in this space?" style="width:400px" />
     <button onclick="sendConnect()">1. Send connect</button>
     <button onclick="sendChat()">2. Send chat</button>
   </div>
-  <div style="margin-top:8px">
-    <label>Raw JSON:</label>
-    <input type="text" id="msg" placeholder='{"type":"req","id":"1","method":"connect","params":{}}' />
+
+  <div class="section">
+    <h3>Raw</h3>
+    <label>JSON:</label>
+    <input type="text" id="msg" placeholder='{"type":"req","id":"1","method":"connect","params":{}}' style="width:440px" />
     <button onclick="sendRaw()">Send Raw</button>
   </div>
 
@@ -51,6 +76,35 @@
   <script>
     let ws = null;
     let streamBuffer = '';
+    let jwt = null;
+
+    function getTarget() {
+      return document.getElementById('target').value;
+    }
+
+    function getBaseHttpUrl() {
+      return getTarget() === 'server' ? 'http://127.0.0.1:3001' : 'http://127.0.0.1:3002';
+    }
+
+    function getBaseWsUrl() {
+      return getTarget() === 'server' ? 'ws://127.0.0.1:3001' : 'ws://127.0.0.1:3002';
+    }
+
+    function onTargetChange() {
+      const isServer = getTarget() === 'server';
+      document.getElementById('login-section').style.display = isServer ? '' : 'none';
+      document.getElementById('lookupBtn').disabled = !isServer;
+      updateWsUrl();
+    }
+
+    function updateWsUrl() {
+      const spaceId = document.getElementById('spaceId').value.trim();
+      const base = getBaseWsUrl();
+      const path = getTarget() === 'server'
+        ? `${base}/ws/spaces/${spaceId}`
+        : `${base}/api/spaces/${spaceId}/ws`;
+      document.getElementById('url').value = path;
+    }
 
     function log(cls, text) {
       const el = document.getElementById('log');
@@ -61,29 +115,48 @@
       el.scrollTop = el.scrollHeight;
     }
 
+    async function doLogin() {
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      try {
+        const res = await fetch(`${getBaseHttpUrl()}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        jwt = data.accessToken;
+        document.getElementById('jwt-status').textContent = `✓ Logged in as ${data.user?.email ?? email}`;
+        log('info', `Logged in, JWT acquired`);
+      } catch (e) {
+        log('err', `Login failed: ${e.message}`);
+        document.getElementById('jwt-status').textContent = '';
+      }
+    }
+
     async function lookupSpaceId() {
       try {
-        const res = await fetch('http://127.0.0.1:3002/api/spaces');
+        const headers = jwt ? { Authorization: `Bearer ${jwt}` } : {};
+        const res = await fetch(`${getBaseHttpUrl()}/api/spaces`, { headers });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
-        const spaces = data.spaces ?? [];
+        const spaces = data.spaces ?? data ?? [];
         if (spaces.length === 0) { log('err', 'No spaces found'); return; }
-        const spaceId = spaces[0].id;
-        document.getElementById('spaceId').value = spaceId;
-        document.getElementById('url').value = `ws://127.0.0.1:3002/api/spaces/${spaceId}/ws`;
-        log('info', `Found space: ${spaces[0].name} (${spaceId})`);
+        const space = spaces[0];
+        document.getElementById('spaceId').value = space.id;
+        updateWsUrl();
+        log('info', `Found space: ${space.name} (${space.id})`);
       } catch (e) {
         log('err', `Lookup failed: ${e.message}`);
       }
     }
 
-    function updateWsUrl() {
-      const spaceId = document.getElementById('spaceId').value.trim();
-      const baseUrl = document.getElementById('url').value.trim().replace(/\/[^/]*$/, '');
-      document.getElementById('url').value = `${baseUrl}/${spaceId}/ws`;
-    }
-
     function connect() {
-      const url = document.getElementById('url').value.trim();
+      let url = document.getElementById('url').value.trim();
+      if (getTarget() === 'server' && jwt) {
+        url += (url.includes('?') ? '&' : '?') + `token=${encodeURIComponent(jwt)}`;
+      }
       if (ws) ws.close();
       log('info', `Connecting to ${url}`);
       ws = new WebSocket(url);
@@ -94,7 +167,6 @@
         let parsed;
         try { parsed = JSON.parse(e.data); } catch { log('recv', `← ${e.data}`); return; }
 
-        // Show stream chunks in the stream box
         if (parsed.type === 'event' && parsed.event === 'stream_start') {
           streamBuffer = '';
           document.getElementById('stream').textContent = '';
@@ -135,6 +207,10 @@
       ws.send(msg);
       log('sent', `→ ${msg}`);
     }
+
+    // Initialize UI
+    onTargetChange();
+    updateWsUrl();
   </script>
 </body>
 </html>

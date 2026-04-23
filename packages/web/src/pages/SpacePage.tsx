@@ -6,7 +6,8 @@ import MarkdownEditor from '../components/MarkdownEditor'
 import AIChatPane from '../components/AIChatPane'
 import { ErrorBoundary, WebSocketErrorBoundary } from '../components/errors'
 import { ToastProvider } from '../components/ui/toast'
-import { getAccessToken, useAuth } from '@/contexts/AuthContext'
+import { useAuth } from '@/contexts/AuthContext'
+import { useAPI } from '@/hooks/useAPI'
 
 interface Space {
   id: string
@@ -23,6 +24,7 @@ export default function SpacePage() {
   const { spaceId } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
+  const apiFetch = useAPI()
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -38,12 +40,8 @@ export default function SpacePage() {
 
     const controller = new AbortController()
     let mounted = true
-    const token = getAccessToken()
 
-    fetch(`/api/spaces/${spaceId}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      signal: controller.signal,
-    })
+    apiFetch(`/api/spaces/${spaceId}`, { signal: controller.signal })
       .then(res => {
         if (!res.ok) {
           if (res.status === 404) {
@@ -69,7 +67,7 @@ export default function SpacePage() {
       mounted = false
       controller.abort()
     }
-  }, [spaceId])
+  }, [spaceId, apiFetch])
 
   const handleLeaveSpace = () => {
     navigate('/')

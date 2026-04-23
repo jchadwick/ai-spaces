@@ -14,8 +14,10 @@ import {
   saveStore,
   type SpaceRecord,
 } from '../space-store.js';
+import { authMiddleware } from '../middleware/auth.js';
 
 export const spacesRouter = new Hono();
+spacesRouter.use('*', authMiddleware);
 
 export function getSpaceById(id: string): SpaceRecord | null {
   return getSpace(id);

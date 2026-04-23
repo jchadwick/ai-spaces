@@ -4,7 +4,7 @@ import { useToast } from './ui/toast'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from './ui/dialog'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
-import { getAccessToken } from '@/contexts/AuthContext'
+import { useAPI } from '@/hooks/useAPI'
 import type { FileNode } from '@ai-spaces/shared'
 
 interface FileExplorerProps {
@@ -108,6 +108,7 @@ function FileTreeNode({
 }
 
 export default function FileExplorer({ spaceId, role, selectedFile, onFileSelect }: FileExplorerProps) {
+  const apiFetch = useAPI()
   const { files, loading, error, refresh } = useFileTree(spaceId)
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const { showToast } = useToast()
@@ -161,15 +162,11 @@ export default function FileExplorer({ spaceId, role, selectedFile, onFileSelect
     }
     
     setIsCreating(true)
-    const token = getAccessToken()
-    
+
     try {
-      const response = await fetch(`/api/spaces/${spaceId}/directories`, {
+      const response = await apiFetch(`/api/spaces/${spaceId}/directories`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ path: folderName.trim() }),
       })
       
@@ -196,15 +193,11 @@ export default function FileExplorer({ spaceId, role, selectedFile, onFileSelect
     }
     
     setIsCreating(true)
-    const token = getAccessToken()
-    
+
     try {
-      const response = await fetch(`/api/spaces/${spaceId}/files/${fileName.trim()}`, {
+      const response = await apiFetch(`/api/spaces/${spaceId}/files/${fileName.trim()}`, {
         method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: '' }),
       })
       

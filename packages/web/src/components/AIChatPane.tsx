@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useSpaceWebSocket } from '../hooks/useSpaceWebSocket';
 import { useAuth } from '../contexts/AuthContext';
 import type { ChatMessage } from '@ai-spaces/shared';
@@ -69,9 +71,32 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         </span>
         <span className="text-[10px] uppercase font-bold tracking-tighter">AI Agent</span>
       </div>
-      <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          p: ({ children }) => <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed my-1">{children}</p>,
+          h1: ({ children }) => <h1 className="text-base font-semibold text-slate-800 dark:text-slate-200 mt-3 mb-1">{children}</h1>,
+          h2: ({ children }) => <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mt-2 mb-1">{children}</h2>,
+          h3: ({ children }) => <h3 className="text-xs font-semibold text-slate-800 dark:text-slate-200 mt-2 mb-0.5">{children}</h3>,
+          ul: ({ children }) => <ul className="list-disc pl-4 my-1 text-sm text-slate-700 dark:text-slate-300 space-y-0.5">{children}</ul>,
+          ol: ({ children }) => <ol className="list-decimal pl-4 my-1 text-sm text-slate-700 dark:text-slate-300 space-y-0.5">{children}</ol>,
+          li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+          code: ({ children, className }) => {
+            const isBlock = className?.startsWith('language-');
+            return isBlock
+              ? <code className={`${className} block bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-lg px-3 py-2 text-xs font-mono overflow-x-auto`}>{children}</code>
+              : <code className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 px-1 py-0.5 rounded text-xs font-mono">{children}</code>;
+          },
+          pre: ({ children }) => <pre className="my-2 overflow-x-auto">{children}</pre>,
+          strong: ({ children }) => <strong className="font-semibold text-slate-800 dark:text-slate-200">{children}</strong>,
+          em: ({ children }) => <em className="italic">{children}</em>,
+          blockquote: ({ children }) => <blockquote className="border-l-2 border-slate-300 pl-3 my-1 text-slate-500 italic text-sm">{children}</blockquote>,
+          a: ({ href, children }) => <a href={href} className="text-primary underline hover:text-primary/80" target="_blank" rel="noopener noreferrer">{children}</a>,
+          hr: () => <hr className="border-slate-200 dark:border-slate-700 my-2" />,
+        }}
+      >
         {message.content}
-      </p>
+      </ReactMarkdown>
     </div>
   );
 }

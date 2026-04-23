@@ -42,7 +42,9 @@ function saveStore(store: UserStore): void {
     fs.mkdirSync(dataDir, { recursive: true });
   }
   
-  fs.writeFileSync(filePath, JSON.stringify(store, null, 2));
+  const tmp = filePath + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(store, null, 2));
+  fs.renameSync(tmp, filePath);
 }
 
 export function generateUserId(): string {

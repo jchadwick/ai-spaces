@@ -91,16 +91,27 @@ export function useSpaceWebSocket({ spaceId, accessToken, onMessage }: UseSpaceW
 
   useEffect(() => {
     if (!mountedRef.current) return;
+    // Wait for auth to load before connecting — a null token causes the server
+    // to reject with 1008, leaving the UI stuck in 'error' state.
+    if (accessToken === null) return;
 
     intentionalDisconnectRef.current = false;
 
     const wsUrl = buildSpaceWebSocketUrl(spaceId, accessToken);
 
+    // Local flag so cleanup can signal "don't use this socket" without calling
+    // close() on a CONNECTING socket (which produces a browser error).
+    let cancelled = false;
+
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
     ws.onopen = () => {
-      if (!mountedRef.current) return;
+      // If cleanup ran before we connected, close now that we safely can.
+      if (cancelled) {
+        ws.close(1000, 'effect cleanup');
+        return;
+      }
       const connectMessage: WebSocketMessage = {
         type: 'req',
         id: 'connect',
@@ -118,7 +129,14 @@ export function useSpaceWebSocket({ spaceId, accessToken, onMessage }: UseSpaceW
     ws.onclose = () => {
       if (!mountedRef.current || wsRef.current !== ws) return;
       if (!intentionalDisconnectRef.current) {
-        setConnectionStatus('disconnected');
+        setConnectionStatus('reconnecting');
+        wasReconnectingRef.current = true;
+        const delay = Math.min(1000 * 2 ** reconnectAttempt, 30000);
+        reconnectTimeoutRef.current = setTimeout(() => {
+          if (mountedRef.current && !intentionalDisconnectRef.current) {
+            setReconnectAttempt(n => n + 1);
+          }
+        }, delay);
       }
     };
 
@@ -240,35 +258,32 @@ export function useSpaceWebSocket({ spaceId, accessToken, onMessage }: UseSpaceW
     };
 
     return () => {
+      cancelled = true;
       intentionalDisconnectRef.current = true;
       clearReconnectTimeout();
-
-      const w = wsRef.current;
       wsRef.current = null;
-      if (w) {
-        // Defer close so React Strict Mode's mount→unmount→mount cycle can finish
-        // the TCP handshake before we tear the first socket down (fewer console warnings).
-        const toClose = w;
-        queueMicrotask(() => {
-          if (toClose.readyState === WebSocket.CONNECTING || toClose.readyState === WebSocket.OPEN) {
-            toClose.close(1000, 'effect cleanup');
-          }
-        });
+      // Only close if already OPEN — if still CONNECTING, onopen will close it
+      // once the handshake finishes (avoids the "closed before established" error).
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.close(1000, 'effect cleanup');
       }
     };
   }, [spaceId, accessToken, reconnectAttempt]);
 
   const reconnect = useCallback(() => {
-    setReconnectAttempt(0);
+    clearReconnectTimeout();
     intentionalDisconnectRef.current = true;
-    
+    wasReconnectingRef.current = false;
+
     if (wsRef.current) {
       wsRef.current.close();
     }
-    
+
     intentionalDisconnectRef.current = false;
     setConnectionStatus('connecting');
-  }, []);
+    // Force the effect to re-run by always changing reconnectAttempt
+    setReconnectAttempt(n => n + 1);
+  }, [clearReconnectTimeout]);
 
   const disconnect = useCallback(() => {
     intentionalDisconnectRef.current = true;

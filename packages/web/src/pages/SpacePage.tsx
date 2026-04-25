@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import TopNavBar from '../components/TopNavBar'
 import FileExplorer from '../components/FileExplorer'
 import MarkdownEditor from '../components/MarkdownEditor'
@@ -8,6 +8,7 @@ import { ErrorBoundary, WebSocketErrorBoundary } from '../components/errors'
 import { ToastProvider } from '../components/ui/toast'
 import { useAuth } from '@/contexts/AuthContext'
 import { useAPI } from '@/hooks/useAPI'
+import type { FileChangedPayload } from '@/hooks/useSpaceWebSocket'
 
 interface Space {
   id: string
@@ -30,6 +31,29 @@ export default function SpacePage() {
   const [error, setError] = useState<string | null>(null)
   const [space, setSpace] = useState<Space | null>(null)
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [editorRefreshKey, setEditorRefreshKey] = useState(0)
+
+  const handleFileChanged = useCallback((event: FileChangedPayload) => {
+    const { path: changedPath, action } = event
+
+    if (action === 'created' || action === 'deleted') {
+      // Notify FileExplorer to refresh via the existing window event
+      window.dispatchEvent(new CustomEvent('fileModified', {
+        detail: { path: changedPath, action, triggeredBy: 'watcher' },
+      }))
+    }
+
+    if (action === 'deleted' && selectedFile === changedPath) {
+      // Deselect the file if it was deleted
+      setSelectedFile(null)
+      return
+    }
+
+    if (action === 'modified' && selectedFile === changedPath) {
+      // Re-fetch the open file's content
+      setEditorRefreshKey(k => k + 1)
+    }
+  }, [selectedFile])
 
   useEffect(() => {
     if (!spaceId) {
@@ -152,6 +176,7 @@ export default function SpacePage() {
               spaceId={spaceId}
               filePath={selectedFile ?? undefined}
               role={role}
+              externalRefreshKey={editorRefreshKey}
               onFileModified={() => {
                 const event = new CustomEvent('fileModified');
                 window.dispatchEvent(event);
@@ -162,7 +187,7 @@ export default function SpacePage() {
             />
           </ErrorBoundary>
           <WebSocketErrorBoundary showInline>
-            <AIChatPane spaceId={spaceId!} role={role} />
+            <AIChatPane spaceId={spaceId!} role={role} onFileChanged={handleFileChanged} />
           </WebSocketErrorBoundary>
         </main>
 

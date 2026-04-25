@@ -13,6 +13,7 @@ interface MarkdownEditorProps {
   spaceId?: string;
   filePath?: string;
   role?: "viewer" | "editor" | "admin";
+  externalRefreshKey?: number;
   onFileModified?: () => void;
   onFileRenamed?: (oldPath: string, newPath: string) => void;
 }
@@ -92,6 +93,7 @@ export default function MarkdownEditor({
   spaceId,
   filePath,
   role = "viewer",
+  externalRefreshKey = 0,
   onFileModified,
   onFileRenamed,
 }: MarkdownEditorProps) {
@@ -100,7 +102,7 @@ export default function MarkdownEditor({
   const { content, fileInfo, loading, error } = useFileContent(
     spaceId,
     filePath,
-    { refreshKey: fileVersion },
+    { refreshKey: fileVersion + externalRefreshKey },
   );
   const { showToast } = useToast();
 

@@ -8,10 +8,18 @@ const generateId = () =>
 
 type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'reconnecting' | 'error';
 
+export type FileChangedAction = 'created' | 'modified' | 'deleted';
+
+export interface FileChangedPayload {
+  path: string;
+  action: FileChangedAction;
+}
+
 interface UseSpaceWebSocketOptions {
   spaceId: string;
   accessToken?: string | null;
   onMessage?: (message: ChatMessage) => void;
+  onFileChanged?: (event: FileChangedPayload) => void;
 }
 
 interface UseSpaceWebSocketReturn {
@@ -49,17 +57,18 @@ function buildSpaceWebSocketUrl(spaceId: string, accessToken?: string | null): s
   return accessToken ? `${base}?token=${encodeURIComponent(accessToken)}` : base;
 }
 
-export function useSpaceWebSocket({ spaceId, accessToken, onMessage }: UseSpaceWebSocketOptions): UseSpaceWebSocketReturn {
+export function useSpaceWebSocket({ spaceId, accessToken, onMessage, onFileChanged }: UseSpaceWebSocketOptions): UseSpaceWebSocketReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting');
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
   const [isStreaming, setIsStreaming] = useState(false);
   const [wasReconnected, setWasReconnected] = useState(false);
-  
+
   const wsRef = useRef<WebSocket | null>(null);
   const pendingMessageIdRef = useRef<string | null>(null);
   const currentStreamContentRef = useRef<string>('');
   const onMessageRef = useRef(onMessage);
+  const onFileChangedRef = useRef(onFileChanged);
   const mountedRef = useRef(false);
   const pendingRequestsRef = useRef<Map<string, PendingRequest>>(new Map());
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -69,6 +78,10 @@ export function useSpaceWebSocket({ spaceId, accessToken, onMessage }: UseSpaceW
   useEffect(() => {
     onMessageRef.current = onMessage;
   }, [onMessage]);
+
+  useEffect(() => {
+    onFileChangedRef.current = onFileChanged;
+  }, [onFileChanged]);
 
   const clearReconnectTimeout = useCallback(() => {
     if (reconnectTimeoutRef.current) {
@@ -144,7 +157,18 @@ export function useSpaceWebSocket({ spaceId, accessToken, onMessage }: UseSpaceW
       if (!mountedRef.current) return;
 
       try {
-        const message: WebSocketMessage = JSON.parse(event.data);
+        const raw = JSON.parse(event.data);
+
+        // Handle server-originated file change events (not from gateway)
+        if (raw.type === 'file:changed') {
+          const payload = raw as { type: 'file:changed'; spaceId: string; path: string; action: FileChangedAction };
+          if (onFileChangedRef.current) {
+            onFileChangedRef.current({ path: payload.path, action: payload.action });
+          }
+          return;
+        }
+
+        const message: WebSocketMessage = raw;
 
         // Handle connected event
         if (message.type === 'event' && message.event === 'connected') {

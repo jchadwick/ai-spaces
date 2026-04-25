@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { useSpaceWebSocket } from '../hooks/useSpaceWebSocket';
+import { useSpaceWebSocket, type FileChangedPayload } from '../hooks/useSpaceWebSocket';
 import { useAuth } from '../contexts/AuthContext';
 import type { ChatMessage } from '@ai-spaces/shared';
 
@@ -10,6 +10,7 @@ type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'reconnect
 interface AIChatPaneProps {
   spaceId: string;
   role?: 'viewer' | 'editor' | 'admin';
+  onFileChanged?: (event: FileChangedPayload) => void;
 }
 
 interface ConnectionStatusIndicatorProps {
@@ -119,7 +120,7 @@ function TypingIndicator() {
   );
 }
 
-export default function AIChatPane({ spaceId, role = 'viewer' }: AIChatPaneProps) {
+export default function AIChatPane({ spaceId, role = 'viewer', onFileChanged }: AIChatPaneProps) {
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const prevMessagesLengthRef = useRef(0);
@@ -128,6 +129,7 @@ export default function AIChatPane({ spaceId, role = 'viewer' }: AIChatPaneProps
   const { messages, sendMessage, isStreaming, connectionStatus } = useSpaceWebSocket({
     spaceId,
     accessToken,
+    onFileChanged,
   });
 
   const isViewer = role === 'viewer';

@@ -1,5 +1,5 @@
 import { useFileContent } from "../hooks/useFileContent";
-import { writeSpaceFileHttp } from "../api/spaceFiles";
+import { writeSpaceFileHttp, renameSpaceFile } from "../api/spaceFiles";
 import { useToast } from "./ui/toast";
 import { useState, useEffect, useCallback, useRef } from "react";
 import ReactMarkdown from "react-markdown";
@@ -14,6 +14,7 @@ interface MarkdownEditorProps {
   filePath?: string;
   role?: "viewer" | "editor" | "admin";
   onFileModified?: () => void;
+  onFileRenamed?: (oldPath: string, newPath: string) => void;
 }
 
 function getFileIcon(type: string): string {
@@ -92,6 +93,7 @@ export default function MarkdownEditor({
   filePath,
   role = "viewer",
   onFileModified,
+  onFileRenamed,
 }: MarkdownEditorProps) {
   const [fileVersion, setFileVersion] = useState(0);
 
@@ -112,6 +114,8 @@ export default function MarkdownEditor({
     savedAt: string;
   } | null>(null);
   const [showConcurrentWarning, setShowConcurrentWarning] = useState(false);
+  const [renamingFile, setRenamingFile] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
 
   const autoSaveRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const editContentRef = useRef(editContent);
@@ -152,6 +156,16 @@ export default function MarkdownEditor({
       );
     };
   }, [editMode, filePath, showToast]);
+
+  useEffect(() => {
+    setEditMode(false);
+    setEditContent("");
+    setSaveError(null);
+    setShowDraftPrompt(false);
+    setDraftData(null);
+    setRenamingFile(false);
+    setRenameValue("");
+  }, [filePath]);
 
   useEffect(() => {
     if (filePath && spaceId && content !== null && !editMode) {
@@ -239,6 +253,43 @@ export default function MarkdownEditor({
     setEditMode(false);
     setSaveError(null);
   }, [editContent, content, filePath, spaceId]);
+
+  const handleStartRename = useCallback(() => {
+    if (!fileInfo) return;
+    setRenameValue(fileInfo.name);
+    setRenamingFile(true);
+  }, [fileInfo]);
+
+  const handleCancelRename = useCallback(() => {
+    setRenamingFile(false);
+    setRenameValue("");
+  }, []);
+
+  const handleCommitRename = useCallback(async () => {
+    if (!filePath || !spaceId || !fileInfo) return;
+
+    const trimmed = renameValue.trim();
+    if (!trimmed || trimmed === fileInfo.name) {
+      handleCancelRename();
+      return;
+    }
+
+    // Build new path: replace the last segment (filename) in filePath
+    const parts = filePath.split("/");
+    parts[parts.length - 1] = trimmed;
+    const newPath = parts.join("/");
+
+    const result = await renameSpaceFile(spaceId, filePath, newPath);
+    if (result.success) {
+      setRenamingFile(false);
+      setRenameValue("");
+      showToast(`Renamed to ${trimmed}`, "success");
+      onFileRenamed?.(filePath, result.path ?? newPath);
+    } else {
+      showToast(result.error ?? "Failed to rename file", "error");
+      handleCancelRename();
+    }
+  }, [filePath, spaceId, fileInfo, renameValue, handleCancelRename, showToast, onFileRenamed]);
 
   if (!spaceId || !filePath) {
     return (
@@ -555,9 +606,27 @@ export default function MarkdownEditor({
               {getFileIcon(fileInfo.type)}
             </span>
             <div className="flex flex-col">
-              <h2 className="text-title-sm font-medium text-on-surface">
-                {fileInfo.name}
-              </h2>
+              {renamingFile ? (
+                <input
+                  type="text"
+                  autoFocus
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleCommitRename();
+                    if (e.key === "Escape") handleCancelRename();
+                  }}
+                  onBlur={handleCancelRename}
+                  className="text-title-sm font-medium text-on-surface bg-transparent border-b border-primary outline-none w-48"
+                />
+              ) : (
+                <h2
+                  className={`text-title-sm font-medium text-on-surface ${canEdit ? "cursor-pointer hover:underline" : ""}`}
+                  onClick={canEdit ? handleStartRename : undefined}
+                >
+                  {fileInfo.name}
+                </h2>
+              )}
               <span className="text-label-sm text-on-surface-variant uppercase tracking-wider">
                 {getFileTypeLabel(fileInfo.type)}
                 {fileInfo.modifiedAt &&

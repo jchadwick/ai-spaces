@@ -148,13 +148,16 @@ export default function SpacePage() {
             <FileExplorer spaceId={spaceId} role={role} selectedFile={selectedFile} onFileSelect={setSelectedFile} />
           </ErrorBoundary>
           <ErrorBoundary>
-            <MarkdownEditor 
-              spaceId={spaceId} 
-              filePath={selectedFile ?? undefined} 
+            <MarkdownEditor
+              spaceId={spaceId}
+              filePath={selectedFile ?? undefined}
               role={role}
               onFileModified={() => {
                 const event = new CustomEvent('fileModified');
                 window.dispatchEvent(event);
+              }}
+              onFileRenamed={(_oldPath, newPath) => {
+                setSelectedFile(newPath);
               }}
             />
           </ErrorBoundary>

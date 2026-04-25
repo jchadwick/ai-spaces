@@ -106,15 +106,11 @@ spacesRouter.get('/:id/files/:filePath{.*}', async (c) => {
     } else if (textExts.includes(ext)) {
       contentType = 'text';
     } else {
-      contentType = 'binary';
+      contentType = 'text';
     }
 
     const size = stats.size;
     const modified = stats.mtime.toISOString();
-
-    if (contentType === 'binary') {
-      return c.json({ path: filePath, contentType, size, modified });
-    }
 
     if (contentType === 'image') {
       const imageBuffer = await fs.promises.readFile(fullPath);
@@ -188,6 +184,120 @@ spacesRouter.post('/:id/directories', zValidator('json', createDirSchema), async
     return c.json({ success: true, path: dirPath });
   } catch {
     return c.json({ error: 'Failed to create directory' }, 500);
+  }
+});
+
+const deleteFileSchema = z.object({});
+
+spacesRouter.delete('/:id/files/:filePath{.*}', async (c) => {
+  const id = c.req.param('id');
+  const filePath = c.req.param('filePath');
+  const space = getSpace(id);
+
+  if (!space) {
+    return c.json({ error: 'Space not found' }, 404);
+  }
+
+  const fullPath = path.join(space.path, filePath);
+  const normalizedSpacePath = path.normalize(space.path);
+  const normalizedFullPath = path.normalize(fullPath);
+
+  if (!normalizedFullPath.startsWith(normalizedSpacePath)) {
+    return c.json({ error: 'Access denied: path escape attempt' }, 403);
+  }
+
+  try {
+    await fs.promises.unlink(fullPath);
+    return c.json({ success: true });
+  } catch {
+    return c.json({ error: 'Failed to delete file' }, 500);
+  }
+});
+
+const renameFileSchema = z.object({
+  newPath: z.string().min(1),
+});
+
+spacesRouter.patch('/:id/files/:filePath{.*}', zValidator('json', renameFileSchema), async (c) => {
+  const id = c.req.param('id');
+  const filePath = c.req.param('filePath');
+  const { newPath } = c.req.valid('json');
+  const space = getSpace(id);
+
+  if (!space) {
+    return c.json({ error: 'Space not found' }, 404);
+  }
+
+  const fullPath = path.join(space.path, filePath);
+  const newFullPath = path.join(space.path, newPath);
+  const normalizedSpacePath = path.normalize(space.path);
+
+  if (!path.normalize(fullPath).startsWith(normalizedSpacePath) || !path.normalize(newFullPath).startsWith(normalizedSpacePath)) {
+    return c.json({ error: 'Access denied: path escape attempt' }, 403);
+  }
+
+  try {
+    const newDir = path.dirname(newFullPath);
+    await fs.promises.mkdir(newDir, { recursive: true });
+    await fs.promises.rename(fullPath, newFullPath);
+    return c.json({ success: true, path: newPath });
+  } catch {
+    return c.json({ error: 'Failed to rename file' }, 500);
+  }
+});
+
+spacesRouter.delete('/:id/directories/:dirPath{.*}', async (c) => {
+  const id = c.req.param('id');
+  const dirPath = c.req.param('dirPath');
+  const space = getSpace(id);
+
+  if (!space) {
+    return c.json({ error: 'Space not found' }, 404);
+  }
+
+  const fullPath = path.join(space.path, dirPath);
+  const normalizedSpacePath = path.normalize(space.path);
+  const normalizedFullPath = path.normalize(fullPath);
+
+  if (!normalizedFullPath.startsWith(normalizedSpacePath)) {
+    return c.json({ error: 'Access denied: path escape attempt' }, 403);
+  }
+
+  try {
+    await fs.promises.rm(fullPath, { recursive: true, force: true });
+    return c.json({ success: true });
+  } catch {
+    return c.json({ error: 'Failed to delete directory' }, 500);
+  }
+});
+
+const renameDirSchema = z.object({
+  newPath: z.string().min(1),
+});
+
+spacesRouter.patch('/:id/directories/:dirPath{.*}', zValidator('json', renameDirSchema), async (c) => {
+  const id = c.req.param('id');
+  const dirPath = c.req.param('dirPath');
+  const { newPath } = c.req.valid('json');
+  const space = getSpace(id);
+
+  if (!space) {
+    return c.json({ error: 'Space not found' }, 404);
+  }
+
+  const fullPath = path.join(space.path, dirPath);
+  const newFullPath = path.join(space.path, newPath);
+  const normalizedSpacePath = path.normalize(space.path);
+
+  if (!path.normalize(fullPath).startsWith(normalizedSpacePath) || !path.normalize(newFullPath).startsWith(normalizedSpacePath)) {
+    return c.json({ error: 'Access denied: path escape attempt' }, 403);
+  }
+
+  try {
+    await fs.promises.rename(fullPath, newFullPath);
+    return c.json({ success: true, path: newPath });
+  } catch {
+    return c.json({ error: 'Failed to rename directory' }, 500);
   }
 });
 

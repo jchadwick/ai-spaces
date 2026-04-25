@@ -2,6 +2,7 @@ import * as path from 'path';
 import 'dotenv/config';
 
 const HOME = process.env.HOME ?? '';
+const AI_SPACES_DATA = process.env.AI_SPACES_DATA ?? path.join(HOME, '.ai-spaces');
 
 function required(name: string): string {
   const value = process.env[name];
@@ -15,9 +16,9 @@ export const config = {
   get OPENCLAW_HOME(): string { return required('OPENCLAW_HOME'); },
   JWT_SECRET:         process.env.JWT_SECRET         ?? 'ai-spaces-dev-secret-change-in-production',
   JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET ?? 'ai-spaces-refresh-secret-change-in-production',
-  AI_SPACES_DATA:     process.env.AI_SPACES_DATA     ?? path.join(HOME, '.ai-spaces'),
+  AI_SPACES_DATA,
   AI_SPACES_ROOT:     process.env.AI_SPACES_ROOT     ?? path.join(HOME, 'ai-spaces-workspace'),
-  AI_SPACES_DB:       process.env.AI_SPACES_DB       ?? '.ai-spaces.db',
+  AI_SPACES_DB:       process.env.AI_SPACES_DB       ?? path.join(AI_SPACES_DATA, 'ai-spaces.db'),
   AI_SPACES_PORT:     parseInt(process.env.AI_SPACES_PORT ?? '3001', 10),
   GATEWAY_URL:        process.env.GATEWAY_URL        ?? 'http://localhost:19000',
   GATEWAY_TOKEN:      process.env.GATEWAY_TOKEN      ?? 'secret',

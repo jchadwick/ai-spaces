@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 
 export const users = sqliteTable('users', {
@@ -24,11 +24,13 @@ export const spaces = sqliteTable('spaces', {
   agentId: text('agent_id').notNull(),
   agentType: text('agent_type').notNull(),
   path: text('path').notNull(),
-  configPath: text('config_path').notNull(),
+  configPath: text('config_path'),
   config: text('config').notNull(),
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
-});
+}, (table) => [
+  uniqueIndex('spaces_agent_path_idx').on(table.agentId, table.path),
+]);
 
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;

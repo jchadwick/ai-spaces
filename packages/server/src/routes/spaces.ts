@@ -10,8 +10,8 @@ import {
   getSpace,
   listSpaces,
   deleteSpace,
-  loadStore,
-  saveStore,
+  insertSpace,
+  getSpaceByPath,
   type SpaceRecord,
 } from '../space-store.js';
 import { authMiddleware } from '../middleware/auth.js';
@@ -206,31 +206,28 @@ function getMimeType(filePath: string): string {
 
 spacesRouter.post('/', zValidator('json', createSpaceSchema), (c) => {
   const { path: spacePath, agentId, agentType } = c.req.valid('json');
-  const store = loadStore();
-  const pathKey = `${agentId || 'default'}:${spacePath}`;
+  const resolvedAgentId = agentId || 'default';
 
-  if (store.byAgentPath[pathKey]) {
-    const existingId = store.byAgentPath[pathKey];
-    return c.json({ error: 'Space already exists', spaceId: existingId }, 409);
+  const existing = getSpaceByPath(resolvedAgentId, spacePath);
+  if (existing) {
+    return c.json({ error: 'Space already exists', spaceId: existing.id }, 409);
   }
 
-  const id = computeSpaceId(agentId || 'default', spacePath);
+  const id = computeSpaceId(resolvedAgentId, spacePath);
   const now = new Date().toISOString();
 
-  store.spaces[id] = {
+  const space = insertSpace({
     id,
-    agentId: agentId || 'default',
+    agentId: resolvedAgentId,
     agentType: agentType || 'default',
     path: spacePath,
     configPath: path.join(spacePath, '.space', 'spaces.json'),
     config: { name: path.basename(spacePath) },
     createdAt: now,
     updatedAt: now,
-  };
-  store.byAgentPath[pathKey] = id;
-  saveStore(store);
+  });
 
-  return c.json({ space: store.spaces[id] }, 201);
+  return c.json({ space }, 201);
 });
 
 spacesRouter.delete('/:id', (c) => {
@@ -333,15 +330,14 @@ spacesRouter.post('/scan', async (c) => {
     allSpaces.push(...spaces);
   }
 
-  const store = loadStore();
   let registered = 0;
 
   for (const space of allSpaces) {
-    const pathKey = `${space.agentName}:${space.spacePath}`;
+    const existing = getSpaceByPath(space.agentName, space.spacePath);
 
-    if (!store.byAgentPath[pathKey]) {
+    if (!existing) {
       const now = new Date().toISOString();
-      store.spaces[space.id] = {
+      insertSpace({
         id: space.id,
         agentId: space.agentName,
         agentType: space.agentName === 'main' ? 'main' : 'agent',
@@ -350,13 +346,10 @@ spacesRouter.post('/scan', async (c) => {
         config: space.config,
         createdAt: now,
         updatedAt: now,
-      };
-      store.byAgentPath[pathKey] = space.id;
+      });
       registered++;
     }
   }
-
-  saveStore(store);
 
   return c.json({
     discovered: allSpaces.map(space => ({

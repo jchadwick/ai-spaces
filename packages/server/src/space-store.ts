@@ -1,65 +1,21 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import type { Space, SpaceConfig } from '@ai-spaces/shared';
+import type { SpaceConfig } from '@ai-spaces/shared';
 import { SpaceConfigSchema } from '@ai-spaces/shared';
 import { computeSpaceId } from './space-id.js';
 import { logAudit } from './audit.js';
-import { config } from './config.js';
+import { db, schema } from './db/connection.js';
+import { eq, and } from 'drizzle-orm';
 
 export interface SpaceRecord {
   id: string;
   agentId: string;
   agentType: string;
   path: string;
-  configPath: string;
+  configPath: string | null;
   config: SpaceConfig;
   createdAt: string;
   updatedAt: string;
-}
-
-export interface SpaceStore {
-  spaces: Record<string, SpaceRecord>;
-  byAgentPath: Record<string, string>;
-}
-
-function getDataDir(): string {
-  return config.AI_SPACES_DATA;
-}
-
-function getStoreFilePath(): string {
-  return path.join(getDataDir(), 'spaces.json');
-}
-
-export function loadStore(): SpaceStore {
-  const filePath = getStoreFilePath();
-  
-  if (!fs.existsSync(filePath)) {
-    return { spaces: {}, byAgentPath: {} };
-  }
-  
-  try {
-    const content = fs.readFileSync(filePath, 'utf-8');
-    return JSON.parse(content);
-  } catch {
-    return { spaces: {}, byAgentPath: {} };
-  }
-}
-
-export function saveStore(store: SpaceStore): void {
-  const filePath = getStoreFilePath();
-  const dataDir = getDataDir();
-  
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
-  }
-  
-  const tmp = filePath + '.tmp';
-  fs.writeFileSync(tmp, JSON.stringify(store, null, 2));
-  fs.renameSync(tmp, filePath);
-}
-
-export function generateSpaceId(agentId: string, relativePath: string): string {
-  return computeSpaceId(agentId, relativePath);
 }
 
 export interface CreateSpaceInput {
@@ -78,23 +34,42 @@ export type CreateSpaceResult = {
   details?: string;
 };
 
+function rowToRecord(row: typeof schema.spaces.$inferSelect): SpaceRecord {
+  let parsedConfig: SpaceConfig = {};
+  try {
+    parsedConfig = JSON.parse(row.config) as SpaceConfig;
+  } catch {
+    console.error(`[space-store] Failed to parse config for space ${row.id}`);
+  }
+  return {
+    id: row.id,
+    agentId: row.agentId,
+    agentType: row.agentType,
+    path: row.path,
+    configPath: row.configPath ?? null,
+    config: parsedConfig,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
 export function validateSpacePath(inputPath: string): { valid: true; config: SpaceConfig; absolutePath: string; relativePath: string } | { valid: false; error: string; details?: string } {
   if (!fs.existsSync(inputPath)) {
     return { valid: false, error: 'Path does not exist', details: inputPath };
   }
-  
+
   const configPath = path.join(inputPath, '.space', 'spaces.json');
-  
+
   if (!fs.existsSync(configPath)) {
     return { valid: false, error: 'Space config not found', details: configPath };
   }
-  
+
   try {
     const configContent = fs.readFileSync(configPath, 'utf-8');
     const rawConfig = JSON.parse(configContent);
-    
+
     const parseResult = SpaceConfigSchema.safeParse(rawConfig);
-    
+
     if (!parseResult.success) {
       return {
         valid: false,
@@ -102,7 +77,7 @@ export function validateSpacePath(inputPath: string): { valid: true; config: Spa
         details: parseResult.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')
       };
     }
-    
+
     return {
       valid: true,
       config: parseResult.data,
@@ -120,7 +95,7 @@ export function validateSpacePath(inputPath: string): { valid: true; config: Spa
 
 export function createSpace(input: CreateSpaceInput, userId: string = 'system'): CreateSpaceResult {
   const validation = validateSpacePath(input.path);
-  
+
   if (!validation.valid) {
     return {
       success: false,
@@ -128,94 +103,116 @@ export function createSpace(input: CreateSpaceInput, userId: string = 'system'):
       details: validation.details
     };
   }
-  
-  const store = loadStore();
-  const pathKey = `${input.agentId}:${validation.relativePath}`;
-  
-  if (store.byAgentPath[pathKey]) {
-    const existingId = store.byAgentPath[pathKey];
-    const existing = store.spaces[existingId];
-    
+
+  const existing = getSpaceByPath(input.agentId, validation.relativePath);
+
+  if (existing) {
     return {
       success: false,
       error: 'Space already registered',
-      details: `Space ID: ${existingId}, Path: ${existing.path}`
+      details: `Space ID: ${existing.id}, Path: ${existing.path}`
     };
   }
-  
-  const id = generateSpaceId(input.agentId, validation.relativePath);
+
+  const id = computeSpaceId(input.agentId, validation.relativePath);
   const now = new Date().toISOString();
-  
+  const configPath = path.join(validation.absolutePath, '.space', 'spaces.json');
+
+  db.insert(schema.spaces).values({
+    id,
+    agentId: input.agentId,
+    agentType: input.agentType,
+    path: validation.relativePath,
+    configPath,
+    config: JSON.stringify(validation.config),
+    createdAt: now,
+    updatedAt: now,
+  }).run();
+
   const space: SpaceRecord = {
     id,
     agentId: input.agentId,
     agentType: input.agentType,
     path: validation.relativePath,
-    configPath: path.join(validation.absolutePath, '.space', 'spaces.json'),
+    configPath,
     config: validation.config,
     createdAt: now,
     updatedAt: now,
   };
-  
-  store.spaces[id] = space;
-  store.byAgentPath[pathKey] = id;
-  
-  saveStore(store);
-  
+
   logAudit('space.create', userId, { spaceId: id, path: space.path });
-  
+
   return { success: true, space };
 }
 
+export function insertSpace(data: {
+  id: string;
+  agentId: string;
+  agentType: string;
+  path: string;
+  configPath: string | null;
+  config: SpaceConfig;
+  createdAt: string;
+  updatedAt: string;
+}): SpaceRecord {
+  db.insert(schema.spaces).values({
+    id: data.id,
+    agentId: data.agentId,
+    agentType: data.agentType,
+    path: data.path,
+    configPath: data.configPath ?? null,
+    config: JSON.stringify(data.config),
+    createdAt: data.createdAt,
+    updatedAt: data.updatedAt,
+  }).onConflictDoNothing().run();
+
+  return {
+    id: data.id,
+    agentId: data.agentId,
+    agentType: data.agentType,
+    path: data.path,
+    configPath: data.configPath ?? null,
+    config: data.config,
+    createdAt: data.createdAt,
+    updatedAt: data.updatedAt,
+  };
+}
+
 export function getSpace(id: string, userId: string = 'system'): SpaceRecord | null {
-  const store = loadStore();
-  const space = store.spaces[id] || null;
-  
-  if (space) {
-    logAudit('space.access', userId, { spaceId: id, path: space.path });
-  }
-  
+  const row = db.select().from(schema.spaces).where(eq(schema.spaces.id, id)).get();
+
+  if (!row) return null;
+
+  const space = rowToRecord(row);
+  logAudit('space.access', userId, { spaceId: id, path: space.path });
+
   return space;
 }
 
 export function getSpaceByPath(agentId: string, spacePath: string): SpaceRecord | null {
-  const store = loadStore();
-  const pathKey = `${agentId}:${spacePath}`;
-  const id = store.byAgentPath[pathKey];
-  
-  if (!id) {
-    return null;
-  }
-  
-  return store.spaces[id] || null;
+  const row = db.select().from(schema.spaces)
+    .where(and(eq(schema.spaces.agentId, agentId), eq(schema.spaces.path, spacePath)))
+    .get();
+
+  return row ? rowToRecord(row) : null;
 }
 
 export function listSpaces(agentId?: string): SpaceRecord[] {
-  const store = loadStore();
-  const spaces = Object.values(store.spaces);
-  
-  if (agentId) {
-    return spaces.filter(s => s.agentId === agentId);
-  }
-  
-  return spaces;
+  const rows = agentId
+    ? db.select().from(schema.spaces).where(eq(schema.spaces.agentId, agentId)).all()
+    : db.select().from(schema.spaces).all();
+
+  return rows.map(rowToRecord);
 }
 
 export function deleteSpace(id: string, userId: string = 'system'): boolean {
-  const store = loadStore();
-  const space = store.spaces[id];
-  
-  if (!space) {
-    return false;
-  }
-  
-  const pathKey = `${space.agentId}:${space.path}`;
-  delete store.byAgentPath[pathKey];
-  delete store.spaces[id];
-  
-  saveStore(store);
-  
-  logAudit('space.delete', userId, { spaceId: id, path: space.path });
-  
+  const row = db.select().from(schema.spaces).where(eq(schema.spaces.id, id)).get();
+
+  if (!row) return false;
+
+  db.delete(schema.spaces).where(eq(schema.spaces.id, id)).run();
+
+  logAudit('space.delete', userId, { spaceId: id, path: row.path });
+
   return true;
 }

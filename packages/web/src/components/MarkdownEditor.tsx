@@ -93,8 +93,8 @@ export default function MarkdownEditor({
   role = "viewer",
   onFileModified,
 }: MarkdownEditorProps) {
-const [fileVersion, setFileVersion] = useState(0);
-  
+  const [fileVersion, setFileVersion] = useState(0);
+
   const { content, fileInfo, loading, error } = useFileContent(
     spaceId,
     filePath,
@@ -216,7 +216,7 @@ const [fileVersion, setFileVersion] = useState(0);
       if (result.success) {
         clearDraft(spaceId, filePath);
         setEditMode(false);
-        setFileVersion(v => v + 1);
+        setFileVersion((v) => v + 1);
         onFileModified?.();
       } else {
         throw new Error(result.error || "Failed to save");
@@ -510,7 +510,7 @@ const [fileVersion, setFileVersion] = useState(0);
                   Preview
                 </div>
                 <div className="flex-1 overflow-y-auto custom-scrollbar">
-                  <article className="prose prose-slate prose-img:rounded-lg prose-headings:font-display prose-headings:font-semibold prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl prose-p:text-on-surface prose-a:text-primary prose-code:font-mono prose-code:bg-surface-container prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-pre:bg-surface-container-low prose-pre:font-mono p-8">
+                  <article className="prose prose-slate max-w-none prose-img:rounded-lg prose-headings:font-display prose-headings:font-semibold prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl prose-p:text-on-surface prose-a:text-primary prose-code:font-mono prose-code:bg-surface-container prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-pre:bg-surface-container-low prose-pre:font-mono p-8">
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
                       rehypePlugins={[rehypeHighlight, rehypeRaw]}
@@ -606,11 +606,11 @@ function ContentRenderer({ fileInfo, content }: ContentRendererProps) {
   }
 
   const markdownClasses =
-    "prose prose-slate prose-img:rounded-lg prose-headings:font-display prose-headings:font-semibold prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl prose-p:text-on-surface prose-a:text-primary prose-code:font-mono prose-code:bg-surface-container prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-pre:bg-surface-container-low prose-pre:font-mono";
+    "prose prose-slate max-w-none prose-img:rounded-lg prose-headings:font-display prose-headings:font-semibold prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl prose-p:text-on-surface prose-a:text-primary prose-code:font-mono prose-code:bg-surface-container prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-pre:bg-surface-container-low prose-pre:font-mono";
 
   if (fileInfo.type === "markdown") {
     return (
-      <div className="p-8 flex flex-col items-center">
+      <div className="p-4 grow flex">
         <article className={markdownClasses}>
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
@@ -657,4 +657,3 @@ function formatRelativeTime(dateString: string): string {
 
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
-

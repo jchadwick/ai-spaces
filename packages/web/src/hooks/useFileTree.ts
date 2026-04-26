@@ -3,12 +3,20 @@ import type { FileNode } from '@ai-spaces/shared'
 import { useAPI } from './useAPI'
 
 function sortNodes(nodes: FileNode[]): FileNode[] {
-  return [...nodes]
-    .sort((a, b) => {
-      if (a.type !== b.type) return a.type === 'directory' ? -1 : 1
-      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
-    })
-    .map(node => node.children ? { ...node, children: sortNodes(node.children) } : node)
+  return [...nodes].sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'directory' ? -1 : 1
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+  })
+}
+
+function mergeChildren(nodes: FileNode[], targetPath: string, children: FileNode[]): FileNode[] {
+  return nodes.map(node => {
+    if (node.path === targetPath) return { ...node, children }
+    if (node.children && targetPath.startsWith(node.path + '/')) {
+      return { ...node, children: mergeChildren(node.children, targetPath, children) }
+    }
+    return node
+  })
 }
 
 export interface FileTree {
@@ -16,6 +24,7 @@ export interface FileTree {
   loading: boolean
   error: string | null
   refresh: () => void
+  loadChildren: (dirPath: string) => Promise<void>
 }
 
 export function useFileTree(spaceId: string | undefined): FileTree {
@@ -32,9 +41,7 @@ export function useFileTree(spaceId: string | undefined): FileTree {
   }, [])
 
   useEffect(() => {
-    if (!fetchKey) {
-      return
-    }
+    if (!fetchKey) return
 
     setLoading(true)
     setError(null)
@@ -53,10 +60,23 @@ export function useFileTree(spaceId: string | undefined): FileTree {
         setLoading(false)
       })
   }, [fetchKey, refreshKey, apiFetch])
-  
+
+  const loadChildren = useCallback(async (dirPath: string) => {
+    if (!spaceId) return
+    try {
+      const res = await apiFetch(`/api/spaces/${spaceId}/files?path=${encodeURIComponent(dirPath)}`)
+      if (!res.ok) return
+      const data = await res.json()
+      const children = sortNodes(data.files || [])
+      setFiles(prev => mergeChildren(prev, dirPath, children))
+    } catch {
+      // silently fail — folder just won't expand
+    }
+  }, [spaceId, apiFetch])
+
   if (!spaceId) {
-    return { files: [], loading: false, error: null, refresh }
+    return { files: [], loading: false, error: null, refresh, loadChildren: async () => {} }
   }
-  
-  return { files, loading, error, refresh }
+
+  return { files, loading, error, refresh, loadChildren }
 }

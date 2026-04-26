@@ -37,6 +37,7 @@ function FileTreeNode({
   onFileSelect,
   expandedFolders,
   toggleFolder,
+  onLoadChildren,
   onContextMenu,
   renamingPath,
   renameValue,
@@ -50,6 +51,7 @@ function FileTreeNode({
   onFileSelect: (path: string) => void
   expandedFolders: Set<string>
   toggleFolder: (path: string) => void
+  onLoadChildren: (dirPath: string) => void
   onContextMenu: (e: React.MouseEvent, node: FileNode) => void
   renamingPath: string | null
   renameValue: string
@@ -69,7 +71,11 @@ function FileTreeNode({
   const handleClick = () => {
     if (isRenaming) return
     if (isDirectory) {
+      const expanding = !expandedFolders.has(node.path)
       toggleFolder(node.path)
+      if (expanding && node.children === undefined) {
+        onLoadChildren(node.path)
+      }
     } else {
       onFileSelect(node.path)
     }
@@ -119,6 +125,12 @@ function FileTreeNode({
         )}
       </button>
 
+      {isDirectory && isExpanded && node.children === undefined && (
+        <div className="text-xs text-on-surface-variant/40 italic py-1" style={{ paddingLeft: `${paddingLeft + 24}px` }}>
+          loading…
+        </div>
+      )}
+
       {isDirectory && isExpanded && node.children && node.children.length > 0 && (
         <div className="flex flex-col">
           {node.children.map((child: FileNode) => (
@@ -130,6 +142,7 @@ function FileTreeNode({
               onFileSelect={onFileSelect}
               expandedFolders={expandedFolders}
               toggleFolder={toggleFolder}
+              onLoadChildren={onLoadChildren}
               onContextMenu={onContextMenu}
               renamingPath={renamingPath}
               renameValue={renameValue}
@@ -141,8 +154,8 @@ function FileTreeNode({
         </div>
       )}
 
-      {isDirectory && isExpanded && (!node.children || node.children.length === 0) && (
-        <div className="text-xs text-on-surface-variant/50 italic px-4 py-1" style={{ paddingLeft: `${paddingLeft + 24}px` }}>
+      {isDirectory && isExpanded && node.children?.length === 0 && (
+        <div className="text-xs text-on-surface-variant/50 italic py-1" style={{ paddingLeft: `${paddingLeft + 24}px` }}>
           (empty)
         </div>
       )}
@@ -152,7 +165,7 @@ function FileTreeNode({
 
 export default function FileExplorer({ spaceId, role, selectedFile, onFileSelect }: FileExplorerProps) {
   const apiFetch = useAPI()
-  const { files, loading, error, refresh } = useFileTree(spaceId)
+  const { files, loading, error, refresh, loadChildren } = useFileTree(spaceId)
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const { showToast } = useToast()
 
@@ -310,7 +323,14 @@ export default function FileExplorer({ spaceId, role, selectedFile, onFileSelect
   useEffect(() => {
     const handleFileModified = (event: CustomEvent<{ path: string; action: string; triggeredBy: string }>) => {
       if (event.detail.action !== 'modified') {
-        refresh()
+        const changedPath = event.detail.path || ''
+        const slashIdx = changedPath.lastIndexOf('/')
+        const parentDir = slashIdx > 0 ? changedPath.slice(0, slashIdx) : ''
+        if (parentDir) {
+          loadChildren(parentDir)
+        } else {
+          refresh()
+        }
       }
 
       if (!event.detail?.path) return;
@@ -331,7 +351,7 @@ export default function FileExplorer({ spaceId, role, selectedFile, onFileSelect
     return () => {
       window.removeEventListener('fileModified', handleFileModified as EventListener)
     }
-  }, [refresh, showToast])
+  }, [refresh, loadChildren, showToast])
 
   const toggleFolder = (path: string) => {
     setExpandedFolders(prev => {
@@ -397,14 +417,18 @@ export default function FileExplorer({ spaceId, role, selectedFile, onFileSelect
       }
 
       const displayName = fileName.trim()
+      const fullFilePath = newFileParentPath ? `${newFileParentPath}/${displayName}` : displayName
       showToast(`File "${displayName}" created`, 'success', 3000)
       setShowFileModal(false)
       setFileName('')
       setNewFileParentPath('')
-      refresh()
 
-      // Select the newly created file
-      const fullFilePath = newFileParentPath ? `${newFileParentPath}/${displayName}` : displayName
+      if (newFileParentPath) {
+        loadChildren(newFileParentPath)
+      } else {
+        refresh()
+      }
+
       onFileSelect(fullFilePath)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create file'
@@ -483,6 +507,7 @@ export default function FileExplorer({ spaceId, role, selectedFile, onFileSelect
                 onFileSelect={onFileSelect}
                 expandedFolders={expandedFolders}
                 toggleFolder={toggleFolder}
+                onLoadChildren={loadChildren}
                 onContextMenu={handleContextMenu}
                 renamingPath={renamingPath}
                 renameValue={renameValue}

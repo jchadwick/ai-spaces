@@ -51,65 +51,40 @@ spacesRouter.get('/:id', (c) => {
   return c.json({ space });
 });
 
-async function buildFileTree(dirPath: string, basePath: string, maxDepth = 10): Promise<object[]> {
-  const roots: object[] = [];
-  const queue: { dir: string; base: string; depth: number; parent: object[] }[] = [
-    { dir: dirPath, base: basePath, depth: 0, parent: roots },
-  ];
-
-  while (queue.length > 0) {
-    const { dir, base, depth, parent } = queue.shift()!;
-    if (depth > maxDepth) continue;
-
-    let entries: fs.Dirent[];
-    try {
-      entries = await fs.promises.readdir(dir, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-
-    const nodes: object[] = [];
-    for (const entry of entries) {
-      const relativePath = base ? `${base}/${entry.name}` : entry.name;
-      let stats: fs.Stats;
-      try {
-        stats = await fs.promises.stat(path.join(dir, entry.name));
-      } catch {
-        continue;
-      }
-
-      if (entry.isDirectory()) {
-        const children: object[] = [];
-        nodes.push({ name: entry.name, type: 'directory', path: relativePath, children, modified: stats.mtime.toISOString() });
-        if (depth < maxDepth) {
-          queue.push({ dir: path.join(dir, entry.name), base: relativePath, depth: depth + 1, parent: children });
-        }
-      } else {
-        nodes.push({ name: entry.name, type: 'file', path: relativePath, size: stats.size, modified: stats.mtime.toISOString() });
-      }
-    }
-
-    nodes.sort((a: any, b: any) => {
-      if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
-      return a.name.localeCompare(b.name);
-    });
-
-    parent.push(...nodes);
-  }
-
-  return roots;
-}
-
 spacesRouter.get('/:id/files', async (c) => {
   const id = c.req.param('id');
+  const dirPath = c.req.query('path') || '';
   const space = getSpace(id);
 
   if (!space) {
     return c.json({ error: 'Space not found' }, 404);
   }
 
+  const fullPath = dirPath ? path.join(space.path, dirPath) : space.path;
+
   try {
-    const files = await buildFileTree(space.path, '');
+    const entries = await fs.promises.readdir(fullPath, { withFileTypes: true });
+    const nodes = await Promise.all(
+      entries.map(async entry => {
+        const relativePath = dirPath ? `${dirPath}/${entry.name}` : entry.name;
+        try {
+          const stats = await fs.promises.stat(path.join(fullPath, entry.name));
+          return {
+            name: entry.name,
+            type: entry.isDirectory() ? 'directory' : 'file',
+            path: relativePath,
+            size: entry.isDirectory() ? undefined : stats.size,
+            modified: stats.mtime.toISOString(),
+          };
+        } catch {
+          return null;
+        }
+      }),
+    );
+    const files = (nodes.filter(Boolean) as object[]).sort((a: any, b: any) => {
+      if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
     return c.json({ files });
   } catch {
     return c.json({ error: 'Failed to list files' }, 500);

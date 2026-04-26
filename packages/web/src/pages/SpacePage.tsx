@@ -2,7 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useState, useEffect, useCallback } from 'react'
 import TopNavBar from '../components/TopNavBar'
 import FileExplorer from '../components/FileExplorer'
-import MarkdownEditor from '../components/MarkdownEditor'
+import FileEditor from '../components/FileEditor'
 import AIChatPane from '../components/AIChatPane'
 import { ErrorBoundary, WebSocketErrorBoundary } from '../components/errors'
 import { ToastProvider } from '../components/ui/toast'
@@ -167,7 +167,7 @@ export default function SpacePage() {
             <FileExplorer spaceId={spaceId} role={role} selectedFile={selectedFile} onFileSelect={setSelectedFile} />
           </ErrorBoundary>
           <ErrorBoundary>
-            <MarkdownEditor
+            <FileEditor
               spaceId={spaceId}
               filePath={selectedFile ?? undefined}
               role={role}

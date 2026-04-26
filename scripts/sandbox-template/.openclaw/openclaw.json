@@ -35,6 +35,9 @@
         "enabled": true
       }
     },
+    "load": {
+      "paths": ["${PLUGIN_DIST}"]
+    },
     "installs": {
       "ai-spaces": {
         "source": "path",

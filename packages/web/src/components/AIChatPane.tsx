@@ -80,7 +80,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   }
 
   return (
-    <div className="self-start max-w-[90%] bg-white dark:bg-slate-900 p-4 rounded-2xl rounded-tl-none shadow-sm flex flex-col gap-2">
+    <div className="self-start w-full bg-white dark:bg-slate-900 p-4 rounded-2xl rounded-tl-none shadow-sm flex flex-col gap-2">
       <div className="flex items-center gap-2 text-tertiary mb-1">
         <span
           className="material-symbols-outlined text-xs"
@@ -317,4 +317,3 @@ export default function AIChatPane({
     </aside>
   );
 }
-

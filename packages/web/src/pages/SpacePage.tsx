@@ -36,21 +36,16 @@ export default function SpacePage() {
   const handleFileChanged = useCallback((event: FileChangedPayload) => {
     const { path: changedPath, action } = event
 
-    if (action === 'created' || action === 'deleted') {
-      // Notify FileExplorer to refresh via the existing window event
-      window.dispatchEvent(new CustomEvent('fileModified', {
-        detail: { path: changedPath, action, triggeredBy: 'watcher' },
-      }))
-    }
+    window.dispatchEvent(new CustomEvent('fileModified', {
+      detail: { path: changedPath, action, triggeredBy: 'agent' },
+    }))
 
     if (action === 'deleted' && selectedFile === changedPath) {
-      // Deselect the file if it was deleted
       setSelectedFile(null)
       return
     }
 
     if (action === 'modified' && selectedFile === changedPath) {
-      // Re-fetch the open file's content
       setEditorRefreshKey(k => k + 1)
     }
   }, [selectedFile])

@@ -11,6 +11,7 @@ import { getOrCreateSession, addMessageToSession, getSessionMessages } from '../
 import { logFileModification } from '../file-history.js';
 import { config } from '../config.js';
 import { validateSession } from '../session-middleware.js';
+import { fileWatcher, type FileChangedEvent } from '../file-watcher.js';
 import type { WebSocketMessage, SpaceConfig, ChatMessage } from '@ai-spaces/shared';
 
 interface WebSocketClient {
@@ -27,6 +28,29 @@ interface WebSocketClient {
 const wss = new WebSocketServer({ noServer: true });
 const connectedClients: Map<string, WebSocketClient> = new Map();
 const activeStreams: Map<string, AbortController> = new Map();
+// Track client count per space to start/stop file watching
+const spaceClientCount: Map<string, number> = new Map();
+// Paths recently written via handleFileWrite — suppress watcher double-fire
+const recentlyWritten: Set<string> = new Set();
+
+fileWatcher.on('file:changed', (event: FileChangedEvent) => {
+  const suppressKey = `${event.spaceId}:${event.path}`;
+  if (recentlyWritten.has(suppressKey)) return;
+
+  for (const client of connectedClients.values()) {
+    if (client.spaceId === event.spaceId) {
+      sendWebSocketMessage(client, {
+        type: 'event',
+        event: 'file_modified',
+        payload: {
+          path: event.path,
+          action: event.action,
+          triggeredBy: 'agent',
+        },
+      });
+    }
+  }
+});
 
 const DEFAULT_DENIED_TOOLS = ['exec', 'messaging', 'spawn_agents', 'browser', 'credentials'];
 const DEFAULT_ALLOWED_TOOLS = ['read', 'write', 'edit', 'glob'];
@@ -228,6 +252,11 @@ async function handleFileWrite(
     }
 
     await fs.promises.writeFile(filePath, content, 'utf8');
+
+    // Suppress the watcher event for this write — the file_modified broadcast below covers it
+    const suppressKey = `${client.spaceId}:${relativePath}`;
+    recentlyWritten.add(suppressKey);
+    setTimeout(() => recentlyWritten.delete(suppressKey), 500);
 
     const stats = await fs.promises.stat(filePath);
 
@@ -438,6 +467,13 @@ function setupWebSocketClient(ws: WsWebSocket, spaceId: string, space: SpaceReco
 
   connectedClients.set(clientId, client);
 
+  // Start watching this space on first client connection
+  const count = (spaceClientCount.get(spaceId) ?? 0) + 1;
+  spaceClientCount.set(spaceId, count);
+  if (count === 1) {
+    fileWatcher.watch(spaceId, client.spaceRoot);
+  }
+
   const historyMessages = getSessionMessages(space.path, userId);
   for (const msg of historyMessages) {
     sendWebSocketMessage(client, {
@@ -454,23 +490,26 @@ function setupWebSocketClient(ws: WsWebSocket, spaceId: string, space: SpaceReco
     } catch {}
   });
 
-  ws.on('close', () => {
+  const cleanupClient = () => {
     const abortController = activeStreams.get(clientId);
     if (abortController) {
       abortController.abort();
       activeStreams.delete(clientId);
     }
     connectedClients.delete(clientId);
-  });
 
-  ws.on('error', () => {
-    const abortController = activeStreams.get(clientId);
-    if (abortController) {
-      abortController.abort();
-      activeStreams.delete(clientId);
+    // Stop watching this space when last client disconnects
+    const remaining = (spaceClientCount.get(spaceId) ?? 1) - 1;
+    if (remaining <= 0) {
+      spaceClientCount.delete(spaceId);
+      fileWatcher.unwatch(spaceId);
+    } else {
+      spaceClientCount.set(spaceId, remaining);
     }
-    connectedClients.delete(clientId);
-  });
+  };
+
+  ws.on('close', cleanupClient);
+  ws.on('error', cleanupClient);
 }
 
 /**

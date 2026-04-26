@@ -39,7 +39,7 @@ export const authMiddleware = createMiddleware<{ Variables: AuthVariables }>(asy
 
     await next();
   } catch (error) {
-    console.log('[DEBUG-AUTH] Verify error:', error);
+    console.log('[DEBUG-AUTH] Auth failed:', (error as Error).message);
     if (error instanceof jwt.TokenExpiredError) {
       return c.json({ error: 'Token expired', code: 'TOKEN_EXPIRED' }, 401);
     }

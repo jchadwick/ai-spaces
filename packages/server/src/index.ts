@@ -14,7 +14,6 @@ import { createFileProvider } from './file-provider.js';
 import { seedAdmin } from './seed-admin.js';
 import { runMigrations } from './db/migrate.js';
 import { seedFromJsonIfNeeded } from './db/seed-from-json.js';
-import { fileWatcher, type FileChangedEvent } from './file-watcher.js';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
@@ -94,45 +93,6 @@ function rawDataToBuffer(data: unknown): Buffer {
 
 const wss = new WebSocketServer({ noServer: true });
 
-// Track browser WebSocket clients per space for broadcasting file change events
-const spaceClients = new Map<string, Set<WebSocket>>();
-
-function addSpaceClient(spaceId: string, ws: WebSocket): void {
-  let clients = spaceClients.get(spaceId);
-  if (!clients) {
-    clients = new Set();
-    spaceClients.set(spaceId, clients);
-  }
-  clients.add(ws);
-}
-
-function removeSpaceClient(spaceId: string, ws: WebSocket): void {
-  const clients = spaceClients.get(spaceId);
-  if (!clients) return;
-  clients.delete(ws);
-  if (clients.size === 0) {
-    spaceClients.delete(spaceId);
-  }
-}
-
-// Broadcast file change events to all browser clients connected to a space
-fileWatcher.on('file:changed', (event: FileChangedEvent) => {
-  const clients = spaceClients.get(event.spaceId);
-  if (!clients || clients.size === 0) return;
-
-  const message = JSON.stringify({
-    type: 'file:changed',
-    spaceId: event.spaceId,
-    path: event.path,
-    action: event.action,
-  });
-
-  for (const ws of clients) {
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(message);
-    }
-  }
-});
 
 wss.on('upgrade', (request, socket, head) => {
   const url = new URL(request.url || '/', `http://${request.headers.host}`);
@@ -235,13 +195,6 @@ wss.on('upgrade', (request, socket, head) => {
   wss.handleUpgrade(request, socket, head, (ws) => {
     clientWs = ws;
     console.log('[WS-PROXY] Browser WebSocket connected');
-
-    // Register this client for file change broadcasts
-    addSpaceClient(spaceId, ws);
-
-    // Start watching the space directory if not already watching
-    fileWatcher.watch(spaceId, serverSpace.path);
-
     flushToClient();
 
     ws.on('message', (data) => {
@@ -254,13 +207,11 @@ wss.on('upgrade', (request, socket, head) => {
 
     ws.on('close', () => {
       console.log('[WS-PROXY] Browser WebSocket closed');
-      removeSpaceClient(spaceId, ws);
       gatewayWs.close();
     });
 
     ws.on('error', (err) => {
       console.error('[WS-PROXY] Browser WebSocket error:', err.message);
-      removeSpaceClient(spaceId, ws);
       gatewayWs.close();
     });
   });

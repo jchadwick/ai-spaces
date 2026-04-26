@@ -13,17 +13,30 @@ export interface FileChangedEvent {
 interface WatchEntry {
   watcher: fs.FSWatcher;
   dirPath: string;
+  knownFiles: Set<string>;
 }
 
 export class FileWatcher extends EventEmitter {
   private watchers = new Map<string, WatchEntry>();
-  // Debounce timers per "spaceId:filePath" key
   private debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
+  private scanDirectory(dirPath: string): Set<string> {
+    const files = new Set<string>();
+    const scan = (dir: string) => {
+      try {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+          const full = path.join(dir, entry.name);
+          files.add(path.relative(dirPath, full));
+          if (entry.isDirectory()) scan(full);
+        }
+      } catch { /* ignore permission errors */ }
+    };
+    scan(dirPath);
+    return files;
+  }
+
   watch(spaceId: string, dirPath: string): void {
-    if (this.watchers.has(spaceId)) {
-      return;
-    }
+    if (this.watchers.has(spaceId)) return;
 
     if (!fs.existsSync(dirPath)) {
       console.warn(`[FileWatcher] Directory does not exist, skipping watch: ${dirPath}`);
@@ -37,7 +50,6 @@ export class FileWatcher extends EventEmitter {
         const filePath = filename.toString();
         const debounceKey = `${spaceId}:${filePath}`;
 
-        // Cancel any existing debounce for this file
         const existing = this.debounceTimers.get(debounceKey);
         if (existing) clearTimeout(existing);
 
@@ -54,7 +66,7 @@ export class FileWatcher extends EventEmitter {
         this.unwatch(spaceId);
       });
 
-      this.watchers.set(spaceId, { watcher, dirPath });
+      this.watchers.set(spaceId, { watcher, dirPath, knownFiles: this.scanDirectory(dirPath) });
       console.log(`[FileWatcher] Watching space ${spaceId} at ${dirPath}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -64,17 +76,20 @@ export class FileWatcher extends EventEmitter {
 
   private resolveAction(spaceId: string, dirPath: string, filePath: string): void {
     const fullPath = path.join(dirPath, filePath);
+    const entry = this.watchers.get(spaceId);
+    if (!entry) return;
 
     let action: FileAction;
     try {
       fs.accessSync(fullPath);
-      action = 'modified';
+      action = entry.knownFiles.has(filePath) ? 'modified' : 'created';
+      entry.knownFiles.add(filePath);
     } catch {
       action = 'deleted';
+      entry.knownFiles.delete(filePath);
     }
 
-    const event: FileChangedEvent = { spaceId, path: filePath, action };
-    this.emit('file:changed', event);
+    this.emit('file:changed', { spaceId, path: filePath, action });
   }
 
   unwatch(spaceId: string): void {
@@ -83,9 +98,7 @@ export class FileWatcher extends EventEmitter {
 
     try {
       entry.watcher.close();
-    } catch {
-      // Ignore close errors
-    }
+    } catch { /* ignore close errors */ }
 
     this.watchers.delete(spaceId);
     console.log(`[FileWatcher] Stopped watching space ${spaceId}`);
@@ -95,8 +108,6 @@ export class FileWatcher extends EventEmitter {
     for (const spaceId of this.watchers.keys()) {
       this.unwatch(spaceId);
     }
-
-    // Clear all pending debounce timers
     for (const timer of this.debounceTimers.values()) {
       clearTimeout(timer);
     }

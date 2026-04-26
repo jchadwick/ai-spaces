@@ -161,6 +161,7 @@ export default function FileExplorer({ spaceId, role, selectedFile, onFileSelect
   const [showFileModal, setShowFileModal] = useState(false)
   const [folderName, setFolderName] = useState('')
   const [fileName, setFileName] = useState('')
+  const [newFileParentPath, setNewFileParentPath] = useState('')
   const [isCreating, setIsCreating] = useState(false)
 
   // Context menu state
@@ -262,6 +263,14 @@ export default function FileExplorer({ spaceId, role, selectedFile, onFileSelect
     setRenamingPath(null)
   }, [])
 
+  const startNewFileInFolder = useCallback((node: FileNode) => {
+    setContextMenu(null)
+    setNewFileParentPath(node.path)
+    setFileName('')
+    setExpandedFolders(prev => new Set(prev).add(node.path))
+    setShowFileModal(true)
+  }, [])
+
   const startDelete = useCallback((node: FileNode) => {
     setContextMenu(null)
     setDeleteTarget(node)
@@ -300,7 +309,9 @@ export default function FileExplorer({ spaceId, role, selectedFile, onFileSelect
 
   useEffect(() => {
     const handleFileModified = (event: CustomEvent<{ path: string; action: string; triggeredBy: string }>) => {
-      refresh()
+      if (event.detail.action !== 'modified') {
+        refresh()
+      }
 
       if (!event.detail?.path) return;
 
@@ -309,6 +320,8 @@ export default function FileExplorer({ spaceId, role, selectedFile, onFileSelect
 
       if (event.detail.action === 'created') {
         showToast(`${fileName} created by ${triggeredBy}`, 'success', 3000)
+      } else if (event.detail.action === 'deleted') {
+        showToast(`${fileName} deleted by ${triggeredBy}`, 'info', 3000)
       } else {
         showToast(`${fileName} updated by ${triggeredBy}`, 'info', 3000)
       }
@@ -371,7 +384,8 @@ export default function FileExplorer({ spaceId, role, selectedFile, onFileSelect
     setIsCreating(true)
 
     try {
-      const response = await apiFetch(`/api/spaces/${spaceId}/files/${fileName.trim()}`, {
+      const filePath = newFileParentPath ? `${newFileParentPath}/${fileName.trim()}` : fileName.trim()
+      const response = await apiFetch(`/api/spaces/${spaceId}/files/${filePath}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: '' }),
@@ -382,13 +396,16 @@ export default function FileExplorer({ spaceId, role, selectedFile, onFileSelect
         throw new Error(data.error || 'Failed to create file')
       }
 
-      showToast(`File "${fileName}" created`, 'success', 3000)
+      const displayName = fileName.trim()
+      showToast(`File "${displayName}" created`, 'success', 3000)
       setShowFileModal(false)
       setFileName('')
+      setNewFileParentPath('')
       refresh()
 
       // Select the newly created file
-      onFileSelect(fileName.trim())
+      const fullFilePath = newFileParentPath ? `${newFileParentPath}/${displayName}` : displayName
+      onFileSelect(fullFilePath)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create file'
       showToast(message, 'error', 4000)
@@ -505,6 +522,16 @@ export default function FileExplorer({ spaceId, role, selectedFile, onFileSelect
           boxShadow: '0 8px 24px rgba(25,28,30,0.06)',
         }}
       >
+        {contextMenu.node.type === 'directory' && (
+          <button
+            type="button"
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-on-surface hover:bg-surface-container-lowest/80 transition-colors text-left"
+            onClick={() => startNewFileInFolder(contextMenu.node)}
+          >
+            <span className="material-symbols-outlined text-base">note_add</span>
+            New File
+          </button>
+        )}
         <button
           type="button"
           className="w-full flex items-center gap-2 px-3 py-2 text-sm text-on-surface hover:bg-surface-container-lowest/80 transition-colors text-left"
@@ -566,10 +593,10 @@ export default function FileExplorer({ spaceId, role, selectedFile, onFileSelect
       </Dialog>
 
       {/* Create File Modal */}
-      <Dialog open={showFileModal} onOpenChange={setShowFileModal}>
+      <Dialog open={showFileModal} onOpenChange={(open) => { if (!open) { setShowFileModal(false); setNewFileParentPath('') } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create New File</DialogTitle>
+            <DialogTitle>New File{newFileParentPath ? ` in ${newFileParentPath}` : ''}</DialogTitle>
           </DialogHeader>
           <div className="py-4">
             <Input
@@ -591,6 +618,7 @@ export default function FileExplorer({ spaceId, role, selectedFile, onFileSelect
               onClick={() => {
                 setShowFileModal(false)
                 setFileName('')
+                setNewFileParentPath('')
               }}
               disabled={isCreating}
             >

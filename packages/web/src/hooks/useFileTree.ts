@@ -2,6 +2,15 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import type { FileNode } from '@ai-spaces/shared'
 import { useAPI } from './useAPI'
 
+function sortNodes(nodes: FileNode[]): FileNode[] {
+  return [...nodes]
+    .sort((a, b) => {
+      if (a.type !== b.type) return a.type === 'directory' ? -1 : 1
+      return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+    })
+    .map(node => node.children ? { ...node, children: sortNodes(node.children) } : node)
+}
+
 export interface FileTree {
   files: FileNode[]
   loading: boolean
@@ -36,7 +45,7 @@ export function useFileTree(spaceId: string | undefined): FileTree {
         return res.json()
       })
       .then(data => {
-        setFiles(data.files || [])
+        setFiles(sortNodes(data.files || []))
         setLoading(false)
       })
       .catch(err => {

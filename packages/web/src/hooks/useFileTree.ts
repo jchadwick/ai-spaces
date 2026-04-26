@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import type { FileNode } from '@ai-spaces/shared'
 import { useAPI } from './useAPI'
 
@@ -33,6 +33,7 @@ export function useFileTree(spaceId: string | undefined): FileTree {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
+  const activeSpaceId = useRef<string | undefined>(undefined)
 
   const fetchKey = useMemo(() => spaceId, [spaceId])
 
@@ -40,39 +41,72 @@ export function useFileTree(spaceId: string | undefined): FileTree {
     setRefreshKey(k => k + 1)
   }, [])
 
+  const fetchDir = useCallback(async (sid: string, dirPath: string): Promise<FileNode[]> => {
+    const url = `/api/spaces/${sid}/files${dirPath ? `?path=${encodeURIComponent(dirPath)}` : ''}`
+    const res = await apiFetch(url)
+    if (!res.ok) return []
+    const data = await res.json()
+    return sortNodes(data.files || [])
+  }, [apiFetch])
+
+  const prefetchAll = useCallback(async (sid: string, nodes: FileNode[]) => {
+    const dirs = nodes.filter(n => n.type === 'directory')
+    if (dirs.length === 0) return
+
+    const results = await Promise.all(
+      dirs.map(async dir => {
+        try {
+          const children = await fetchDir(sid, dir.path)
+          return { path: dir.path, children }
+        } catch {
+          return null
+        }
+      })
+    )
+
+    const valid = results.filter(Boolean) as { path: string; children: FileNode[] }[]
+    if (valid.length === 0 || activeSpaceId.current !== sid) return
+
+    setFiles(prev => {
+      let updated = prev
+      for (const { path, children } of valid) {
+        updated = mergeChildren(updated, path, children)
+      }
+      return updated
+    })
+
+    await Promise.all(valid.map(({ children }) => prefetchAll(sid, children)))
+  }, [fetchDir])
+
   useEffect(() => {
     if (!fetchKey) return
 
+    activeSpaceId.current = fetchKey
     setLoading(true)
     setError(null)
 
-    apiFetch(`/api/spaces/${fetchKey}/files`)
-      .then(res => {
-        if (!res.ok) throw new Error(`Failed to fetch files: ${res.status}`)
-        return res.json()
-      })
-      .then(data => {
-        setFiles(sortNodes(data.files || []))
+    fetchDir(fetchKey, '')
+      .then(rootFiles => {
+        if (activeSpaceId.current !== fetchKey) return
+        setFiles(rootFiles)
         setLoading(false)
+        prefetchAll(fetchKey, rootFiles)
       })
       .catch(err => {
         setError(err.message)
         setLoading(false)
       })
-  }, [fetchKey, refreshKey, apiFetch])
+  }, [fetchKey, refreshKey, fetchDir, prefetchAll])
 
   const loadChildren = useCallback(async (dirPath: string) => {
     if (!spaceId) return
     try {
-      const res = await apiFetch(`/api/spaces/${spaceId}/files?path=${encodeURIComponent(dirPath)}`)
-      if (!res.ok) return
-      const data = await res.json()
-      const children = sortNodes(data.files || [])
+      const children = await fetchDir(spaceId, dirPath)
       setFiles(prev => mergeChildren(prev, dirPath, children))
     } catch {
       // silently fail — folder just won't expand
     }
-  }, [spaceId, apiFetch])
+  }, [spaceId, fetchDir])
 
   if (!spaceId) {
     return { files: [], loading: false, error: null, refresh, loadChildren: async () => {} }

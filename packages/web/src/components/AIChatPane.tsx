@@ -1,15 +1,23 @@
-import { useState, useRef, useEffect } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-import { useSpaceWebSocket, type FileChangedPayload } from '../hooks/useSpaceWebSocket';
-import { useAuth } from '../contexts/AuthContext';
-import type { ChatMessage } from '@ai-spaces/shared';
+import { useState, useRef, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import {
+  useSpaceWebSocket,
+  type FileChangedPayload,
+} from "../hooks/useSpaceWebSocket";
+import { useAuth } from "../contexts/AuthContext";
+import type { ChatMessage } from "@ai-spaces/shared";
 
-type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'reconnecting' | 'error';
+type ConnectionStatus =
+  | "connecting"
+  | "connected"
+  | "disconnected"
+  | "reconnecting"
+  | "error";
 
 interface AIChatPaneProps {
   spaceId: string;
-  role?: 'viewer' | 'editor' | 'admin';
+  role?: "viewer" | "editor" | "admin";
   onFileChanged?: (event: FileChangedPayload) => void;
 }
 
@@ -19,30 +27,37 @@ interface ConnectionStatusIndicatorProps {
   onRetry?: () => void;
 }
 
-function ConnectionStatusIndicator({ status, reconnectAttempt = 0, onRetry }: ConnectionStatusIndicatorProps) {
+function ConnectionStatusIndicator({
+  status,
+  reconnectAttempt = 0,
+  onRetry,
+}: ConnectionStatusIndicatorProps) {
   const colors = {
-    connecting: 'bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]',
-    connected: 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]',
-    disconnected: 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]',
-    reconnecting: 'bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]',
-    error: 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]',
+    connecting: "bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]",
+    connected: "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]",
+    disconnected: "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]",
+    reconnecting: "bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]",
+    error: "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]",
   };
 
   const labels = {
-    connecting: 'Connecting',
-    connected: 'Connected',
-    disconnected: 'Disconnected',
-    reconnecting: reconnectAttempt > 0 ? `Reconnecting (${reconnectAttempt})` : 'Reconnecting...',
-    error: 'Connection Failed',
+    connecting: "Connecting",
+    connected: "Connected",
+    disconnected: "Disconnected",
+    reconnecting:
+      reconnectAttempt > 0
+        ? `Reconnecting (${reconnectAttempt})`
+        : "Reconnecting...",
+    error: "Connection Failed",
   };
 
   return (
-    <div className="flex items-center gap-1.5">
+    <div className="flex items-center gap-1.5 [container-type:flex]">
       <span className={`w-2 h-2 rounded-full ${colors[status]}`}></span>
-      <span className="font-['Inter'] text-[11px] uppercase tracking-widest font-semibold text-slate-400">
+      <span className="@min-[150px]:block hidden font-['Inter'] text-[11px] uppercase tracking-widest font-semibold text-slate-400">
         {labels[status]}
       </span>
-      {status === 'error' && onRetry && (
+      {status === "error" && onRetry && (
         <button
           type="button"
           onClick={onRetry}
@@ -56,7 +71,7 @@ function ConnectionStatusIndicator({ status, reconnectAttempt = 0, onRetry }: Co
 }
 
 function MessageBubble({ message }: { message: ChatMessage }) {
-  if (message.role === 'user') {
+  if (message.role === "user") {
     return (
       <div className="self-end max-w-[90%] bg-surface-container-lowest p-3 rounded-2xl rounded-tr-none border border-outline-variant/20 shadow-sm">
         <p className="text-sm text-slate-800">{message.content}</p>
@@ -67,33 +82,91 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   return (
     <div className="self-start max-w-[90%] bg-white dark:bg-slate-900 p-4 rounded-2xl rounded-tl-none shadow-sm flex flex-col gap-2">
       <div className="flex items-center gap-2 text-tertiary mb-1">
-        <span className="material-symbols-outlined text-xs" style={{ fontVariationSettings: "'FILL' 1" }}>
+        <span
+          className="material-symbols-outlined text-xs"
+          style={{ fontVariationSettings: "'FILL' 1" }}
+        >
           auto_awesome
         </span>
-        <span className="text-[10px] uppercase font-bold tracking-tighter">AI Agent</span>
+        <span className="text-[10px] uppercase font-bold tracking-tighter">
+          AI Agent
+        </span>
       </div>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          p: ({ children }) => <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed my-1">{children}</p>,
-          h1: ({ children }) => <h1 className="text-base font-semibold text-slate-800 dark:text-slate-200 mt-3 mb-1">{children}</h1>,
-          h2: ({ children }) => <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mt-2 mb-1">{children}</h2>,
-          h3: ({ children }) => <h3 className="text-xs font-semibold text-slate-800 dark:text-slate-200 mt-2 mb-0.5">{children}</h3>,
-          ul: ({ children }) => <ul className="list-disc pl-4 my-1 text-sm text-slate-700 dark:text-slate-300 space-y-0.5">{children}</ul>,
-          ol: ({ children }) => <ol className="list-decimal pl-4 my-1 text-sm text-slate-700 dark:text-slate-300 space-y-0.5">{children}</ol>,
+          p: ({ children }) => (
+            <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed my-1">
+              {children}
+            </p>
+          ),
+          h1: ({ children }) => (
+            <h1 className="text-base font-semibold text-slate-800 dark:text-slate-200 mt-3 mb-1">
+              {children}
+            </h1>
+          ),
+          h2: ({ children }) => (
+            <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mt-2 mb-1">
+              {children}
+            </h2>
+          ),
+          h3: ({ children }) => (
+            <h3 className="text-xs font-semibold text-slate-800 dark:text-slate-200 mt-2 mb-0.5">
+              {children}
+            </h3>
+          ),
+          ul: ({ children }) => (
+            <ul className="list-disc pl-4 my-1 text-sm text-slate-700 dark:text-slate-300 space-y-0.5">
+              {children}
+            </ul>
+          ),
+          ol: ({ children }) => (
+            <ol className="list-decimal pl-4 my-1 text-sm text-slate-700 dark:text-slate-300 space-y-0.5">
+              {children}
+            </ol>
+          ),
           li: ({ children }) => <li className="leading-relaxed">{children}</li>,
           code: ({ children, className }) => {
-            const isBlock = className?.startsWith('language-');
-            return isBlock
-              ? <code className={`${className} block bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-lg px-3 py-2 text-xs font-mono overflow-x-auto`}>{children}</code>
-              : <code className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 px-1 py-0.5 rounded text-xs font-mono">{children}</code>;
+            const isBlock = className?.startsWith("language-");
+            return isBlock ? (
+              <code
+                className={`${className} block bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-lg px-3 py-2 text-xs font-mono overflow-x-auto`}
+              >
+                {children}
+              </code>
+            ) : (
+              <code className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 px-1 py-0.5 rounded text-xs font-mono">
+                {children}
+              </code>
+            );
           },
-          pre: ({ children }) => <pre className="my-2 overflow-x-auto">{children}</pre>,
-          strong: ({ children }) => <strong className="font-semibold text-slate-800 dark:text-slate-200">{children}</strong>,
+          pre: ({ children }) => (
+            <pre className="my-2 overflow-x-auto">{children}</pre>
+          ),
+          strong: ({ children }) => (
+            <strong className="font-semibold text-slate-800 dark:text-slate-200">
+              {children}
+            </strong>
+          ),
           em: ({ children }) => <em className="italic">{children}</em>,
-          blockquote: ({ children }) => <blockquote className="border-l-2 border-slate-300 pl-3 my-1 text-slate-500 italic text-sm">{children}</blockquote>,
-          a: ({ href, children }) => <a href={href} className="text-primary underline hover:text-primary/80" target="_blank" rel="noopener noreferrer">{children}</a>,
-          hr: () => <hr className="border-slate-200 dark:border-slate-700 my-2" />,
+          blockquote: ({ children }) => (
+            <blockquote className="border-l-2 border-slate-300 pl-3 my-1 text-slate-500 italic text-sm">
+              {children}
+            </blockquote>
+          ),
+          a: ({ href, children }) => (
+            <a
+              href={href}
+              className="text-primary underline hover:text-primary/80"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {children}
+            </a>
+          ),
+          hr: () => (
+            <hr className="border-slate-200 dark:border-slate-700 my-2" />
+          ),
         }}
       >
         {message.content}
@@ -106,38 +179,62 @@ function TypingIndicator() {
   return (
     <div className="self-start max-w-[90%] bg-white dark:bg-slate-900 p-4 rounded-2xl rounded-tl-none shadow-sm">
       <div className="flex items-center gap-2 text-tertiary mb-1">
-        <span className="material-symbols-outlined text-xs" style={{ fontVariationSettings: "'FILL' 1" }}>
+        <span
+          className="material-symbols-outlined text-xs"
+          style={{ fontVariationSettings: "'FILL' 1" }}
+        >
           auto_awesome
         </span>
-        <span className="text-[10px] uppercase font-bold tracking-tighter">AI Agent</span>
+        <span className="text-[10px] uppercase font-bold tracking-tighter">
+          AI Agent
+        </span>
       </div>
       <div className="flex gap-1">
-        <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-        <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-        <span className="w-2 h-2 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+        <span
+          className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"
+          style={{ animationDelay: "0ms" }}
+        ></span>
+        <span
+          className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"
+          style={{ animationDelay: "150ms" }}
+        ></span>
+        <span
+          className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"
+          style={{ animationDelay: "300ms" }}
+        ></span>
       </div>
     </div>
   );
 }
 
-export default function AIChatPane({ spaceId, role = 'viewer', onFileChanged }: AIChatPaneProps) {
-  const [inputValue, setInputValue] = useState('');
+export default function AIChatPane({
+  spaceId,
+  role = "viewer",
+  onFileChanged,
+}: AIChatPaneProps) {
+  const [inputValue, setInputValue] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const prevMessagesLengthRef = useRef(0);
   const { accessToken } = useAuth();
 
-  const { messages, sendMessage, isStreaming, connectionStatus } = useSpaceWebSocket({
-    spaceId,
-    accessToken,
-    onFileChanged,
-  });
+  const { messages, sendMessage, isStreaming, connectionStatus } =
+    useSpaceWebSocket({
+      spaceId,
+      accessToken,
+      onFileChanged,
+    });
 
-  const isViewer = role === 'viewer';
-  const showTypingIndicator = isStreaming && messages.every(m => m.role !== 'assistant' || m.content.length === 0);
+  const isViewer = role === "viewer";
+  const showTypingIndicator =
+    isStreaming &&
+    messages.every((m) => m.role !== "assistant" || m.content.length === 0);
 
   useEffect(() => {
-    if (messages.length > prevMessagesLengthRef.current && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (
+      messages.length > prevMessagesLengthRef.current &&
+      messagesEndRef.current
+    ) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
       prevMessagesLengthRef.current = messages.length;
     }
   }, [messages.length]);
@@ -147,20 +244,24 @@ export default function AIChatPane({ spaceId, role = 'viewer', onFileChanged }: 
     if (!inputValue.trim() || isViewer || isStreaming) return;
 
     sendMessage(inputValue.trim());
-    setInputValue('');
+    setInputValue("");
   };
 
   return (
-    <aside className="w-80 bg-surface-container-low border-l border-slate-200 dark:border-slate-800 flex flex-col">
+    <aside className="w-full h-full bg-surface-container-low flex flex-col">
       <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-white/50 backdrop-blur-md sticky top-0 z-10">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-tertiary">forum</span>
-            <span className="font-headline font-bold text-slate-900 dark:text-white">AI Assistant</span>
+            <span className="material-symbols-outlined text-tertiary">
+              forum
+            </span>
+            <span className="font-headline font-bold text-slate-900 dark:text-white">
+              AI Assistant
+            </span>
           </div>
           <div data-testid="chat-ws-status" data-status={connectionStatus}>
             <ConnectionStatusIndicator
-              status={isStreaming ? 'connecting' : connectionStatus}
+              status={isStreaming ? "connecting" : connectionStatus}
             />
           </div>
         </div>
@@ -171,8 +272,8 @@ export default function AIChatPane({ spaceId, role = 'viewer', onFileChanged }: 
           <div className="flex-1 flex items-center justify-center">
             <p className="text-sm text-slate-400 text-center">
               {isViewer
-                ? 'Connect to start chatting with the AI assistant.'
-                : 'Start a conversation with the AI assistant.'}
+                ? "Connect to start chatting with the AI assistant."
+                : "Start a conversation with the AI assistant."}
             </p>
           </div>
         )}
@@ -191,9 +292,13 @@ export default function AIChatPane({ spaceId, role = 'viewer', onFileChanged }: 
               onChange={(e) => setInputValue(e.target.value)}
               disabled={isViewer || isStreaming}
               className="w-full bg-surface-container-lowest border border-outline-variant/40 rounded-xl px-4 py-3 pr-12 text-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all resize-none h-24 custom-scrollbar disabled:opacity-50 disabled:cursor-not-allowed"
-              placeholder={isViewer ? 'Read-only mode - cannot send messages' : 'Ask AI anything...'}
+              placeholder={
+                isViewer
+                  ? "Read-only mode - cannot send messages"
+                  : "Ask AI anything..."
+              }
               onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
+                if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   handleSubmit(e);
                 }
@@ -212,3 +317,4 @@ export default function AIChatPane({ spaceId, role = 'viewer', onFileChanged }: 
     </aside>
   );
 }
+

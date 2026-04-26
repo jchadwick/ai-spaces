@@ -35,5 +35,8 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/jchadwick/ai-spaces.git"
+  },
+  "dependencies": {
+    "@lexical/table": "^0.43.0"
   }
 }

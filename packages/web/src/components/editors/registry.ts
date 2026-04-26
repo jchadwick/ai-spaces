@@ -5,11 +5,11 @@ import type { FileTypeHandler } from './types'
 const registry: Partial<Record<FileType, FileTypeHandler>> = {
   markdown: {
     viewer: lazy(() => import('./MarkdownViewer')),
-    editor: lazy(() => import('./MilkdownEditor')),
+    editor: lazy(() => import('./LexicalMarkdownEditor')),
   },
   text: {
     viewer: lazy(() => import('./TextViewer')),
-    editor: lazy(() => import('./TextEditor')),
+    editor: lazy(() => import('./LexicalTextEditor')),
   },
   json: {
     viewer: lazy(() => import('./JsonViewer')),
@@ -17,7 +17,7 @@ const registry: Partial<Record<FileType, FileTypeHandler>> = {
   },
   unknown: {
     viewer: lazy(() => import('./TextViewer')),
-    editor: lazy(() => import('./TextEditor')),
+    editor: lazy(() => import('./LexicalTextEditor')),
   },
   image: {
     viewer: lazy(() => import('./ImageViewer')),

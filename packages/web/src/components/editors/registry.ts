@@ -11,6 +11,10 @@ const registry: Partial<Record<FileType, FileTypeHandler>> = {
     viewer: lazy(() => import('./TextViewer')),
     editor: lazy(() => import('./TextEditor')),
   },
+  json: {
+    viewer: lazy(() => import('./JsonViewer')),
+    editor: lazy(() => import('./MonacoEditor')),
+  },
   unknown: {
     viewer: lazy(() => import('./TextViewer')),
     editor: lazy(() => import('./TextEditor')),

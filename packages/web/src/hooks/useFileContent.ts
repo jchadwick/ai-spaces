@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useAPI } from './useAPI'
 
-export type FileType = 'markdown' | 'text' | 'image' | 'binary' | 'unknown'
+export type FileType = 'markdown' | 'text' | 'json' | 'image' | 'binary' | 'unknown'
 
 export interface FileInfo {
   name: string
@@ -24,10 +24,12 @@ function detectFileType(contentType: string | null, fileName: string): FileType 
   
   const ext = fileName.split('.').pop()?.toLowerCase()
   if (ext === 'md' || ext === 'markdown') return 'markdown'
-  if (['txt', 'json', 'js', 'ts', 'jsx', 'tsx', 'css', 'html', 'xml', 'yaml', 'yml'].includes(ext || '')) return 'text'
+  if (ext === 'json') return 'json'
+  if (['txt', 'js', 'ts', 'jsx', 'tsx', 'css', 'html', 'xml', 'yaml', 'yml'].includes(ext || '')) return 'text'
   if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext || '')) return 'image'
   
-  if (contentType?.startsWith('text/') || contentType === 'application/json') return 'text'
+  if (contentType === 'application/json') return 'json'
+  if (contentType?.startsWith('text/')) return 'text'
   
   return 'unknown'
 }

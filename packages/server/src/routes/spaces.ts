@@ -112,13 +112,16 @@ spacesRouter.get('/:id/files/:filePath{.*}', async (c) => {
     const ext = path.extname(filePath).toLowerCase();
     const markdownExts = ['.md', '.markdown'];
     const imageExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
-    const textExts = ['.txt', '.json', '.js', '.ts', '.jsx', '.tsx', '.html', '.css', '.yml', '.yaml', '.xml', '.csv'];
+    const jsonExts = ['.json'];
+    const textExts = ['.txt', '.js', '.ts', '.jsx', '.tsx', '.html', '.css', '.yml', '.yaml', '.xml', '.csv'];
 
     let contentType: string;
     if (markdownExts.includes(ext)) {
       contentType = 'markdown';
     } else if (imageExts.includes(ext)) {
       contentType = 'image';
+    } else if (jsonExts.includes(ext)) {
+      contentType = 'json';
     } else if (textExts.includes(ext)) {
       contentType = 'text';
     } else {

@@ -52,9 +52,6 @@ fileWatcher.on('file:changed', (event: FileChangedEvent) => {
   }
 });
 
-const DEFAULT_DENIED_TOOLS = ['exec', 'messaging', 'spawn_agents', 'browser', 'credentials'];
-const DEFAULT_ALLOWED_TOOLS = ['read', 'write', 'edit', 'glob'];
-
 function generateMessageId(): string {
   return crypto.randomBytes(8).toString('hex');
 }
@@ -67,13 +64,13 @@ function sendWebSocketMessage(client: WebSocketClient, message: WebSocketMessage
   } catch {}
 }
 
-function getEffectiveTools(config: SpaceConfig): { allowed: string[]; denied: string[] } {
-  const capabilities = config.agent?.capabilities || DEFAULT_ALLOWED_TOOLS;
-  const denied = config.agent?.denied || DEFAULT_DENIED_TOOLS;
+function getEffectiveTools(spaceConfig: SpaceConfig): { allowed: string[]; denied: string[] } {
+  const capabilities = spaceConfig.agent?.capabilities || config.DEFAULT_ALLOWED_TOOLS;
+  const denied = spaceConfig.agent?.denied || config.DEFAULT_DENIED_TOOLS;
 
   return {
     allowed: capabilities,
-    denied: [...new Set([...denied, ...DEFAULT_DENIED_TOOLS])],
+    denied: [...new Set([...denied, ...config.DEFAULT_DENIED_TOOLS])],
   };
 }
 

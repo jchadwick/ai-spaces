@@ -2,6 +2,9 @@ import * as path from 'path';
 
 const HOME = process.env.HOME ?? '';
 
+const parseList = (value: string | undefined, defaults: string[]): string[] =>
+  value ? value.split(',').map((s) => s.trim()).filter(Boolean) : defaults;
+
 export const config = {
   get OPENCLAW_HOME(): string {
     const value = process.env.OPENCLAW_HOME;
@@ -16,4 +19,6 @@ export const config = {
   AI_SPACES_WS_PORT: parseInt(process.env.AI_SPACES_WS_PORT ?? '3002', 10),
   GATEWAY_URL:   process.env.OPENCLAW_GATEWAY_URL   ?? 'http://127.0.0.1:19000',
   GATEWAY_TOKEN: process.env.OPENCLAW_GATEWAY_TOKEN ?? 'secret-token',
+  DEFAULT_DENIED_TOOLS: parseList(process.env.AI_SPACES_DENIED_TOOLS, ['exec', 'messaging', 'spawn_agents', 'browser', 'credentials']),
+  DEFAULT_ALLOWED_TOOLS: parseList(process.env.AI_SPACES_ALLOWED_TOOLS, ['read', 'write', 'edit', 'glob']),
 };

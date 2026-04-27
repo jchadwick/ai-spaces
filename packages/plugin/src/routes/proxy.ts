@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'http';
+import { pipeline } from 'stream';
 import https from 'https';
 import http from 'http';
 
@@ -23,19 +24,15 @@ export async function proxyRequest(
       },
     }, (proxyRes) => {
       res.statusCode = proxyRes.statusCode || 500;
-      
+
       for (const [key, value] of Object.entries(proxyRes.headers)) {
         if (value) {
           res.setHeader(key, value);
         }
       }
-      
-      proxyRes.on('data', (chunk) => {
-        res.write(chunk);
-      });
-      
-      proxyRes.on('end', () => {
-        res.end();
+
+      pipeline(proxyRes, res, (err) => {
+        if (err) console.error('[ai-spaces] Proxy response pipeline error:', err.message);
         resolve(true);
       });
     });
@@ -56,11 +53,8 @@ export async function proxyRequest(
     });
 
     if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
-      let body = '';
-      req.on('data', (chunk) => { body += chunk; });
-      req.on('end', () => {
-        proxyReq.write(body);
-        proxyReq.end();
+      pipeline(req, proxyReq, (err) => {
+        if (err) console.error('[ai-spaces] Proxy request pipeline error:', err.message);
       });
     } else {
       proxyReq.end();

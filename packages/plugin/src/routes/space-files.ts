@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'http';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import mime from 'mime-types';
 import type { FileNode, Role } from '@ai-spaces/shared';
 
 interface SpaceConfig {
@@ -157,29 +158,33 @@ function buildFileTree(dir: string, basePath: string, hideSpaceFolder: boolean):
 }
 
 function detectContentType(filePath: string): 'markdown' | 'text' | 'image' | 'binary' {
-  const ext = path.extname(filePath).toLowerCase();
-  
-  const markdownExts = ['.md', '.markdown'];
-  if (markdownExts.includes(ext)) {
-    return 'markdown';
-  }
-  
-  const imageExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.ico'];
-  if (imageExts.includes(ext)) {
-    return 'image';
-  }
-  
-  const textExts = ['.txt', '.json', '.js', '.ts', '.jsx', '.tsx', '.html', '.css', '.yml', '.yaml', '.xml', '.csv', '.log', '.sh', '.bash', '.zsh', '.env', '.gitignore', '.dockerignore', '.editorconfig', '.prettierrc', '.eslintrc', '.babelrc'];
-  if (textExts.includes(ext)) {
+  const mimeType = mime.lookup(filePath);
+
+  if (!mimeType) {
     return 'text';
   }
-  
-  const binaryExts = ['.exe', '.bin', '.dll', '.so', '.dylib', '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.ico', '.pdf', '.zip', '.tar', '.gz', '.7z', '.rar'];
-  if (binaryExts.includes(ext)) {
-    return 'binary';
+
+  if (mimeType === 'text/markdown' || mimeType === 'application/x-markdown') {
+    return 'markdown';
   }
-  
-  return 'text';
+
+  if (mimeType.startsWith('image/')) {
+    return 'image';
+  }
+
+  if (
+    mimeType.startsWith('text/') ||
+    mimeType === 'application/json' ||
+    mimeType === 'application/xml' ||
+    mimeType === 'application/javascript' ||
+    mimeType === 'application/typescript' ||
+    mimeType === 'application/x-yaml' ||
+    mimeType === 'application/x-sh'
+  ) {
+    return 'text';
+  }
+
+  return 'binary';
 }
 
 function isPathSafe(filePath: string, spaceRoot: string): boolean {
@@ -333,15 +338,5 @@ export async function handleFileContent(req: IncomingMessage, res: ServerRespons
 }
 
 function getMimeType(filePath: string): string {
-  const ext = path.extname(filePath).toLowerCase();
-  const mimeTypes: Record<string, string> = {
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.gif': 'image/gif',
-    '.webp': 'image/webp',
-    '.svg': 'image/svg+xml',
-    '.ico': 'image/x-icon',
-  };
-  return mimeTypes[ext] || 'application/octet-stream';
+  return mime.lookup(filePath) || 'application/octet-stream';
 }

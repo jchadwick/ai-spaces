@@ -12,7 +12,9 @@
     "test:watch": "vitest"
   },
   "openclaw": {
-    "extensions": ["./dist/index.js"],
+    "extensions": [
+      "./dist/index.js"
+    ],
     "setupEntry": "./dist/setup-entry.js"
   },
   "keywords": [
@@ -33,9 +35,11 @@
   "homepage": "https://github.com/jchadwick/ai-spaces#readme",
   "dependencies": {
     "@ai-spaces/shared": "*",
+    "mime-types": "^3.0.2",
     "openclaw": "^2026.3.28"
   },
   "devDependencies": {
+    "@types/mime-types": "^2.1.4",
     "@types/node": "^25.5.0",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2",

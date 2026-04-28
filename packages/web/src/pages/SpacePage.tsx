@@ -193,7 +193,7 @@ export default function SpacePage() {
         <main className="flex flex-1 overflow-hidden">
           <div
             ref={leftRef}
-            className="flex-shrink-0 overflow-hidden transition-[width] duration-200"
+            className="flex-shrink-0 min-w-0 overflow-hidden transition-[width] duration-200"
             style={{ width: leftCollapsed ? 0 : leftWidth }}
           >
             <ErrorBoundary>
@@ -215,21 +215,23 @@ export default function SpacePage() {
             onCollapse={() => setLeftCollapsed(true)}
             onExpand={() => setLeftCollapsed(false)}
           />
-          <ErrorBoundary>
-            <FileEditor
-              spaceId={spaceId}
-              filePath={selectedFile ?? undefined}
-              role={role}
-              externalRefreshKey={editorRefreshKey}
-              onFileModified={() => {
-                const event = new CustomEvent("fileModified");
-                window.dispatchEvent(event);
-              }}
-              onFileRenamed={(_oldPath, newPath) => {
-                setSelectedFile(newPath);
-              }}
-            />
-          </ErrorBoundary>
+          <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+            <ErrorBoundary>
+              <FileEditor
+                spaceId={spaceId}
+                filePath={selectedFile ?? undefined}
+                role={role}
+                externalRefreshKey={editorRefreshKey}
+                onFileModified={() => {
+                  const event = new CustomEvent("fileModified");
+                  window.dispatchEvent(event);
+                }}
+                onFileRenamed={(_oldPath, newPath) => {
+                  setSelectedFile(newPath);
+                }}
+              />
+            </ErrorBoundary>
+          </div>
           <ResizeHandle
             side="right"
             collapsed={rightCollapsed}
@@ -242,7 +244,7 @@ export default function SpacePage() {
           />
           <div
             ref={rightRef}
-            className="flex-shrink-0 overflow-hidden transition-[width] duration-200"
+            className="flex-shrink-0 min-w-0 overflow-hidden transition-[width] duration-200"
             style={{ width: rightCollapsed ? 0 : rightWidth }}
           >
             <WebSocketErrorBoundary showInline>

@@ -94,65 +94,29 @@ spacesRouter.get('/:id/files', async (c) => {
 spacesRouter.get('/:id/files/:filePath{.*}', async (c) => {
   const id = c.req.param('id');
   const filePath = c.req.param('filePath');
-  const space = getSpace(id);
+  const auth = c.req.header('Authorization');
 
-  if (!space) {
-    return c.json({ error: 'Space not found' }, 404);
-  }
-
-  const fullPath = path.join(space.path, filePath);
+  const encodedFilePath = filePath.split('/').map(encodeURIComponent).join('/');
+  const gatewayUrl = `${config.GATEWAY_URL}/api/spaces/${id}/files/${encodedFilePath}`;
 
   try {
-    const stats = await fs.promises.stat(fullPath);
-
-    if (stats.isDirectory()) {
-      return c.json({ error: 'Cannot read directory content' }, 400);
-    }
-
-    const ext = path.extname(filePath).toLowerCase();
-    const markdownExts = ['.md', '.markdown'];
-    const imageExts = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'];
-    const jsonExts = ['.json'];
-    const textExts = ['.txt', '.js', '.ts', '.jsx', '.tsx', '.html', '.css', '.yml', '.yaml', '.xml', '.csv'];
-
-    let contentType: string;
-    if (markdownExts.includes(ext)) {
-      contentType = 'markdown';
-    } else if (imageExts.includes(ext)) {
-      contentType = 'image';
-    } else if (jsonExts.includes(ext)) {
-      contentType = 'json';
-    } else if (textExts.includes(ext)) {
-      contentType = 'text';
-    } else {
-      contentType = 'text';
-    }
-
-    const size = stats.size;
-    const modified = stats.mtime.toISOString();
-
-    if (contentType === 'image') {
-      const imageBuffer = await fs.promises.readFile(fullPath);
-      const base64 = imageBuffer.toString('base64');
-      const mimeType = getMimeType(filePath);
-      return c.json({ path: filePath, content: base64, contentType: 'image', mimeType, size, modified });
-    }
-
-    const content = await fs.promises.readFile(fullPath, 'utf-8');
-    return c.json({ path: filePath, content, contentType, size, modified });
+    return await fetch(gatewayUrl, {
+      headers: auth ? { Authorization: auth } : {},
+    });
   } catch {
-    return c.json({ error: 'Failed to read file' }, 500);
+    return c.json({ error: 'Failed to reach plugin gateway' }, 502);
   }
 });
 
 const writeFileSchema = z.object({
   content: z.string(),
+  encoding: z.enum(['utf-8', 'base64']).optional(),
 });
 
 spacesRouter.put('/:id/files/:filePath{.*}', zValidator('json', writeFileSchema), async (c) => {
   const id = c.req.param('id');
   const filePath = c.req.param('filePath');
-  const { content } = c.req.valid('json');
+  const { content, encoding } = c.req.valid('json');
   const space = getSpace(id);
 
   if (!space) {
@@ -170,7 +134,11 @@ spacesRouter.put('/:id/files/:filePath{.*}', zValidator('json', writeFileSchema)
   try {
     const dir = path.dirname(fullPath);
     await fs.promises.mkdir(dir, { recursive: true });
-    await fs.promises.writeFile(fullPath, content, 'utf-8');
+    if (encoding === 'base64') {
+      await fs.promises.writeFile(fullPath, Buffer.from(content, 'base64'));
+    } else {
+      await fs.promises.writeFile(fullPath, content, 'utf-8');
+    }
     return c.json({ success: true, path: filePath });
   } catch {
     return c.json({ error: 'Failed to write file' }, 500);
@@ -320,18 +288,6 @@ spacesRouter.patch('/:id/directories/:dirPath{.*}', zValidator('json', renameDir
   }
 });
 
-function getMimeType(filePath: string): string {
-  const ext = path.extname(filePath).toLowerCase();
-  const mimeTypes: Record<string, string> = {
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.gif': 'image/gif',
-    '.webp': 'image/webp',
-    '.svg': 'image/svg+xml',
-  };
-  return mimeTypes[ext] || 'application/octet-stream';
-}
 
 spacesRouter.post('/', zValidator('json', createSpaceSchema), (c) => {
   const { path: spacePath, agentId, agentType } = c.req.valid('json');

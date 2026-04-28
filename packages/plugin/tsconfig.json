@@ -5,7 +5,10 @@
     "rootDir": "./src",
     "declaration": true,
     "declarationMap": true,
-    "composite": false
+    "composite": false,
+    "skipLibCheck": true,
+    "maxNodeModuleJsDepth": 1,
+    "types": ["node"]
   },
   "include": ["src/**/*"],
   "references": [

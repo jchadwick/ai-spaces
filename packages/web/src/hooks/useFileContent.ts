@@ -18,19 +18,24 @@ export interface FileContent {
   error: string | null
 }
 
-function detectFileType(contentType: string | null, fileName: string): FileType {
+function detectFileType(contentType: string | null, xFileContentType: string | null, fileName: string): FileType {
+  // Prefer the server's explicit file content type header
+  if (xFileContentType === 'image') return 'image'
+  if (xFileContentType === 'binary') return 'binary'
+  if (xFileContentType === 'markdown') return 'markdown'
+
   if (contentType?.startsWith('image/')) return 'image'
   if (contentType === 'application/octet-stream') return 'binary'
-  
+  if (contentType === 'text/markdown') return 'markdown'
+  if (contentType === 'application/json') return 'json'
+  if (contentType?.startsWith('text/')) return 'text'
+
   const ext = fileName.split('.').pop()?.toLowerCase()
   if (ext === 'md' || ext === 'markdown') return 'markdown'
   if (ext === 'json') return 'json'
   if (['txt', 'js', 'ts', 'jsx', 'tsx', 'css', 'html', 'xml', 'yaml', 'yml'].includes(ext || '')) return 'text'
   if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext || '')) return 'image'
-  
-  if (contentType === 'application/json') return 'json'
-  if (contentType?.startsWith('text/')) return 'text'
-  
+
   return 'unknown'
 }
 
@@ -79,8 +84,10 @@ export function useFileContent(spaceId: string | undefined, filePath: string | u
         }
 
         const contentType = response.headers.get('content-type')
+        const xFileContentType = response.headers.get('x-file-content-type')
+        const xFileModified = response.headers.get('x-file-modified') ?? undefined
         const fileName = currentFilePath.split('/').pop() || currentFilePath
-        const fileType = detectFileType(contentType, fileName)
+        const fileType = detectFileType(contentType, xFileContentType, fileName)
 
         if (fileType === 'image') {
           const blob = await response.blob()
@@ -91,6 +98,7 @@ export function useFileContent(spaceId: string | undefined, filePath: string | u
             name: fileName,
             path: currentFilePath,
             type: fileType,
+            modifiedAt: xFileModified,
           })
           setLoading(false)
           return
@@ -103,6 +111,7 @@ export function useFileContent(spaceId: string | undefined, filePath: string | u
             name: fileName,
             path: currentFilePath,
             type: fileType,
+            modifiedAt: xFileModified,
           })
           setLoading(false)
           return
@@ -110,31 +119,13 @@ export function useFileContent(spaceId: string | undefined, filePath: string | u
 
         const text = await response.text()
         if (controller.signal.aborted || currentFetchId !== fetchIdRef.current) return
-        
-        // Check if response is JSON (from backend) or raw content
-        let actualContent = text
-        let detectedType = fileType
-        let modifiedAt: string | undefined
-        
-        try {
-          const parsed = JSON.parse(text)
-          if (typeof parsed === 'object' && parsed !== null) {
-            if ('content' in parsed) {
-              actualContent = parsed.content
-              detectedType = parsed.contentType || fileType
-              modifiedAt = parsed.modified
-            }
-          }
-        } catch {
-          // Not JSON, use raw text
-        }
-        
-        setContent(actualContent)
+
+        setContent(text)
         setFileInfo({
           name: fileName,
           path: currentFilePath,
-          type: detectedType as FileType,
-          modifiedAt,
+          type: fileType,
+          modifiedAt: xFileModified,
         })
         setLoading(false)
       } catch (err) {

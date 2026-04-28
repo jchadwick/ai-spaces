@@ -30,19 +30,21 @@ export default function ResizeHandle({
     // Disable CSS transition during drag for instant feedback
     container.style.transition = 'none'
 
+    // Track width in a local var — avoids re-reading offsetWidth each frame,
+    // which can return inflated values when content overflows the container.
+    let width = container.offsetWidth
     let lastX = e.clientX
 
     const onMove = (e: MouseEvent) => {
       const delta = e.clientX - lastX
       lastX = e.clientX
-      const current = container.offsetWidth
-      const next = Math.max(minWidth, Math.min(maxWidth, current + (side === 'left' ? delta : -delta)))
-      container.style.width = `${next}px`
+      width = Math.max(minWidth, Math.min(maxWidth, width + (side === 'left' ? delta : -delta)))
+      container.style.width = `${width}px`
     }
 
     const onUp = () => {
       container.style.transition = ''
-      onResize(container.offsetWidth)
+      onResize(width)
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
       document.body.style.cursor = ''
@@ -66,7 +68,7 @@ export default function ResizeHandle({
     >
       {/* Handle track */}
       <div
-        className="absolute inset-y-0 w-0.5 bg-outline-variant/20 group-hover:bg-primary/40 transition-colors duration-150"
+        className="absolute inset-y-0 w-0.5 bg-outline-variant/40 group-hover:bg-primary/50 transition-colors duration-150"
         style={{ [side === 'left' ? 'right' : 'left']: '3px' }}
       />
 

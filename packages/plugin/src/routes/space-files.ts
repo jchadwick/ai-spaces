@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'http';
 import * as fs from 'fs';
 import * as fsPromises from 'fs/promises';
 import * as path from 'path';
+import { pipeline } from 'stream';
 import mime from 'mime-types';
 import type { FileNode, Role } from '@ai-spaces/shared';
 import { validatePath, isPathContained } from '../validation.js';
@@ -205,51 +206,23 @@ export async function handleFileContent(req: IncomingMessage, res: ServerRespons
     const contentType = detectContentType(fullPath);
     const size = stats.size;
     const modified = stats.mtime.toISOString();
-    
-    if (contentType === 'binary') {
-      res.statusCode = 200;
-      res.setHeader('Content-Type', 'application/json');
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.end(JSON.stringify({
-        path: filePath,
-        contentType,
-        size,
-        modified,
-      }));
-      return true;
-    }
-    
-    if (contentType === 'image') {
-      const imageBuffer = fs.readFileSync(fullPath);
-      const base64 = imageBuffer.toString('base64');
-      const mimeType = getMimeType(fullPath);
-      
-      res.statusCode = 200;
-      res.setHeader('Content-Type', 'application/json');
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.end(JSON.stringify({
-        path: filePath,
-        content: base64,
-        contentType,
-        mimeType,
-        size,
-        modified,
-      }));
-      return true;
-    }
-    
-    const content = fs.readFileSync(fullPath, 'utf-8');
-    
+    const httpContentType = getHttpContentType(fullPath, contentType);
+
     res.statusCode = 200;
-    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Type', httpContentType);
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.end(JSON.stringify({
-      path: filePath,
-      content,
-      contentType,
-      size,
-      modified,
-    }));
+    res.setHeader('X-File-Content-Type', contentType);
+    res.setHeader('X-File-Modified', modified);
+    res.setHeader('X-File-Size', String(size));
+
+    await new Promise<void>((resolve, reject) => {
+      pipeline(fs.createReadStream(fullPath), res, (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    }).catch((err: Error) => {
+      console.error('[ai-spaces] File stream error:', err.message);
+    });
     return true;
   } catch (error) {
     res.statusCode = 500;
@@ -262,4 +235,16 @@ export async function handleFileContent(req: IncomingMessage, res: ServerRespons
 
 function getMimeType(filePath: string): string {
   return mime.lookup(filePath) || 'application/octet-stream';
+}
+
+function getHttpContentType(filePath: string, contentType: 'markdown' | 'text' | 'image' | 'binary'): string {
+  if (contentType === 'image') return getMimeType(filePath);
+  if (contentType === 'binary') return 'application/octet-stream';
+  if (contentType === 'markdown') return 'text/markdown; charset=utf-8';
+
+  const mimeType = mime.lookup(filePath);
+  if (mimeType && (mimeType.startsWith('text/') || mimeType === 'application/json' || mimeType === 'application/xml')) {
+    return mimeType.startsWith('text/') ? `${mimeType}; charset=utf-8` : mimeType;
+  }
+  return 'text/plain; charset=utf-8';
 }

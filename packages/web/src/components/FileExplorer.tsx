@@ -51,6 +51,10 @@ function FileTreeNode({
   onRenameChange,
   onRenameCommit,
   onRenameCancel,
+  dragOverFolder,
+  onFolderDragEnter,
+  onFolderDragLeave,
+  onFolderDrop,
 }: {
   node: FileNode;
   depth?: number;
@@ -65,6 +69,10 @@ function FileTreeNode({
   onRenameChange: (value: string) => void;
   onRenameCommit: () => void;
   onRenameCancel: () => void;
+  dragOverFolder: string | null;
+  onFolderDragEnter: (path: string) => void;
+  onFolderDragLeave: (path: string) => void;
+  onFolderDrop: (e: React.DragEvent, path: string) => void;
 }) {
   const isDirectory = node.type === "directory";
   const isSelected = selectedFile === node.path;
@@ -72,6 +80,7 @@ function FileTreeNode({
   const isHidden = node.name.startsWith(".");
   const isSpaceFolder = node.name === ".space";
   const isRenaming = renamingPath === node.path;
+  const isDragTarget = isDirectory && dragOverFolder === node.path;
 
   const paddingLeft = 8 + depth * 16;
 
@@ -96,10 +105,16 @@ function FileTreeNode({
         type="button"
         onClick={handleClick}
         onContextMenu={(e) => onContextMenu(e, node)}
+        onDragOver={isDirectory ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } : undefined}
+        onDragEnter={isDirectory ? () => onFolderDragEnter(node.path) : undefined}
+        onDragLeave={isDirectory ? () => onFolderDragLeave(node.path) : undefined}
+        onDrop={isDirectory ? (e) => onFolderDrop(e, node.path) : undefined}
         className={`w-full flex items-center gap-1 px-2 py-1.5 cursor-pointer rounded transition-all text-left ${
-          isSelected
-            ? "text-primary bg-surface-container-lowest"
-            : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-lowest/50"
+          isDragTarget
+            ? "bg-primary/10 text-primary outline outline-1 outline-primary/30"
+            : isSelected
+              ? "text-primary bg-surface-container-lowest"
+              : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-lowest/50"
         } ${isHidden && !isSpaceFolder ? "italic opacity-70" : ""} ${isSpaceFolder ? "text-amber-600 dark:text-amber-400" : ""}`}
         style={{ paddingLeft: `${paddingLeft}px` }}
       >
@@ -162,6 +177,10 @@ function FileTreeNode({
                 onRenameChange={onRenameChange}
                 onRenameCommit={onRenameCommit}
                 onRenameCancel={onRenameCancel}
+                dragOverFolder={dragOverFolder}
+                onFolderDragEnter={onFolderDragEnter}
+                onFolderDragLeave={onFolderDragLeave}
+                onFolderDrop={onFolderDrop}
               />
             ))}
           </div>
@@ -214,6 +233,12 @@ export default function FileExplorer({
   // Delete confirmation state
   const [deleteTarget, setDeleteTarget] = useState<FileNode | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Drag-and-drop state
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
+  const dragCounter = useRef(0);
+  const folderDragCounter = useRef<Record<string, number>>({});
 
   const isViewer = role === "viewer";
 
@@ -429,6 +454,106 @@ export default function FileExplorer({
     });
   };
 
+  const uploadFiles = useCallback(async (fileList: FileList, targetFolder: string) => {
+    if (!spaceId || isViewer) return;
+
+    const uploads = Array.from(fileList).map(async (file) => {
+      const isBinary = file.type.startsWith("image/") || file.type.startsWith("audio/") || file.type.startsWith("video/") || file.type === "application/octet-stream";
+      const filePath = targetFolder ? `${targetFolder}/${file.name}` : file.name;
+      let body: string;
+      if (isBinary) {
+        const buffer = await file.arrayBuffer();
+        const bytes = new Uint8Array(buffer);
+        let binary = '';
+        for (let i = 0; i < bytes.length; i += 8192) {
+          binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+        }
+        body = JSON.stringify({ content: btoa(binary), encoding: "base64" });
+      } else {
+        body = JSON.stringify({ content: await file.text() });
+      }
+      const response = await apiFetch(`/api/spaces/${spaceId}/files/${filePath}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body,
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || `Failed to upload ${file.name}`);
+      }
+      return file.name;
+    });
+
+    try {
+      const names = await Promise.all(uploads);
+      const label = names.length === 1 ? `"${names[0]}"` : `${names.length} files`;
+      showToast(`Uploaded ${label}`, "success", 3000);
+      if (targetFolder) {
+        setExpandedFolders((prev) => new Set(prev).add(targetFolder));
+        loadChildren(targetFolder);
+      } else {
+        refresh();
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Upload failed";
+      showToast(message, "error", 4000);
+    }
+  }, [spaceId, isViewer, apiFetch, showToast, loadChildren, refresh]);
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    if (isViewer || !e.dataTransfer.types.includes("Files")) return;
+    e.preventDefault();
+    dragCounter.current++;
+    setIsDragOver(true);
+  }, [isViewer]);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (isViewer || !e.dataTransfer.types.includes("Files")) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  }, [isViewer]);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    dragCounter.current--;
+    if (dragCounter.current === 0) {
+      setIsDragOver(false);
+    }
+  }, []);
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounter.current = 0;
+    folderDragCounter.current = {};
+    setIsDragOver(false);
+    setDragOverFolder(null);
+    if (isViewer || !e.dataTransfer.files.length) return;
+    await uploadFiles(e.dataTransfer.files, "");
+  }, [isViewer, uploadFiles]);
+
+  const handleFolderDragEnter = useCallback((path: string) => {
+    folderDragCounter.current[path] = (folderDragCounter.current[path] ?? 0) + 1;
+    setDragOverFolder(path);
+  }, []);
+
+  const handleFolderDragLeave = useCallback((path: string) => {
+    folderDragCounter.current[path] = (folderDragCounter.current[path] ?? 1) - 1;
+    if ((folderDragCounter.current[path] ?? 0) <= 0) {
+      folderDragCounter.current[path] = 0;
+      setDragOverFolder((prev) => (prev === path ? null : prev));
+    }
+  }, []);
+
+  const handleFolderDrop = useCallback(async (e: React.DragEvent, path: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounter.current = 0;
+    folderDragCounter.current = {};
+    setIsDragOver(false);
+    setDragOverFolder(null);
+    if (isViewer || !e.dataTransfer.files.length) return;
+    await uploadFiles(e.dataTransfer.files, path);
+  }, [isViewer, uploadFiles]);
+
   const handleCreateFolder = async () => {
     if (!folderName.trim() || !spaceId) {
       return;
@@ -535,7 +660,13 @@ export default function FileExplorer({
 
   return (
     <>
-      <aside className="w-full h-full bg-surface-container-low flex flex-col">
+      <aside
+        className={`w-full h-full bg-surface-container-low flex flex-col relative transition-colors ${isDragOver ? "bg-primary/5" : ""}`}
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
         <div className="p-4 flex flex-col gap-1 flex-1 overflow-auto">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
@@ -595,11 +726,27 @@ export default function FileExplorer({
                   onRenameChange={setRenameValue}
                   onRenameCommit={commitRename}
                   onRenameCancel={cancelRename}
+                  dragOverFolder={dragOverFolder}
+                  onFolderDragEnter={handleFolderDragEnter}
+                  onFolderDragLeave={handleFolderDragLeave}
+                  onFolderDrop={handleFolderDrop}
                 />
               ))}
             </div>
           )}
         </div>
+
+        {isDragOver && !isViewer && (
+          <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-10">
+            <div className="absolute inset-2 rounded-lg border-2 border-dashed border-primary/40 bg-primary/5" />
+            {!dragOverFolder && (
+              <div className="relative flex flex-col items-center gap-1.5 text-primary">
+                <span className="material-symbols-outlined text-3xl">upload_file</span>
+                <span className="text-xs font-medium">Drop to upload</span>
+              </div>
+            )}
+          </div>
+        )}
       </aside>
 
       {/* Context Menu */}

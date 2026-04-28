@@ -5,6 +5,9 @@ import { setRuntime, tryGetRuntime } from './runtime.js';
 import { getSpace } from './space-store.js';
 import { proxyRequest } from './routes/proxy.js';
 import { handleSpaceWebSocket, startWebSocketServer } from './routes/space-ws.js';
+import { handleFileContent, handleFileTree } from './routes/space-files.js';
+import { validateSession } from './session-middleware.js';
+import type { Role } from '@ai-spaces/shared';
 import * as crypto from 'crypto';
 import * as path from 'path';
 import { config } from './config.js';
@@ -63,15 +66,31 @@ export default defineChannelPluginEntry({
       match: 'prefix',
       handler: async (req: IncomingMessage, res: ServerResponse) => {
         const url = new URL(req.url || '/', `http://${req.headers.host}`);
-        const isWebSocketUpgrade = req.headers.upgrade?.toLowerCase() === 'websocket';
-        const isWsPath = url.pathname.match(/\/api\/spaces\/[^\/]+\/ws$/);
-        
-        if (isWebSocketUpgrade && isWsPath) {
-          return handleSpaceWebSocket(req, res);
+
+        if (req.headers.upgrade?.toLowerCase() === 'websocket') {
+          if (url.pathname.match(/\/api\/spaces\/[^\/]+\/ws$/)) {
+            return handleSpaceWebSocket(req, res);
+          }
         }
-        
-        const targetPath = url.pathname.replace(/^\/api/, '/api');
-        return proxyRequest(req, res, `${config.AI_SPACES_URL}${targetPath}`);
+
+        // File content: plugin owns all file I/O
+        if (req.method === 'GET') {
+          const fileContentMatch = url.pathname.match(/^\/api\/spaces\/([^/]+)\/files\/(.+)$/);
+          if (fileContentMatch) {
+            const [, spaceId, filePath] = fileContentMatch;
+            return handleFileContent(req, res, spaceId, decodeURIComponent(filePath));
+          }
+
+          const fileTreeMatch = url.pathname.match(/^\/api\/spaces\/([^/]+)\/files$/);
+          if (fileTreeMatch) {
+            const [, spaceId] = fileTreeMatch;
+            const payload = validateSession(req);
+            const role: Role = (payload?.role as Role) ?? 'viewer';
+            return handleFileTree(req, res, spaceId, role);
+          }
+        }
+
+        return proxyRequest(req, res, `${config.AI_SPACES_URL}${url.pathname}${url.search}`);
       },
     });
 

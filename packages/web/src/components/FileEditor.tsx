@@ -401,9 +401,8 @@ export default function FileEditor({
                   {fileInfo.name}
                 </h2>
               )}
-              <span className="text-label-sm text-on-surface-variant uppercase tracking-wider">
-                {getFileTypeLabel(fileInfo.type)}
-                {fileInfo.modifiedAt && ` • Modified ${formatRelativeTime(fileInfo.modifiedAt)}`}
+              <span className="text-label-sm text-on-surface-variant font-mono tracking-tight">
+                {filePath}
               </span>
             </div>
           </div>

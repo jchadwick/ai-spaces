@@ -185,8 +185,6 @@ export default function SpacePage() {
         <ErrorBoundary>
           <TopNavBar
             spaceName={space?.config?.name}
-            selectedFile={selectedFile}
-            role={role}
           />
         </ErrorBoundary>
 

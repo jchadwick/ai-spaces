@@ -1,101 +1,154 @@
-# Design System Specification: The Architectural Workspace
+# Design System Specification: Paper & Ink
 
-## 1. Overview & Creative North Star: "The Digital Atelier"
+## 1. Overview & Creative North Star: "The Editorial Workspace"
 
-The creative north star for this design system is **The Digital Atelier**. Unlike generic productivity tools that feel like rigid spreadsheets, this system treats the developer’s workspace as a high-end, bespoke studio. It moves away from the "boxy" constraints of traditional IDEs toward an editorial, layered experience where code and AI interact within a breathable, sophisticated environment.
+The creative direction is **Paper & Ink** — a warm, editorial aesthetic that treats the workspace like a high-quality physical desk. The UI steps back so the content takes center stage. Structure emerges from tonal shifts, not harsh rules. AI moments feel like a quiet, trusted colleague — not a flashy chatbot.
 
-The system breaks the "template" look through **Intentional Asymmetry** and **Tonal Depth**. By prioritizing white space as a functional element rather than a void, we create a UI that feels "quiet" but powerful—mimicking the focus of a clean physical desk.
-
----
-
-## 2. Colors & Surface Philosophy
-
-The palette is anchored in a light-mode-first approach that uses slate grays for structure and a deep electric blue (`primary`) for momentum. 
-
-### The "No-Line" Rule
-To achieve a premium feel, **1px solid borders are prohibited for sectioning.** Boundaries must be defined solely through background color shifts. Use `surface-container-low` for large sidebars sitting on a `surface` background. This creates a "soft-edge" layout that reduces visual noise and cognitive load.
-
-### Surface Hierarchy & Nesting
-Depth is achieved through the physical stacking of surface tiers:
-- **Base Layer:** `surface` (#f7f9fb) – The desk.
-- **Structural Sections:** `surface-container-low` (#f2f4f6) – Collapsible sidebars and background panels.
-- **Active Workspaces:** `surface-container-lowest` (#ffffff) – The code editor or active chat bubble, providing the highest contrast for focus.
-- **Overlays/Modals:** `surface-container-high` (#e6e8ea) – Floating tools and palettes.
-
-### The "Glass & Gradient" Rule
-To avoid a flat "Bootstrap" appearance, use Glassmorphism for floating UI elements (like tab bars or hover-state menus). Apply `surface-container-lowest` with a 70% opacity and a `20px` backdrop-blur. 
-- **Signature CTA:** For primary actions, use a subtle linear gradient from `primary` (#0041dd) to `primary_container` (#305dfa) at a 135-degree angle. This adds a "weighted" feel to buttons that flat colors lack.
+Key principles:
+- **Warmth over sterility.** Warm off-white surfaces (`#F6F3EE`) instead of cold grays.
+- **Ink, not black.** Deep `#1A1714` for text — has warmth without harshness.
+- **One accent, used sparingly.** Rust/coral (`#C2410C`) is the sole action color. It signals momentum.
+- **Moss for the agent.** All AI-specific UI uses moss green (`#3F6B4F`). It is reserved — never used for non-AI things.
+- **Serif for soul, mono for precision.** Display headings use Instrument Serif italic to give the app editorial weight. Paths, status labels, and metadata use JetBrains Mono.
 
 ---
 
-## 3. Typography: Editorial Utility
+## 2. Color Tokens
 
-This system utilizes a dual-font strategy to distinguish between "The Interface" and "The Content."
+### Light Mode
 
-*   **UI Sans-Serif (Inter):** Used for all functional labels and body text. It is neutral, legible, and disappears into the background to let the work shine.
-*   **Brand Serif/Display (Manrope):** Used for headlines and titles to provide an authoritative, editorial "magazine" feel to the dashboard.
-*   **Monospace (User-selected high-quality mono):** Reserved strictly for code blocks and file paths to denote technical precision.
+| Token | Hex | Role |
+|-------|-----|------|
+| `bg` | `#F6F3EE` | Warm canvas — page background |
+| `bgAlt` | `#EFEAE2` | Sidebar / secondary panels |
+| `bgRaised` | `#FBFAF7` | Cards, chat pane background |
+| `bgWell` | `#E9E3D8` | Inputs, wells, code blocks |
+| `ink` | `#1A1714` | Primary text |
+| `inkMid` | `#5A5147` | Body text, secondary labels |
+| `inkDim` | `#8A7F72` | Tertiary, placeholders |
+| `inkFaint` | `#B8AE9F` | Hairlines, disabled text |
+| `hair` | `#E2DBCD` | Dividers, borders |
+| `accent` | `#C2410C` | Rust — primary action color |
+| `accentSoft` | `#FBE4D5` | Rust tint background |
+| `accentInk` | `#7C2D12` | Rust dark text |
+| `agent` | `#3F6B4F` | Moss green — AI-only accent |
+| `agentSoft` | `#E4ECDF` | Agent tint background |
+| `agentInk` | `#1F3A29` | Agent dark text |
 
-**Key Scales:**
-- **Display-LG (Manrope, 3.5rem):** High-impact landing or empty-state moments.
-- **Title-SM (Inter, 1rem, Medium weight):** Standard header for cards and sidebar categories.
-- **Body-MD (Inter, 0.875rem):** The workhorse for chat bubbles and UI descriptions.
-- **Label-SM (Inter, 0.6875rem, All-caps):** Meta-data, file types, and status indicators.
+### Dark Mode
+
+| Token | Hex |
+|-------|-----|
+| `bg` | `#1A1714` |
+| `bgAlt` | `#15120F` |
+| `bgRaised` | `#221E1A` |
+| `bgWell` | `#0F0D0B` |
+| `ink` | `#F6F3EE` |
+| `inkMid` | `#C8BFB0` |
+| `hair` | `#2E2823` |
+| `accent` | `#F97316` |
+| `agent` | `#86C49C` |
+| `agentSoft` | `#1F2E24` |
 
 ---
 
-## 4. Elevation & Depth: Tonal Layering
+## 3. Typography
 
-We convey hierarchy through **Tonal Layering** rather than traditional drop shadows.
+Three typefaces, each with a clear role:
 
-### The Layering Principle
-Place a `surface-container-lowest` card on a `surface-container-low` background. The slight shift from an off-white to a pure white creates a natural "lift." This mimics how paper reflects light, making the UI feel organic.
+| Typeface | Role | Usage |
+|----------|------|-------|
+| **Inter Tight** | UI sans-serif | All functional labels, body text, buttons, navigation |
+| **Instrument Serif** | Display / editorial | Page headings, space names, "Spaces" brand word (always italic) |
+| **JetBrains Mono** | Monospace | File paths, status indicators, metadata, code blocks |
 
-### Ambient Shadows
-If a floating element (like a context menu) requires a shadow, it must be an **Ambient Shadow**:
-- **Color:** `on-surface` (#191c1e) at 6% opacity.
-- **Blur/Spread:** 24px blur, 0px spread, 8px Y-offset.
-This creates a soft glow rather than a harsh "cutout."
+**Key rules:**
+- Instrument Serif is always italic at display sizes
+- Never use display scale fonts for functional UI labels
+- Status/metadata labels: uppercase + 1.2–1.4 letter-spacing + JetBrains Mono
 
-### The "Ghost Border" Fallback
-If a border is required for accessibility (e.g., input fields), use a **Ghost Border**:
-- Token: `outline-variant` (#c3c6d7) at **20% opacity**.
-This provides a "suggestion" of a boundary without cluttering the visual field.
+---
+
+## 4. Surface Hierarchy
+
+Depth comes from tonal shifts, not shadows.
+
+```
+bg (#F6F3EE)           ← page background
+  bgAlt (#EFEAE2)      ← sidebar, secondary panels
+  bgRaised (#FBFAF7)   ← cards, chat pane, modals
+    bgWell (#E9E3D8)   ← inputs, code blocks, wells
+```
+
+Hairline borders (`#E2DBCD`, 1px) are acceptable for edge definition between content areas. Avoid multiple stacked borders.
 
 ---
 
 ## 5. Components
 
-### Buttons & Chips
-- **Primary Button:** Gradient fill (`primary` to `primary_container`), `md` (0.375rem) roundedness. No border.
-- **Secondary Button:** `surface-container-highest` background with `on-surface` text.
-- **Chips:** For file types and status. Use `secondary_container` for background and `on_secondary_container` for text. Keep edges `full` (pill-shaped) for high differentiation from square cards.
+### Buttons
+- **Primary:** `background: ink (#1A1714)`, `color: bg (#F6F3EE)`, `borderRadius: 8px`
+- **Accent:** `background: accent (#C2410C)`, `color: white`
+- **Ghost:** `background: transparent`, `color: inkMid`
+- **Soft:** `background: bgWell (#E9E3D8)`, `color: ink`
+- All buttons: `font: Inter Tight, 13px, weight 500`
 
-### The AI Chat Bubble
-- **User Bubble:** `surface-container-lowest` with a `Ghost Border`. Aligned right.
-- **AI Response:** `surface-container-low` background. No border. 
-- **Spacing:** Use 1.5x line height for AI responses to ensure long-form explanations are readable.
+### The AI Chat (Cards style)
+Agent and user messages render as cards — full-width, stacked vertically.
 
-### Tabbed Navigation
-- **Active State:** A 2px bottom "underline" using the `primary` color.
-- **Inactive State:** `on-surface-variant` text.
-- **Container:** Tabs should sit on a `surface-dim` background to distinguish the "Switchboard" from the "Workspace."
+- **User message:** dark card — `background: ink (#1A1714)`, `color: bg`, `borderRadius: 14px 14px 2px 14px` (right-corner clipped)
+- **Agent message:** tinted card — `background: agentSoft (#E4ECDF)`, `border: 1px solid #C8D9C2`, `borderRadius: 2px 14px 14px 14px` (left-corner clipped). Header shows AgentGlyph + italic serif "agent" in moss green.
+- **Typing indicator:** same shape as agent card, with 3 bouncing dots
 
-### Collapsible Sidebars
-- Use `surface-container-low` for the background.
-- **No Divider Line:** Use a 24px horizontal padding gap to separate the sidebar content from the main stage.
+### AgentGlyph
+A small 4-point constellation SVG replaces sparkle icons everywhere for AI attribution. Never use `auto_awesome` or similar sparkle emoji/icons for AI. The glyph uses the `agent` color (`#3F6B4F`).
+
+```svg
+<svg viewBox="0 0 16 16">
+  <circle cx="8" cy="3" r="1.4" opacity="0.9" />
+  <circle cx="3" cy="9" r="1" opacity="0.7" />
+  <circle cx="13" cy="9" r="1" opacity="0.7" />
+  <circle cx="8" cy="13" r="0.8" opacity="0.5" />
+  <path d="M8 3 L3 9 L8 13 L13 9 Z" strokeWidth="0.5" opacity="0.3" />
+</svg>
+```
+
+### File Explorer
+- Background: `bgAlt (#EFEAE2)`
+- "FILES" label: JetBrains Mono, 10px, uppercase, letterSpacing 1.4, `inkDim` color
+- Active file: `background: accentSoft`, left border `2px solid accent`, `color: accentInk`
+- Hover: subtle `rgba(26,23,20,0.04)` overlay
+
+### Chat Composer
+- Input container: `background: bg`, `border: 1px solid hair`, `borderRadius: 12px`
+- Quick-action chips above input: pill buttons in `bgWell` with hairline border
+- Send button: accent rust style
+- Footer label: "agent sees only files in this space" in JetBrains Mono, `inkFaint`, centered
+
+### Top Navigation
+- Height: 52px, `background: bg`, `borderBottom: 1px solid hair`
+- Left: ink square logo (22px, borderRadius 6px) with AgentGlyph, then italic serif "Spaces" brand, then hairline separator + breadcrumb when in a space
+- Right: live status dot (moss green + mono "LIVE"), Home button in ink style
+
+### Home Page
+- Editorial serif headline at 56px (italic word for emphasis)
+- JetBrains Mono eyebrow label above headline
+- Space cards: `bgRaised` background, hairline border, Instrument Serif name, rust accent icon, mono metadata
 
 ---
 
 ## 6. Do's and Don'ts
 
 ### Do
-- **Do** use `surface_container_lowest` for the code editor background to maximize contrast.
-- **Do** use `tertiary` (#6a1edb) for AI-specific accents or "Magic" features to separate them from standard system actions.
-- **Do** embrace "Negative Space." If two elements feel cluttered, add padding instead of a divider line.
+- Use **Instrument Serif italic** for display headings and the brand wordmark
+- Use **moss green** exclusively for agent/AI attribution — nowhere else
+- Use **rust** as the sole CTA color
+- Use hairline borders (`1px solid #E2DBCD`) to define content areas
+- Use `bgAlt` for sidebars so they recede from the main content area
 
 ### Don't
-- **Don't** use `#000000` for shadows. Always use a low-opacity `on_surface` to maintain tonal harmony.
-- **Don't** use 100% opaque borders to separate the sidebar from the main editor. Use the "No-Line" Rule (background color shift).
-- **Don't** use `display` type scales for functional UI labels. Keep Manrope reserved for high-level hierarchy.
-- **Don't** use vibrant colors for non-interactive elements. Colors like `error` or `primary` are reserved for intent and action.
+- Don't use `auto_awesome` or sparkle icons for AI — use AgentGlyph only
+- Don't use blue as an accent color — this palette has no blue
+- Don't use Instrument Serif for functional UI labels or buttons
+- Don't use shadow effects except for floating overlays (modals, context menus)
+- Don't use multiple stacked borders on the same edge

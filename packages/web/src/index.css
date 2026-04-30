@@ -2,43 +2,50 @@
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  --font-family-ui: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-family-display: 'Manrope', system-ui, -apple-system, sans-serif;
-  --font-family-mono: ui-monospace, 'SF Mono', 'Fira Code', Consolas, monospace;
+  --font-family-ui: 'Inter Tight', 'Inter', system-ui, sans-serif;
+  --font-family-display: 'Instrument Serif', Georgia, serif;
+  --font-family-mono: 'JetBrains Mono', ui-monospace, monospace;
 
-  --color-surface: #f7f9fb;
-  --color-surface-dim: #eef1f3;
-  --color-surface-container-lowest: #ffffff;
-  --color-surface-container-low: #f2f4f6;
-  --color-surface-container: #eceef0;
-  --color-surface-container-high: #e6e8ea;
-  --color-surface-container-highest: #dfe1e3;
+  --color-surface: #F6F3EE;
+  --color-surface-dim: #EFEAE2;
+  --color-surface-container-lowest: #FBFAF7;
+  --color-surface-container-low: #EFEAE2;
+  --color-surface-container: #E9E3D8;
+  --color-surface-container-high: #E2DBCD;
+  --color-surface-container-highest: #D6CFC4;
 
-  --color-primary: #0041dd;
-  --color-primary-container: #305dfa;
-  --color-on-primary: #ffffff;
-  --color-on-primary-container: #001d6e;
+  --color-primary: #C2410C;
+  --color-primary-container: #E05520;
+  --color-on-primary: #FFFFFF;
+  --color-on-primary-container: #7C2D12;
 
-  --color-secondary: #5c5f66;
-  --color-secondary-container: #e1e2e9;
-  --color-on-secondary-container: #181b20;
+  --color-secondary: #5A5147;
+  --color-secondary-container: #E9E3D8;
+  --color-on-secondary-container: #1A1714;
 
-  --color-tertiary: #6a1edb;
-  --color-tertiary-container: #9a5fff;
-  --color-on-tertiary-container: #25009c;
+  --color-tertiary: #3F6B4F;
+  --color-tertiary-container: #E4ECDF;
+  --color-on-tertiary-container: #1F3A29;
 
   --color-error: #ba1a1a;
   --color-error-container: #ffdad6;
 
-  --color-on-surface: #191c1e;
-  --color-on-surface-variant: #424752;
-  --color-outline: #72777f;
-  --color-outline-variant: #c3c6d7;
+  --color-on-surface: #1A1714;
+  --color-on-surface-variant: #5A5147;
+  --color-outline: #8A7F72;
+  --color-outline-variant: #E2DBCD;
+
+  --color-agent: #3F6B4F;
+  --color-agent-soft: #E4ECDF;
+  --color-agent-ink: #1F3A29;
+  --color-ink-faint: #B8AE9F;
+  --color-ink-dim: #8A7F72;
+  --color-ink-mid: #5A5147;
+  --color-hair: #E2DBCD;
 
   --text-display-lg: 3.5rem;
   --text-display-md: 2.5rem;
@@ -67,8 +74,8 @@
   --radius-2xl: 1rem;
   --radius-full: 9999px;
 
-  --shadow-ambient: 0 8px 24px rgba(25, 28, 30, 0.06);
-  --shadow-elevated: 0 12px 32px rgba(25, 28, 30, 0.1);
+  --shadow-ambient: 0 8px 24px rgba(26, 23, 20, 0.06);
+  --shadow-elevated: 0 12px 32px rgba(26, 23, 20, 0.1);
 
   --blur-glass: 20px;
 }
@@ -81,8 +88,8 @@ html {
 }
 
 @theme inline {
-  --font-heading: var(--font-sans);
-  --font-sans: 'Geist Variable', sans-serif;
+  --font-sans: 'Inter Tight', 'Inter', system-ui, sans-serif;
+  --font-heading: 'Instrument Serif', Georgia, serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -124,72 +131,97 @@ html {
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  /* Design token defaults (paper palette — overridden at runtime by ThemeContext) */
+  --t-bg: #F6F3EE;
+  --t-bgAlt: #EFEAE2;
+  --t-bgRaised: #FBFAF7;
+  --t-bgWell: #E9E3D8;
+  --t-ink: #1A1714;
+  --t-inkMid: #5A5147;
+  --t-inkDim: #8A7F72;
+  --t-inkFaint: #B8AE9F;
+  --t-hair: #E2DBCD;
+  --t-accent: #C2410C;
+  --t-accentSoft: #FBE4D5;
+  --t-accentInk: #7C2D12;
+  --t-agent: #3F6B4F;
+  --t-agentSoft: #E4ECDF;
+  --t-agentInk: #1F3A29;
+
+  --background: #F6F3EE;
+  --foreground: #1A1714;
+  --card: #FBFAF7;
+  --card-foreground: #1A1714;
+  --popover: #FBFAF7;
+  --popover-foreground: #1A1714;
+  --primary: #C2410C;
+  --primary-foreground: #FFFFFF;
+  --secondary: #E9E3D8;
+  --secondary-foreground: #1A1714;
+  --muted: #EFEAE2;
+  --muted-foreground: #8A7F72;
+  --accent: #E9E3D8;
+  --accent-foreground: #1A1714;
+  --destructive: #9F1239;
+  --border: #E2DBCD;
+  --input: #E2DBCD;
+  --ring: #C2410C;
+  --radius: 0.5rem;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: #EFEAE2;
+  --sidebar-foreground: #1A1714;
+  --sidebar-primary: #C2410C;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #E9E3D8;
+  --sidebar-accent-foreground: #1A1714;
+  --sidebar-border: #E2DBCD;
+  --sidebar-ring: #C2410C;
+
+  --color-agent: #3F6B4F;
+  --color-agent-soft: #E4ECDF;
+  --color-agent-ink: #1F3A29;
+  --color-ink-faint: #B8AE9F;
+  --color-ink-dim: #8A7F72;
+  --color-ink-mid: #5A5147;
+  --color-hair: #E2DBCD;
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --background: #1A1714;
+  --foreground: #F6F3EE;
+  --card: #221E1A;
+  --card-foreground: #F6F3EE;
+  --popover: #221E1A;
+  --popover-foreground: #F6F3EE;
+  --primary: #F97316;
+  --primary-foreground: #FFFFFF;
+  --secondary: #2E2823;
+  --secondary-foreground: #F6F3EE;
+  --muted: #15120F;
+  --muted-foreground: #8A7F72;
+  --accent: #2E2823;
+  --accent-foreground: #F6F3EE;
+  --destructive: #FB7185;
+  --border: #2E2823;
+  --input: #2E2823;
+  --ring: #F97316;
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar: #15120F;
+  --sidebar-foreground: #F6F3EE;
+  --sidebar-primary: #F97316;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #2E2823;
+  --sidebar-accent-foreground: #F6F3EE;
+  --sidebar-border: #2E2823;
+  --sidebar-ring: #F97316;
 }
 
 @layer base {
@@ -214,7 +246,7 @@ html {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #d1d5db;
+  background: #E2DBCD;
   border-radius: 10px;
 }
 
@@ -236,13 +268,13 @@ html {
 
 /* Font families */
 .font-headline {
-  font-family: 'Manrope', system-ui, -apple-system, sans-serif;
+  font-family: 'Instrument Serif', Georgia, serif;
 }
 
 .font-body {
-  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-family: 'Inter Tight', 'Inter', system-ui, sans-serif;
 }
 
 .font-mono {
-  font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', 'Fira Code', Consolas, monospace;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
 }

@@ -99,6 +99,37 @@ function FileTreeNode({
 
   const icon = getFileIcon(node.name, node.type);
 
+  const nodeStyle: React.CSSProperties = {
+    paddingLeft: `${paddingLeft}px`,
+    paddingRight: 8,
+    paddingTop: 5,
+    paddingBottom: 5,
+    background: isDragTarget
+      ? 'rgba(194,65,12,0.08)'
+      : isSelected
+        ? 'var(--t-accentSoft)'
+        : 'transparent',
+    color: isDragTarget
+      ? 'var(--t-accent)'
+      : isSelected
+        ? 'var(--t-accentInk)'
+        : 'var(--t-inkMid)',
+    borderLeft: isSelected ? '2px solid #C2410C' : '2px solid transparent',
+    fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif",
+    fontSize: 14,
+    fontStyle: isHidden && !isSpaceFolder ? 'italic' : 'normal',
+    opacity: isHidden && !isSpaceFolder ? 0.7 : 1,
+    cursor: 'pointer',
+    width: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 4,
+    textAlign: 'left',
+    outline: isDragTarget ? '1px solid rgba(194,65,12,0.3)' : 'none',
+    transition: 'background 0.1s',
+    borderRadius: isSelected ? 0 : 4,
+  };
+
   return (
     <>
       <button
@@ -109,27 +140,22 @@ function FileTreeNode({
         onDragEnter={isDirectory ? () => onFolderDragEnter(node.path) : undefined}
         onDragLeave={isDirectory ? () => onFolderDragLeave(node.path) : undefined}
         onDrop={isDirectory ? (e) => onFolderDrop(e, node.path) : undefined}
-        className={`w-full flex items-center gap-1 px-2 py-1.5 cursor-pointer rounded transition-all text-left ${
-          isDragTarget
-            ? "bg-primary/10 text-primary outline outline-1 outline-primary/30"
-            : isSelected
-              ? "text-primary bg-surface-container-lowest"
-              : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-lowest/50"
-        } ${isHidden && !isSpaceFolder ? "italic opacity-70" : ""} ${isSpaceFolder ? "text-amber-600 dark:text-amber-400" : ""}`}
-        style={{ paddingLeft: `${paddingLeft}px` }}
+        style={nodeStyle}
+        onMouseEnter={(e) => { if (!isSelected && !isDragTarget) (e.currentTarget as HTMLElement).style.background = 'rgba(26,23,20,0.04)'; }}
+        onMouseLeave={(e) => { if (!isSelected && !isDragTarget) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
       >
         {isDirectory && (
-          <span className="material-symbols-outlined text-lg">
+          <span className="material-symbols-outlined" style={{ fontSize: 16, color: isSelected ? 'var(--t-accent)' : 'var(--t-inkDim)' }}>
             {isExpanded ? "folder_open" : "folder"}
           </span>
         )}
         {!isDirectory && (
-          <span className="material-symbols-outlined text-lg">{icon}</span>
+          <span className="material-symbols-outlined" style={{ fontSize: 16, color: isSelected ? 'var(--t-accent)' : 'var(--t-inkDim)' }}>{icon}</span>
         )}
         {isRenaming ? (
           <input
             autoFocus
-            className="text-sm bg-surface-container-lowest border border-outline-variant/20 rounded px-1 py-0 flex-1 outline-none text-on-surface"
+            style={{ fontSize: 14, background: 'var(--t-bgRaised)', border: '1px solid #E2DBCD', borderRadius: 4, padding: '0 4px', flex: 1, outline: 'none', color: 'var(--t-ink)', fontFamily: "'Inter Tight', sans-serif" }}
             value={renameValue}
             onChange={(e) => onRenameChange(e.target.value)}
             onClick={(e) => e.stopPropagation()}
@@ -141,7 +167,7 @@ function FileTreeNode({
             onBlur={onRenameCommit}
           />
         ) : (
-          <span className={`text-sm ${isSelected ? "font-semibold" : ""}`}>
+          <span style={{ fontWeight: isSelected ? 600 : 400, color: isSpaceFolder ? 'var(--t-inkDim)' : undefined }}>
             {node.name}
           </span>
         )}
@@ -149,8 +175,7 @@ function FileTreeNode({
 
       {isDirectory && isExpanded && node.children === undefined && (
         <div
-          className="text-xs text-on-surface-variant/40 italic py-1"
-          style={{ paddingLeft: `${paddingLeft + 24}px` }}
+          style={{ fontSize: 12, color: 'var(--t-inkFaint)', fontStyle: 'italic', paddingTop: 2, paddingBottom: 2, paddingLeft: `${paddingLeft + 24}px` }}
         >
           loading…
         </div>
@@ -188,8 +213,7 @@ function FileTreeNode({
 
       {isDirectory && isExpanded && node.children?.length === 0 && (
         <div
-          className="text-xs text-on-surface-variant/50 italic py-1"
-          style={{ paddingLeft: `${paddingLeft + 24}px` }}
+          style={{ fontSize: 12, color: 'var(--t-inkFaint)', fontStyle: 'italic', paddingTop: 2, paddingBottom: 2, paddingLeft: `${paddingLeft + 24}px` }}
         >
           (empty)
         </div>
@@ -638,9 +662,9 @@ export default function FileExplorer({
 
   if (loading) {
     return (
-      <aside className="w-full h-full bg-surface-container-low flex flex-col">
+      <aside className="w-full h-full flex flex-col" style={{ background: 'var(--t-bgAlt)' }}>
         <div className="p-4 flex items-center justify-center">
-          <div className="animate-spin rounded-full w-6 h-6 border-2 border-primary border-t-transparent"></div>
+          <div className="animate-spin rounded-full w-6 h-6 border-2 border-t-transparent" style={{ borderColor: 'var(--t-accent)', borderTopColor: 'transparent' }}></div>
         </div>
       </aside>
     );
@@ -648,9 +672,9 @@ export default function FileExplorer({
 
   if (error) {
     return (
-      <aside className="w-full h-full bg-surface-container-low flex flex-col">
+      <aside className="w-full h-full flex flex-col" style={{ background: 'var(--t-bgAlt)' }}>
         <div className="p-4">
-          <div className="bg-error-container/10 rounded-lg p-3 text-error text-sm">
+          <div style={{ background: 'rgba(194,65,12,0.08)', borderRadius: 8, padding: 12, color: 'var(--t-accent)', fontSize: 14 }}>
             {error}
           </div>
         </div>
@@ -661,7 +685,8 @@ export default function FileExplorer({
   return (
     <>
       <aside
-        className={`w-full h-full bg-surface-container-low flex flex-col relative transition-colors ${isDragOver ? "bg-primary/5" : ""}`}
+        className="w-full h-full flex flex-col relative transition-colors"
+        style={{ background: isDragOver ? 'rgba(194,65,12,0.03)' : 'var(--t-bgAlt)' }}
         onDragEnter={handleDragEnter}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -670,11 +695,11 @@ export default function FileExplorer({
         <div className="p-4 flex flex-col gap-1 flex-1 overflow-auto">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <span className="font-headline font-bold text-on-surface uppercase tracking-wider text-xs">
-                Explorer
+              <span style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace", fontSize: 11, color: 'var(--t-inkDim)', textTransform: 'uppercase', letterSpacing: 1.4, fontWeight: 500 }}>
+                Files
               </span>
               {isViewer && (
-                <span className="text-[10px] text-on-surface-variant italic">
+                <span style={{ fontSize: 11, color: 'var(--t-inkDim)', fontStyle: 'italic' }}>
                   (view only)
                 </span>
               )}
@@ -683,30 +708,35 @@ export default function FileExplorer({
               <div className="flex items-center gap-1">
                 <button
                   type="button"
-                  className="text-on-surface-variant hover:text-on-surface transition-colors"
+                  style={{ color: 'var(--t-inkDim)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 4, borderRadius: 4 }}
                   onClick={() => setShowFileModal(true)}
                   title="Create new file"
                 >
-                  <span className="material-symbols-outlined text-lg">
-                    note_add
-                  </span>
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 2H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6L9 2z" />
+                    <path d="M9 2v4h4" />
+                    <line x1="8" y1="9" x2="8" y2="13" />
+                    <line x1="6" y1="11" x2="10" y2="11" />
+                  </svg>
                 </button>
                 <button
                   type="button"
-                  className="text-on-surface-variant hover:text-on-surface transition-colors"
+                  style={{ color: 'var(--t-inkDim)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 4, borderRadius: 4 }}
                   onClick={() => setShowFolderModal(true)}
                   title="Create new folder"
                 >
-                  <span className="material-symbols-outlined text-lg">
-                    create_new_folder
-                  </span>
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 4a1 1 0 0 1 1-1h4l2 2h6a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V4z" />
+                    <line x1="8" y1="8" x2="8" y2="12" />
+                    <line x1="6" y1="10" x2="10" y2="10" />
+                  </svg>
                 </button>
               </div>
             )}
           </div>
 
           {files.length === 0 ? (
-            <div className="text-sm text-on-surface-variant italic px-2">
+            <div style={{ fontSize: 14, color: 'var(--t-inkDim)', fontStyle: 'italic', paddingLeft: 8 }}>
               No files found
             </div>
           ) : (
@@ -738,11 +768,15 @@ export default function FileExplorer({
 
         {isDragOver && !isViewer && (
           <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-10">
-            <div className="absolute inset-2 rounded-lg border-2 border-dashed border-primary/40 bg-primary/5" />
+            <div className="absolute inset-2 rounded-lg" style={{ border: '2px dashed rgba(194,65,12,0.4)', background: 'rgba(251,228,213,0.5)' }} />
             {!dragOverFolder && (
-              <div className="relative flex flex-col items-center gap-1.5 text-primary">
-                <span className="material-symbols-outlined text-3xl">upload_file</span>
-                <span className="text-xs font-medium">Drop to upload</span>
+              <div className="relative flex flex-col items-center gap-1.5" style={{ color: 'var(--t-accent)' }}>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+                <span style={{ fontSize: 13, fontWeight: 500, fontFamily: "'Inter Tight', sans-serif" }}>Drop to upload</span>
               </div>
             )}
           </div>

@@ -27,41 +27,51 @@ interface ConnectionStatusIndicatorProps {
   onRetry?: () => void;
 }
 
+const AgentGlyph = ({ size = 14, color = 'currentColor' }: { size?: number; color?: string }) => (
+  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, display: 'inline-block', verticalAlign: 'middle' }}>
+    <circle cx="8" cy="3" r="1.4" fill={color} opacity="0.9" />
+    <circle cx="3" cy="9" r="1" fill={color} opacity="0.7" />
+    <circle cx="13" cy="9" r="1" fill={color} opacity="0.7" />
+    <circle cx="8" cy="13" r="0.8" fill={color} opacity="0.5" />
+    <path d="M8 3 L3 9 L8 13 L13 9 Z" stroke={color} strokeWidth="0.5" opacity="0.3" />
+  </svg>
+);
+
 function ConnectionStatusIndicator({
   status,
   reconnectAttempt = 0,
   onRetry,
 }: ConnectionStatusIndicatorProps) {
-  const colors = {
-    connecting: "bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]",
-    connected: "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]",
-    disconnected: "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]",
-    reconnecting: "bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.5)]",
-    error: "bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]",
+  const dotColors: Record<ConnectionStatus, string> = {
+    connecting: 'var(--t-inkDim)',
+    connected: 'var(--t-agent)',
+    disconnected: 'var(--t-accent)',
+    reconnecting: 'var(--t-inkDim)',
+    error: 'var(--t-accent)',
   };
 
-  const labels = {
-    connecting: "Connecting",
-    connected: "Connected",
-    disconnected: "Disconnected",
+  const labels: Record<ConnectionStatus, string> = {
+    connecting: "connecting",
+    connected: "live",
+    disconnected: "offline",
     reconnecting:
       reconnectAttempt > 0
-        ? `Reconnecting (${reconnectAttempt})`
-        : "Reconnecting...",
-    error: "Connection Failed",
+        ? `retry ${reconnectAttempt}`
+        : "reconnecting",
+    error: "error",
   };
 
   return (
-    <div className="flex items-center gap-1.5 [container-type:flex]">
-      <span className={`w-2 h-2 rounded-full ${colors[status]}`}></span>
-      <span className="@min-[150px]:block hidden font-['Inter'] text-[11px] uppercase tracking-widest font-semibold text-slate-400">
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: dotColors[status], display: 'inline-block' }} />
+      <span style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace", fontSize: 10, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--t-inkDim)' }}>
         {labels[status]}
       </span>
       {status === "error" && onRetry && (
         <button
           type="button"
           onClick={onRetry}
-          className="ml-2 text-[10px] text-primary hover:text-primary/80 font-medium"
+          style={{ marginLeft: 4, fontSize: 10, color: 'var(--t-accent)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500 }}
         >
           Retry
         </button>
@@ -73,91 +83,78 @@ function ConnectionStatusIndicator({
 function MessageBubble({ message }: { message: ChatMessage }) {
   if (message.role === "user") {
     return (
-      <div className="self-end max-w-[90%] bg-surface-container-lowest p-3 rounded-2xl rounded-tr-none border border-outline-variant/20 shadow-sm">
-        <p className="text-sm text-slate-800">{message.content}</p>
+      <div style={{ alignSelf: 'flex-end', maxWidth: '90%', background: 'var(--t-ink)', color: 'var(--t-bg)', padding: '10px 14px', borderRadius: '14px 14px 2px 14px', fontSize: 13.5, lineHeight: 1.5, fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif" }}>
+        <p style={{ margin: 0 }}>{message.content}</p>
       </div>
     );
   }
 
   return (
-    <div className="self-start w-full bg-white dark:bg-slate-900 p-4 rounded-2xl rounded-tl-none shadow-sm flex flex-col gap-2">
-      <div className="flex items-center gap-2 text-tertiary mb-1">
-        <span
-          className="material-symbols-outlined text-xs"
-          style={{ fontVariationSettings: "'FILL' 1" }}
-        >
-          auto_awesome
-        </span>
-        <span className="text-[10px] uppercase font-bold tracking-tighter">
-          AI Agent
-        </span>
+    <div style={{ alignSelf: 'flex-start', width: '100%', background: 'var(--t-agentSoft)', border: '1px solid var(--t-agent)', borderColor: 'color-mix(in srgb, var(--t-agent) 30%, transparent)', padding: '12px 14px', borderRadius: '2px 14px 14px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+        <AgentGlyph size={12} color="var(--t-agent)" />
+        <span style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 13, fontStyle: 'italic', color: 'var(--t-agent)', letterSpacing: -0.1 }}>agent</span>
+        {message.timestamp && (
+          <span style={{ marginLeft: 'auto', fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--t-inkFaint)' }}>
+            {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </span>
+        )}
       </div>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
           p: ({ children }) => (
-            <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed my-1">
+            <p style={{ fontSize: 13.5, color: 'var(--t-ink)', lineHeight: 1.55, margin: '4px 0', fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif" }}>
               {children}
             </p>
           ),
           h1: ({ children }) => (
-            <h1 className="text-base font-semibold text-slate-800 dark:text-slate-200 mt-3 mb-1">
-              {children}
-            </h1>
+            <h1 style={{ fontSize: 15, fontWeight: 600, color: 'var(--t-ink)', margin: '12px 0 4px' }}>{children}</h1>
           ),
           h2: ({ children }) => (
-            <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mt-2 mb-1">
-              {children}
-            </h2>
+            <h2 style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--t-ink)', margin: '8px 0 4px' }}>{children}</h2>
           ),
           h3: ({ children }) => (
-            <h3 className="text-xs font-semibold text-slate-800 dark:text-slate-200 mt-2 mb-0.5">
-              {children}
-            </h3>
+            <h3 style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--t-ink)', margin: '8px 0 2px' }}>{children}</h3>
           ),
           ul: ({ children }) => (
-            <ul className="list-disc pl-4 my-1 text-sm text-slate-700 dark:text-slate-300 space-y-0.5">
-              {children}
-            </ul>
+            <ul style={{ paddingLeft: 16, margin: '4px 0', fontSize: 13.5, color: 'var(--t-ink)' }}>{children}</ul>
           ),
           ol: ({ children }) => (
-            <ol className="list-decimal pl-4 my-1 text-sm text-slate-700 dark:text-slate-300 space-y-0.5">
-              {children}
-            </ol>
+            <ol style={{ paddingLeft: 16, margin: '4px 0', fontSize: 13.5, color: 'var(--t-ink)' }}>{children}</ol>
           ),
-          li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+          li: ({ children }) => <li style={{ lineHeight: 1.55 }}>{children}</li>,
           code: ({ children, className }) => {
             const isBlock = className?.startsWith("language-");
             return isBlock ? (
               <code
-                className={`${className} block bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 rounded-lg px-3 py-2 text-xs font-mono overflow-x-auto`}
+                className={className}
+                style={{ display: 'block', background: 'var(--t-bgWell)', color: 'var(--t-ink)', borderRadius: 8, padding: '8px 12px', fontSize: 12, fontFamily: "'JetBrains Mono', monospace", overflowX: 'auto' }}
               >
                 {children}
               </code>
             ) : (
-              <code className="bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 px-1 py-0.5 rounded text-xs font-mono">
+              <code style={{ background: 'var(--t-bgWell)', color: 'var(--t-ink)', padding: '1px 5px', borderRadius: 4, fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }}>
                 {children}
               </code>
             );
           },
           pre: ({ children }) => (
-            <pre className="my-2 overflow-x-auto">{children}</pre>
+            <pre style={{ margin: '8px 0', overflowX: 'auto' }}>{children}</pre>
           ),
           strong: ({ children }) => (
-            <strong className="font-semibold text-slate-800 dark:text-slate-200">
-              {children}
-            </strong>
+            <strong style={{ fontWeight: 600, color: '#1A1714' }}>{children}</strong>
           ),
-          em: ({ children }) => <em className="italic">{children}</em>,
+          em: ({ children }) => <em style={{ fontStyle: 'italic' }}>{children}</em>,
           blockquote: ({ children }) => (
-            <blockquote className="border-l-2 border-slate-300 pl-3 my-1 text-slate-500 italic text-sm">
+            <blockquote style={{ borderLeft: '2px solid var(--t-hair)', paddingLeft: 12, margin: '4px 0', color: 'var(--t-inkDim)', fontStyle: 'italic', fontSize: 13.5 }}>
               {children}
             </blockquote>
           ),
           a: ({ href, children }) => (
             <a
               href={href}
-              className="text-primary underline hover:text-primary/80"
+              style={{ color: 'var(--t-accent)', textDecoration: 'underline' }}
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -165,7 +162,16 @@ function MessageBubble({ message }: { message: ChatMessage }) {
             </a>
           ),
           hr: () => (
-            <hr className="border-slate-200 dark:border-slate-700 my-2" />
+            <hr style={{ border: 'none', borderTop: '1px solid var(--t-hair)', margin: '8px 0' }} />
+          ),
+          table: ({ children }) => (
+            <table style={{ borderCollapse: 'collapse', width: '100%', margin: '8px 0', fontSize: 13, fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif" }}>{children}</table>
+          ),
+          th: ({ children }) => (
+            <th style={{ textAlign: 'left', padding: '4px 10px', fontWeight: 600, fontSize: 12, color: 'var(--t-inkDim)', borderBottom: '1px solid var(--t-hair)', fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif" }}>{children}</th>
+          ),
+          td: ({ children }) => (
+            <td style={{ padding: '4px 10px', fontSize: 13, color: 'var(--t-ink)', borderBottom: '1px solid var(--t-hair)', fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif" }}>{children}</td>
           ),
         }}
       >
@@ -177,31 +183,24 @@ function MessageBubble({ message }: { message: ChatMessage }) {
 
 function TypingIndicator() {
   return (
-    <div className="self-start max-w-[90%] bg-white dark:bg-slate-900 p-4 rounded-2xl rounded-tl-none shadow-sm">
-      <div className="flex items-center gap-2 text-tertiary mb-1">
-        <span
-          className="material-symbols-outlined text-xs"
-          style={{ fontVariationSettings: "'FILL' 1" }}
-        >
-          auto_awesome
-        </span>
-        <span className="text-[10px] uppercase font-bold tracking-tighter">
-          AI Agent
-        </span>
+    <div style={{ alignSelf: 'flex-start', maxWidth: '90%', background: 'var(--t-agentSoft)', border: '1px solid var(--t-hair)', padding: '12px 14px', borderRadius: '2px 14px 14px 14px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+        <AgentGlyph size={12} color="var(--t-agent)" />
+        <span style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 13, fontStyle: 'italic', color: 'var(--t-agent)' }}>agent</span>
       </div>
-      <div className="flex gap-1">
+      <div style={{ display: 'flex', gap: 4 }}>
         <span
-          className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"
-          style={{ animationDelay: "0ms" }}
-        ></span>
+          style={{ width: 7, height: 7, background: 'var(--t-inkDim)', borderRadius: '50%', display: 'inline-block', animation: 'bounce 1.2s infinite' }}
+          className="animate-bounce"
+        />
         <span
-          className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"
-          style={{ animationDelay: "150ms" }}
-        ></span>
+          style={{ width: 7, height: 7, background: 'var(--t-inkDim)', borderRadius: '50%', display: 'inline-block', animationDelay: '150ms' }}
+          className="animate-bounce"
+        />
         <span
-          className="w-2 h-2 bg-slate-400 rounded-full animate-bounce"
-          style={{ animationDelay: "300ms" }}
-        ></span>
+          style={{ width: 7, height: 7, background: 'var(--t-inkDim)', borderRadius: '50%', display: 'inline-block', animationDelay: '300ms' }}
+          className="animate-bounce"
+        />
       </div>
     </div>
   );
@@ -248,32 +247,26 @@ export default function AIChatPane({
   };
 
   return (
-    <aside className="w-full h-full bg-surface-container-low flex flex-col">
-      <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-white/50 backdrop-blur-md sticky top-0 z-10">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-tertiary">
-              forum
-            </span>
-            <span className="font-headline font-bold text-slate-900 dark:text-white">
-              AI Assistant
-            </span>
-          </div>
-          <div data-testid="chat-ws-status" data-status={connectionStatus}>
-            <ConnectionStatusIndicator
-              status={isStreaming ? "connecting" : connectionStatus}
-            />
-          </div>
+    <aside className="w-full h-full flex flex-col" style={{ background: 'var(--t-bgRaised)', borderLeft: '1px solid var(--t-hair)' }}>
+      {/* Header */}
+      <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--t-hair)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <AgentGlyph size={14} color="var(--t-agent)" />
+          <span style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 16, fontStyle: 'italic', letterSpacing: -0.2, color: 'var(--t-agent)' }}>agent</span>
+        </div>
+        <div data-testid="chat-ws-status" data-status={connectionStatus}>
+          <ConnectionStatusIndicator status={isStreaming ? "connecting" : connectionStatus} />
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4 custom-scrollbar">
+      {/* Messages area */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar" style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
         {messages.length === 0 && !isStreaming && (
-          <div className="flex-1 flex items-center justify-center">
-            <p className="text-sm text-slate-400 text-center">
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <p style={{ fontSize: 13, color: 'var(--t-inkFaint)', textAlign: 'center', fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif" }}>
               {isViewer
-                ? "Connect to start chatting with the AI assistant."
-                : "Start a conversation with the AI assistant."}
+                ? "Connect to start chatting with the agent."
+                : "Start a conversation with the agent."}
             </p>
           </div>
         )}
@@ -284,14 +277,31 @@ export default function AIChatPane({
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-4 bg-white/50 backdrop-blur-md border-t border-slate-200 dark:border-slate-800">
+      {/* Composer */}
+      <div style={{ borderTop: '1px solid var(--t-hair)', padding: '12px 14px' }}>
+        {/* Quick action chips */}
+        {!isViewer && (
+          <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+            {['Summarize this doc', 'What changed today?', 'Make a plan'].map(chip => (
+              <button
+                key={chip}
+                type="button"
+                onClick={() => setInputValue(chip)}
+                style={{ fontSize: 11.5, padding: '4px 10px', borderRadius: 20, background: 'var(--t-bg)', border: '1px solid var(--t-hair)', color: 'var(--t-inkMid)', cursor: 'pointer', fontFamily: "'Inter Tight', sans-serif" }}
+              >
+                {chip}
+              </button>
+            ))}
+          </div>
+        )}
+        {/* Input */}
         <form onSubmit={handleSubmit}>
-          <div className="relative">
+          <div style={{ background: 'var(--t-bg)', border: '1px solid var(--t-hair)', borderRadius: 12, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <textarea
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               disabled={isViewer || isStreaming}
-              className="w-full bg-surface-container-lowest border border-outline-variant/40 rounded-xl px-4 py-3 pr-12 text-sm focus:ring-2 focus:ring-primary focus:border-transparent transition-all resize-none h-24 custom-scrollbar disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ background: 'transparent', border: 'none', outline: 'none', resize: 'none', fontSize: 13.5, color: isViewer ? 'var(--t-inkFaint)' : 'var(--t-ink)', fontFamily: "'Inter Tight', sans-serif", height: 72, width: '100%', opacity: isViewer || isStreaming ? 0.6 : 1 }}
               placeholder={
                 isViewer
                   ? "Read-only mode - cannot send messages"
@@ -304,15 +314,20 @@ export default function AIChatPane({
                 }
               }}
             />
-            <button
-              type="submit"
-              disabled={isViewer || !inputValue.trim() || isStreaming}
-              className="absolute bottom-3 right-3 p-2 bg-primary text-white rounded-lg shadow-md hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
-            >
-              <span className="material-symbols-outlined text-sm">send</span>
-            </button>
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                type="submit"
+                disabled={isViewer || !inputValue.trim() || isStreaming}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: 'var(--t-accent)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: isViewer || !inputValue.trim() || isStreaming ? 'not-allowed' : 'pointer', opacity: isViewer || !inputValue.trim() || isStreaming ? 0.5 : 1, fontFamily: "'Inter Tight', sans-serif" }}
+              >
+                <AgentGlyph size={11} color="#fff" /> Send
+              </button>
+            </div>
           </div>
         </form>
+        <div style={{ marginTop: 8, fontSize: 10, color: 'var(--t-inkFaint)', fontFamily: "'JetBrains Mono', monospace", textAlign: 'center', letterSpacing: 0.4 }}>
+          agent sees only files in this space
+        </div>
       </div>
     </aside>
   );

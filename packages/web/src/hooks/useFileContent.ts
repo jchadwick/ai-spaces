@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useAPI } from './useAPI'
 
-export type FileType = 'markdown' | 'text' | 'json' | 'image' | 'binary' | 'unknown'
+export type FileType = 'markdown' | 'text' | 'json' | 'image' | 'binary' | 'pdf' | 'unknown'
 
 export interface FileInfo {
   name: string
@@ -23,15 +23,18 @@ function detectFileType(contentType: string | null, xFileContentType: string | n
   if (xFileContentType === 'image') return 'image'
   if (xFileContentType === 'binary') return 'binary'
   if (xFileContentType === 'markdown') return 'markdown'
+  if (xFileContentType === 'pdf') return 'pdf'
 
   if (contentType?.startsWith('image/')) return 'image'
   if (contentType === 'application/octet-stream') return 'binary'
+  if (contentType === 'application/pdf') return 'pdf'
   if (contentType === 'text/markdown') return 'markdown'
   if (contentType === 'application/json') return 'json'
   if (contentType?.startsWith('text/')) return 'text'
 
   const ext = fileName.split('.').pop()?.toLowerCase()
   if (ext === 'md' || ext === 'markdown') return 'markdown'
+  if (ext === 'pdf') return 'pdf'
   if (ext === 'json') return 'json'
   if (['txt', 'js', 'ts', 'jsx', 'tsx', 'css', 'html', 'xml', 'yaml', 'yml'].includes(ext || '')) return 'text'
   if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext || '')) return 'image'
@@ -89,7 +92,7 @@ export function useFileContent(spaceId: string | undefined, filePath: string | u
         const fileName = currentFilePath.split('/').pop() || currentFilePath
         const fileType = detectFileType(contentType, xFileContentType, fileName)
 
-        if (fileType === 'image') {
+        if (fileType === 'image' || fileType === 'pdf') {
           const blob = await response.blob()
           if (controller.signal.aborted || currentFetchId !== fetchIdRef.current) return
           const url = URL.createObjectURL(blob)

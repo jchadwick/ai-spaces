@@ -25,6 +25,9 @@ const registry: Partial<Record<FileType, FileTypeHandler>> = {
   binary: {
     viewer: lazy(() => import('./BinaryViewer')),
   },
+  pdf: {
+    viewer: lazy(() => import('./PdfViewer')),
+  },
 }
 
 export function getFileTypeHandler(type: FileType): FileTypeHandler | undefined {

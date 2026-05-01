@@ -23,15 +23,6 @@ function getFileIcon(type: string): string {
   }
 }
 
-function getFileTypeLabel(type: string): string {
-  switch (type) {
-    case 'markdown': return 'Markdown'
-    case 'text': return 'Text'
-    case 'image': return 'Image'
-    case 'binary': return 'Binary'
-    default: return 'File'
-  }
-}
 
 function getDraftKey(spaceId: string, filePath: string) {
   return `ai-spaces:draft:${spaceId}:${filePath}`

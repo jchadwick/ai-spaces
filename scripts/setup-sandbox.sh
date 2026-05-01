@@ -72,7 +72,7 @@ echo "  Created test space"
 
 # Step 6: Create plugin space store from template
 echo -e "${YELLOW}Step 6: Create plugin space store...${NC}"
-export SPACE_ID=$(echo -n "default:TestSpace" | sha256sum | cut -c1-64 2>/dev/null || echo -n "default:TestSpace" | shasum -a 256 | cut -c1-64)
+export SPACE_ID="testspace"
 envsubst '${SPACE_ID}${OPENCLAW_SANDBOX_HOME}${CURRENT_TIMESTAMP}' \
   < "$TEMPLATE_DIR/spaces.json" \
   > "$OPENCLAW_HOME/spaces.json"

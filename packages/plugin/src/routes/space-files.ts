@@ -108,12 +108,14 @@ async function buildFileTree(
   return roots;
 }
 
-function detectContentType(filePath: string): 'markdown' | 'text' | 'image' | 'binary' {
+function detectContentType(filePath: string): 'markdown' | 'text' | 'image' | 'binary' | 'pdf' {
   const ext = path.extname(filePath).toLowerCase();
   if (ext === '.md' || ext === '.markdown') return 'markdown';
+  if (ext === '.pdf') return 'pdf';
 
   const mimeType = mime.lookup(filePath);
   if (!mimeType) return 'text';
+  if (mimeType === 'application/pdf') return 'pdf';
   if (mimeType.startsWith('image/')) return 'image';
   if (mimeType === 'application/octet-stream') return 'binary';
   if (mimeType.startsWith('text/') || mimeType === 'application/json' || mimeType === 'application/xml') return 'text';
@@ -237,9 +239,10 @@ function getMimeType(filePath: string): string {
   return mime.lookup(filePath) || 'application/octet-stream';
 }
 
-function getHttpContentType(filePath: string, contentType: 'markdown' | 'text' | 'image' | 'binary'): string {
+function getHttpContentType(filePath: string, contentType: 'markdown' | 'text' | 'image' | 'binary' | 'pdf'): string {
   if (contentType === 'image') return getMimeType(filePath);
   if (contentType === 'binary') return 'application/octet-stream';
+  if (contentType === 'pdf') return 'application/pdf';
   if (contentType === 'markdown') return 'text/markdown; charset=utf-8';
 
   const mimeType = mime.lookup(filePath);

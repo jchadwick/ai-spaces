@@ -3,6 +3,18 @@
   "version": "0.1.0",
   "private": true,
   "description": "Share portions of your AI agent's workspace with collaborators",
+  "keywords": [
+    "openclaw",
+    "plugin",
+    "spaces",
+    "collaboration"
+  ],
+  "author": "Jess Chadwick <jesschadwick@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jchadwick/ai-spaces.git"
+  },
   "workspaces": [
     "packages/*"
   ],
@@ -18,25 +30,13 @@
     "test:e2e": "playwright test",
     "test:e2e:install": "playwright install chromium"
   },
+  "dependencies": {
+    "@lexical/table": "^0.43.0"
+  },
   "devDependencies": {
     "@playwright/test": "^1.49.1",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2",
     "ws": "^8.18.0"
-  },
-  "keywords": [
-    "openclaw",
-    "plugin",
-    "spaces",
-    "collaboration"
-  ],
-  "author": "",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/jchadwick/ai-spaces.git"
-  },
-  "dependencies": {
-    "@lexical/table": "^0.43.0"
   }
 }

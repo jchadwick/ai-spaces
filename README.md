@@ -274,6 +274,8 @@ This space is for planning family vacations.
 | Give agent access to collaborators | Security nightmare, private data exposure |
 | **AI Spaces** | Agent can collaborate, but only in the designated space |
 
+Yay!
+
 ---
 
 ## Documentation

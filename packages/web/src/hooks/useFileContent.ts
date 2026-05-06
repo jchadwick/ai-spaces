@@ -95,7 +95,10 @@ export function useFileContent(spaceId: string | undefined, filePath: string | u
         if (fileType === 'image' || fileType === 'pdf') {
           const blob = await response.blob()
           if (controller.signal.aborted || currentFetchId !== fetchIdRef.current) return
-          const url = URL.createObjectURL(blob)
+          const typedBlob = fileType === 'pdf' && blob.type !== 'application/pdf'
+            ? new Blob([blob], { type: 'application/pdf' })
+            : blob
+          const url = URL.createObjectURL(typedBlob)
           setContent(url)
           setFileInfo({
             name: fileName,

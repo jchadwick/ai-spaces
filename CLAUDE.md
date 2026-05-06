@@ -20,28 +20,24 @@ The initial implementation will be exclusively for OpenClaw, however no architec
 
 ## Testing OpenClaw
 
-**NEVER use `openclaw` directly — always use `./openclaw.sh` (includes sandbox path).**
+For local non-Docker testing, run the one-time sandbox setup first:
 
 ```bash
 ./scripts/setup-sandbox.sh   # one-time sandbox setup
 ```
 
-The gateway (`openclaw gateway`) is a service — do not wait for it to exit.
-
-### Dev Environment (PM2)
+### Dev Environment (Docker)
 
 ```bash
-./scripts/dev-start.sh        # start all services (truncates logs, then tails live)
-./scripts/dev-stop.sh         # stop and delete all PM2 processes
+docker compose up --build     # start all services (rebuilds images)
+docker compose down           # stop and remove all containers
 
-pm2 restart <name>            # restart one process (openclaw | ws | server | web)
-pm2 stop <name>               # stop one process
-pm2 logs <name> --lines 50    # read recent log output (past + live stream)
-pm2 monit                     # live TUI dashboard (CPU, mem, logs per process)
-pm2 status                    # show process list and status
+docker compose restart <service>           # restart one service (openclaw | ws | server | web)
+docker compose logs -f <service>           # stream logs for a service
+docker compose logs --tail=100 <service>   # read recent log output
 ```
 
-Logs are written to `.logs/<name>.log` and **truncated on each `dev-start.sh` run** so they stay small. Always read with `tail -n 100 .logs/<name>.log` or `pm2 logs <name> --lines 100 --nostream` — never `cat`.
+Services: `openclaw`, `ws`, `server`, `web`
 
 ## Code Style
 

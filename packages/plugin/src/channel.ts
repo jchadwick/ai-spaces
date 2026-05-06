@@ -14,7 +14,7 @@ function resolveAccountId(params: {
   return params.accountId ?? '';
 }
 
-export const aiSpacesPlugin = createChannelPluginBase({
+const pluginBase = createChannelPluginBase({
   id: 'ai-spaces',
 
   meta: {
@@ -36,5 +36,15 @@ export const aiSpacesPlugin = createChannelPluginBase({
     },
   },
 });
+
+// SDK 2026.5+ requires config.listAccountIds and config.resolveAccount on channel plugins
+export const aiSpacesPlugin = {
+  ...pluginBase,
+  config: {
+    ...(pluginBase as Record<string, unknown>)['config'] as object,
+    listAccountIds: (_cfg: OpenClawConfig) => ['default'] as string[],
+    resolveAccount: (_cfg: OpenClawConfig, _accountId?: string) => ({} as Record<string, unknown>),
+  },
+};
 
 console.log('[ai-spaces] Plugin loaded');

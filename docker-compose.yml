@@ -13,6 +13,9 @@ services:
       OPENCLAW_DISABLE_BONJOUR: "1"
       AI_SPACES_URL: http://sidecar:3001
       AI_SPACES_WS_PORT: "3002"
+      GATEWAY_URL: http://openclaw:19000
+      GATEWAY_TOKEN: secret
+      AI_SPACES_ROOT: /home/openclaw/workspace
     volumes:
       - openclaw-home:/home/openclaw
       - ./packages/plugin/dist:/plugins/ai-spaces:ro
@@ -32,8 +35,9 @@ services:
       GATEWAY_URL: http://openclaw:19000
       GATEWAY_TOKEN: secret
       PLUGIN_WS_URL: ws://openclaw:3002
+      AI_SPACES_ROOT: /home/openclaw/workspace
     volumes:
-      - openclaw-home:/home/openclaw:ro
+      - openclaw-home:/home/openclaw
       - sidecar-data:/data
     ports:
       - "3001:3001"

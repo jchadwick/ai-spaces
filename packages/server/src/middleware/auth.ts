@@ -15,12 +15,15 @@ export const authMiddleware = createMiddleware<{ Variables: AuthVariables }>(asy
   const path = c.req.path;
   console.log('[DEBUG-AUTH] Path:', path, 'Auth:', authHeader?.substring(0, 30));
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  const queryToken = c.req.query('token');
+  const rawToken = authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : queryToken;
+
+  if (!rawToken) {
     console.log('[DEBUG-AUTH] No token');
     return c.json({ error: 'No token provided' }, 401);
   }
 
-  const token = authHeader.substring(7);
+  const token = rawToken;
 
   try {
     console.log('[DEBUG-AUTH] Verifying with secret:', config.JWT_SECRET);

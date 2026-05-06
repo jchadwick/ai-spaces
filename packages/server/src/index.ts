@@ -220,6 +220,7 @@ wss.on('upgrade', (request, socket, head) => {
 const server = serve({
   fetch: app.fetch,
   port: config.AI_SPACES_PORT,
+  hostname: '0.0.0.0',
   overrideGlobalObjects: false,
 });
 

@@ -1,0 +1,28 @@
+FROM ghcr.io/openclaw/openclaw:latest
+USER root
+
+# Build tools needed for native modules (bcrypt)
+RUN apt-get update -qq && \
+    apt-get install -y --no-install-recommends python3 make g++ && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /plugins
+
+# Install plugin runtime deps at /plugins/node_modules so Node resolves them
+# from /plugins/ai-spaces/* (walks up to /plugins/node_modules).
+# openclaw SDK is excluded — provided by the runtime.
+# Shared package is copied AFTER npm install to prevent it being cleaned up.
+RUN npm init -y && \
+    npm install --save \
+      bcrypt@^6.0.0 \
+      jsonwebtoken@^9.0.3 \
+      mime-types@^3.0.2 \
+      ws@^8.20.0 \
+      zod@^3.24.2
+
+# Copy shared package after npm install so it isn't removed by npm's cleanup
+COPY packages/shared/dist ./node_modules/@ai-spaces/shared/dist
+COPY packages/shared/package.json ./node_modules/@ai-spaces/shared/package.json
+
+COPY scripts/docker/openclaw-entrypoint.sh /scripts/openclaw-entrypoint.sh
+RUN chmod +x /scripts/openclaw-entrypoint.sh

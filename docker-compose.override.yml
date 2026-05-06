@@ -1,0 +1,21 @@
+# Dev overrides: tsx hot-reload for server, source mounted from host.
+# Run web dev server separately: npm run dev:web
+# Rebuild plugin when changed: npm run dev:plugin (rebuilds to packages/plugin/dist/)
+# Then restart openclaw to pick up plugin: docker compose restart openclaw
+
+services:
+  sidecar:
+    build:
+      target: dev
+    command: ["sh", "-c", "npm run build:shared && npx tsx watch packages/server/src/index.ts"]
+    volumes:
+      - ./packages/server/src:/build/packages/server/src:ro
+      - ./packages/server/tsconfig.json:/build/packages/server/tsconfig.json:ro
+      - ./packages/shared/src:/build/packages/shared/src:ro
+      - ./packages/shared/tsconfig.json:/build/packages/shared/tsconfig.json:ro
+      - ./packages/web/dist:/build/packages/web/dist:ro
+      - ./tsconfig.base.json:/build/tsconfig.base.json:ro
+      - ./packages/server/drizzle:/build/packages/server/drizzle:ro
+      - sidecar-data:/data
+    environment:
+      WEB_DIST: /build/packages/web/dist

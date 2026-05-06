@@ -1,0 +1,12 @@
+node_modules
+.logs
+**/dist
+!packages/shared/dist
+!packages/plugin/dist
+.env*
+test-results
+e2e
+*.png
+PDF_VIEWER.md
+repomix-output.xml
+chat-test.png

@@ -1,8 +1,28 @@
+# Local development only. Production deployments define their own compose files.
 services:
   openclaw:
     build:
       context: .
-      dockerfile: Dockerfile.openclaw
+      dockerfile_inline: |
+        FROM node:22 AS deps
+        RUN apt-get update -qq && \
+            apt-get install -y --no-install-recommends python3 make g++ && \
+            rm -rf /var/lib/apt/lists/*
+        WORKDIR /plugins
+        RUN npm init -y && npm install --save \
+              bcrypt@^6.0.0 \
+              chokidar@^4.0.3 \
+              jsonwebtoken@^9.0.3 \
+              mime-types@^3.0.2 \
+              ws@^8.20.0 \
+              zod@^3.24.2
+
+        FROM ghcr.io/openclaw/openclaw:latest
+        USER root
+        WORKDIR /plugins
+        COPY --from=deps /plugins/node_modules ./node_modules
+        COPY scripts/docker/openclaw-entrypoint.sh /scripts/openclaw-entrypoint.sh
+        RUN chmod +x /scripts/openclaw-entrypoint.sh
     user: root
     entrypoint: ["/bin/sh", "/scripts/openclaw-entrypoint.sh"]
     environment:
@@ -29,8 +49,18 @@ services:
   sidecar:
     build:
       context: .
-      dockerfile: Dockerfile.sidecar
-      target: runtime
+      dockerfile_inline: |
+        FROM node:22-alpine
+        RUN apk add --no-cache python3 make g++
+        WORKDIR /build
+        COPY package.json package-lock.json ./
+        COPY packages/shared/package.json ./packages/shared/
+        COPY packages/server/package.json ./packages/server/
+        COPY packages/web/package.json ./packages/web/
+        COPY packages/plugin/package.json ./packages/plugin/
+        RUN npm ci
+        COPY tsconfig.base.json ./
+    command: sh -c "npm run build:shared && npx tsx watch packages/server/src/index.ts"
     environment:
       OPENCLAW_HOME: /home/openclaw
       GATEWAY_URL: http://openclaw:19000
@@ -38,9 +68,18 @@ services:
       PLUGIN_WS_URL: ws://openclaw:3002
       AI_SPACES_ROOT: /home/openclaw/workspace
       DEV_VIRTUAL_USER: "true"
+      WEB_DIST: /build/packages/web/dist
+      AI_SPACES_DATA: /data
+      AI_SPACES_DB: /data/ai-spaces.db
     volumes:
       - openclaw-home:/home/openclaw
       - sidecar-data:/data
+      - ./packages/server/src:/build/packages/server/src:ro
+      - ./packages/server/tsconfig.json:/build/packages/server/tsconfig.json:ro
+      - ./packages/server/drizzle:/build/packages/server/drizzle:ro
+      - ./packages/shared/src:/build/packages/shared/src:ro
+      - ./packages/shared/tsconfig.json:/build/packages/shared/tsconfig.json:ro
+      - ./tsconfig.base.json:/build/tsconfig.base.json:ro
     ports:
       - "3001:3001"
     depends_on:
@@ -51,8 +90,16 @@ services:
   drizzle-studio:
     build:
       context: .
-      dockerfile: Dockerfile.sidecar
-      target: deps
+      dockerfile_inline: |
+        FROM node:22-alpine
+        RUN apk add --no-cache python3 make g++
+        WORKDIR /build
+        COPY package.json package-lock.json ./
+        COPY packages/shared/package.json ./packages/shared/
+        COPY packages/server/package.json ./packages/server/
+        COPY packages/web/package.json ./packages/web/
+        COPY packages/plugin/package.json ./packages/plugin/
+        RUN npm ci
     working_dir: /build/packages/server
     command: npx drizzle-kit studio --host 0.0.0.0
     ports:
@@ -63,7 +110,7 @@ services:
       - ./packages/shared:/build/packages/shared
       - ./tsconfig.base.json:/build/tsconfig.base.json:ro
     environment:
-      - AI_SPACES_DB=/data/ai-spaces.db
+      AI_SPACES_DB: /data/ai-spaces.db
     depends_on:
       - sidecar
     networks:

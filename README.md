@@ -278,6 +278,24 @@ Yay!
 
 ---
 
+## Building
+
+### Docker (no local Node required)
+
+```bash
+docker build -t ai-spaces .
+```
+
+This produces a single image containing the sidecar server, web UI, and compiled plugin. To extract the plugin dist for use with OpenClaw or another agent runtime:
+
+```bash
+id=$(docker create ai-spaces)
+docker cp $id:/plugin ./packages/plugin/dist
+docker rm $id
+```
+
+---
+
 ## Documentation
 
 - [Architecture](./docs/ARCHITECTURE.md) - Canonical architecture reference

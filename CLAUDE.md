@@ -32,14 +32,25 @@ For local non-Docker testing, run the one-time sandbox setup first:
 docker compose up --build     # start all services (rebuilds images)
 docker compose down           # stop and remove all containers
 
-docker compose restart <service>           # restart one service (openclaw | ws | server | web)
+docker compose restart <service>           # restart one service (openclaw | sidecar)
 docker compose logs -f <service>           # stream logs for a service
 docker compose logs --tail=100 <service>   # read recent log output
 
 docker compose --profile studio up drizzle-studio   # open Drizzle Studio at http://localhost:4983
 ```
 
-Services: `openclaw`, `ws`, `server`, `web`
+Services: `openclaw`, `sidecar`
+
+- **sidecar**: runs `tsx watch` inside the container; source files are mounted from host for hot reload
+- **openclaw**: mount `packages/plugin/dist` — rebuild plugin on host with `npm run dev:plugin`, then `docker compose restart openclaw`
+- **web**: run separately on host with `npm run dev:web`
+
+### Production Build (Docker only)
+
+```bash
+docker build -t ai-spaces .          # build prod image
+docker cp $(docker create ai-spaces):/plugin ./plugin-dist   # extract compiled plugin
+```
 
 ## Code Style
 

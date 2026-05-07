@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────
-# Stage 1: install deps (shared by dev + builder)
+# Stage: install deps
 # ─────────────────────────────────────────────
 FROM node:22-alpine AS deps
 
@@ -11,24 +11,11 @@ COPY package.json package-lock.json ./
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/web/package.json ./packages/web/
 COPY packages/server/package.json ./packages/server/
+COPY packages/plugin/package.json ./packages/plugin/
 RUN npm ci
 
 # ─────────────────────────────────────────────
-# Stage 2: dev — source mounted at runtime
-# ─────────────────────────────────────────────
-FROM deps AS dev
-
-COPY tsconfig.base.json ./
-
-ENV WEB_DIST=/build/packages/web/dist
-ENV AI_SPACES_DATA=/data
-ENV AI_SPACES_DB=/data/ai-spaces.db
-
-EXPOSE 3001
-CMD ["npx", "tsx", "watch", "packages/server/src/index.ts"]
-
-# ─────────────────────────────────────────────
-# Stage 3: builder — compiles everything
+# Stage: build all packages
 # ─────────────────────────────────────────────
 FROM deps AS builder
 
@@ -36,31 +23,29 @@ COPY tsconfig.base.json ./
 COPY packages/shared/ ./packages/shared/
 COPY packages/web/ ./packages/web/
 COPY packages/server/ ./packages/server/
+COPY packages/plugin/ ./packages/plugin/
 
 RUN npm run build:shared && \
     npm run build:web && \
+    npm run build:plugin && \
     npm run build -w @ai-spaces/server
 
 # ─────────────────────────────────────────────
-# Stage 4: runtime — minimal production image
+# Stage: runtime — sidecar + plugin dist at /plugin
 # ─────────────────────────────────────────────
 FROM node:22-alpine AS runtime
 
 WORKDIR /build
 
-# node_modules includes workspace symlinks (@ai-spaces/shared → ../../packages/shared)
 COPY --from=builder /build/node_modules ./node_modules
-
-# Shared package (symlink target for @ai-spaces/shared)
 COPY --from=builder /build/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /build/packages/shared/package.json ./packages/shared/package.json
-
-# Server compiled output
 COPY --from=builder /build/packages/server/dist ./packages/server/dist
 COPY --from=builder /build/packages/server/package.json ./packages/server/package.json
-
-# Web static assets (served by server via WEB_DIST)
 COPY --from=builder /build/packages/web/dist ./packages/web/dist
+
+# Compiled plugin available for extraction (e.g. docker cp <container>:/plugin .)
+COPY --from=builder /build/packages/plugin/dist /plugin
 
 ENV WEB_DIST=/build/packages/web/dist
 ENV AI_SPACES_DATA=/data

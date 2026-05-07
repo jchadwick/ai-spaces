@@ -8,9 +8,11 @@ import { handleSpaceWebSocket, startWebSocketServer } from './routes/space-ws.js
 import { handleFileContent, handleFileTree } from './routes/space-files.js';
 import { validateSession } from './session-middleware.js';
 import type { Role } from '@ai-spaces/shared';
+import { getAgentWorkspace } from '@ai-spaces/shared';
 import * as crypto from 'crypto';
 import * as path from 'path';
 import { config } from './config.js';
+import { SpaceWatcher } from './space-watcher.js';
 
 export default defineChannelPluginEntry({
   id: 'ai-spaces',
@@ -24,6 +26,16 @@ export default defineChannelPluginEntry({
     console.log('[ai-spaces] Proxying to:', config.AI_SPACES_URL);
 
     startWebSocketServer(config.AI_SPACES_WS_PORT);
+
+    // Start workspace-level watcher for real-time space discovery
+    const openclawHome = config.OPENCLAW_HOME;
+    const mainWorkspaceRoot = getAgentWorkspace(openclawHome, 'main');
+    const spaceWatcher = new SpaceWatcher(mainWorkspaceRoot, 'main');
+    spaceWatcher.start();
+
+    const stopSpaceWatcher = () => spaceWatcher.stop();
+    process.once('SIGTERM', stopSpaceWatcher);
+    process.once('SIGINT', stopSpaceWatcher);
 
     api.registerHttpRoute({
       path: '/api/spaces',

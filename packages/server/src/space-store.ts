@@ -5,7 +5,7 @@ import { SpaceConfigSchema } from '@ai-spaces/shared';
 import { computeSpaceId } from '@ai-spaces/shared';
 import { logAudit } from './audit.js';
 import { db, schema } from './db/connection.js';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 
 export interface SpaceRecord {
   id: string;
@@ -114,7 +114,7 @@ export function createSpace(input: CreateSpaceInput, userId: string = 'system'):
     };
   }
 
-  const id = computeSpaceId(input.agentId, validation.relativePath);
+  const id = validation.config.id ?? computeSpaceId(input.agentId, validation.relativePath);
   const now = new Date().toISOString();
   const configPath = path.join(validation.absolutePath, '.space', 'spaces.json');
 
@@ -164,7 +164,15 @@ export function insertSpace(data: {
     config: JSON.stringify(data.config),
     createdAt: data.createdAt,
     updatedAt: data.updatedAt,
-  }).onConflictDoNothing().run();
+  }).onConflictDoUpdate({
+    target: schema.spaces.id,
+    set: {
+      path: data.path,
+      configPath: data.configPath ?? null,
+      config: JSON.stringify(data.config),
+      updatedAt: sql`CURRENT_TIMESTAMP`,
+    },
+  }).run();
 
   return {
     id: data.id,

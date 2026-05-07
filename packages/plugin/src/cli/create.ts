@@ -42,29 +42,30 @@ export async function createSpace(spacePath: string, options: CreateSpaceOptions
   
   const spaceName = options.name || path.basename(absolutePath);
   const spaceDescription = options.description;
-  
+  const folderName = path.basename(absolutePath);
+  const spaceId = computeSpaceId('', folderName);
+
   const config: any = {
+    id: spaceId,
     name: spaceName
   };
-  
+
   if (spaceDescription) {
     config.description = spaceDescription;
   }
-  
+
   try {
     if (!fs.existsSync(absolutePath)) {
       fs.mkdirSync(absolutePath, { recursive: true });
     }
-    
+
     const spaceDir = path.join(absolutePath, '.space');
     if (!fs.existsSync(spaceDir)) {
       fs.mkdirSync(spaceDir, { recursive: true });
     }
-    
+
     const configPath = path.join(spaceDir, 'spaces.json');
     fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
-    
-    const spaceId = computeSpaceId(agentName, relativePath);
     
     if (options.json) {
       console.log(JSON.stringify({

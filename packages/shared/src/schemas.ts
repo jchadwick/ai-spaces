@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 export const SpaceConfigSchema = z.object({
+  id: z.string().min(1).max(100).optional(),
   name: z.string().min(1).max(100),
   description: z.string().max(500).optional(),
   collaborators: z.array(z.object({

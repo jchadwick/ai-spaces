@@ -63,8 +63,18 @@ export function scanWorkspace(openclawHome: string, workspaceDir: string, agentN
           const raw = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
           const parsed = SpaceConfigSchema.safeParse(raw);
           if (parsed.success) {
+            let spaceId = parsed.data.id;
+            if (!spaceId) {
+              spaceId = computeSpaceId('', path.basename(childDir));
+              try {
+                const backfilled = { ...raw, id: spaceId };
+                fs.writeFileSync(configPath, JSON.stringify(backfilled, null, 2));
+              } catch (writeErr) {
+                console.warn(`[scanWorkspace] Failed to backfill id in ${configPath}:`, writeErr);
+              }
+            }
             results.push({
-              id: computeSpaceId(agentName, childRelPath),
+              id: spaceId,
               agentId: agentName,
               agentType: agentName === 'main' ? 'main' : 'agent',
               path: childRelPath,

@@ -298,7 +298,15 @@ spacesRouter.post('/', zValidator('json', createSpaceSchema), (c) => {
     return c.json({ error: 'Space already exists', spaceId: existing.id }, 409);
   }
 
-  const id = computeSpaceId(resolvedAgentId, spacePath);
+  const configFilePath = path.join(spacePath, '.space', 'spaces.json');
+  let storedConfig: SpaceConfig = { name: path.basename(spacePath) };
+  try {
+    if (fs.existsSync(configFilePath)) {
+      storedConfig = JSON.parse(fs.readFileSync(configFilePath, 'utf-8')) as SpaceConfig;
+    }
+  } catch {}
+
+  const id = storedConfig.id ?? computeSpaceId(resolvedAgentId, spacePath);
   const now = new Date().toISOString();
 
   const space = insertSpace({
@@ -306,8 +314,8 @@ spacesRouter.post('/', zValidator('json', createSpaceSchema), (c) => {
     agentId: resolvedAgentId,
     agentType: agentType || 'default',
     path: spacePath,
-    configPath: path.join(spacePath, '.space', 'spaces.json'),
-    config: { name: path.basename(spacePath) },
+    configPath: configFilePath,
+    config: storedConfig,
     createdAt: now,
     updatedAt: now,
   });
@@ -355,7 +363,7 @@ async function findSpacesInWorkspace(workspaceDir: string, agentName: string): P
             const configContent = fs.readFileSync(spaceConfigPath, 'utf-8');
             const spaceConfig: SpaceConfig = JSON.parse(configContent);
             const spacePathRel = relativePath ? `${relativePath}/${entry.name}` : entry.name;
-            const id = computeSpaceId(agentName, spacePathRel);
+            const id = spaceConfig.id ?? computeSpaceId(agentName, spacePathRel);
 
             spaces.push({
               id,

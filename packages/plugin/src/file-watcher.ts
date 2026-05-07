@@ -1,3 +1,4 @@
+import chokidar, { FSWatcher } from 'chokidar';
 import { EventEmitter } from 'events';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -11,29 +12,12 @@ export interface FileChangedEvent {
 }
 
 interface WatchEntry {
-  watcher: fs.FSWatcher;
+  watcher: FSWatcher;
   dirPath: string;
-  knownFiles: Set<string>;
 }
 
 export class FileWatcher extends EventEmitter {
   private watchers = new Map<string, WatchEntry>();
-  private debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
-
-  private scanDirectory(dirPath: string): Set<string> {
-    const files = new Set<string>();
-    const scan = (dir: string) => {
-      try {
-        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-          const full = path.join(dir, entry.name);
-          files.add(path.relative(dirPath, full));
-          if (entry.isDirectory()) scan(full);
-        }
-      } catch { /* ignore permission errors */ }
-    };
-    scan(dirPath);
-    return files;
-  }
 
   watch(spaceId: string, dirPath: string): void {
     if (this.watchers.has(spaceId)) return;
@@ -44,29 +28,34 @@ export class FileWatcher extends EventEmitter {
     }
 
     try {
-      const watcher = fs.watch(dirPath, { recursive: true }, (eventType, filename) => {
-        if (!filename) return;
-
-        const filePath = filename.toString();
-        const debounceKey = `${spaceId}:${filePath}`;
-
-        const existing = this.debounceTimers.get(debounceKey);
-        if (existing) clearTimeout(existing);
-
-        const timer = setTimeout(() => {
-          this.debounceTimers.delete(debounceKey);
-          this.resolveAction(spaceId, dirPath, filePath);
-        }, 100);
-
-        this.debounceTimers.set(debounceKey, timer);
+      const watcher = chokidar.watch(dirPath, {
+        persistent: true,
+        ignoreInitial: true,
+        awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 50 },
       });
 
-      watcher.on('error', (err) => {
-        console.error(`[FileWatcher] Watcher error for space ${spaceId}:`, err.message);
+      watcher.on('add', (filePath) => {
+        const relativePath = path.relative(dirPath, filePath);
+        this.emit('file:changed', { spaceId, path: relativePath, action: 'created' } satisfies FileChangedEvent);
+      });
+
+      watcher.on('change', (filePath) => {
+        const relativePath = path.relative(dirPath, filePath);
+        this.emit('file:changed', { spaceId, path: relativePath, action: 'modified' } satisfies FileChangedEvent);
+      });
+
+      watcher.on('unlink', (filePath) => {
+        const relativePath = path.relative(dirPath, filePath);
+        this.emit('file:changed', { spaceId, path: relativePath, action: 'deleted' } satisfies FileChangedEvent);
+      });
+
+      watcher.on('error', (err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err);
+        console.error(`[FileWatcher] Watcher error for space ${spaceId}:`, message);
         this.unwatch(spaceId);
       });
 
-      this.watchers.set(spaceId, { watcher, dirPath, knownFiles: this.scanDirectory(dirPath) });
+      this.watchers.set(spaceId, { watcher, dirPath });
       console.log(`[FileWatcher] Watching space ${spaceId} at ${dirPath}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -74,31 +63,14 @@ export class FileWatcher extends EventEmitter {
     }
   }
 
-  private resolveAction(spaceId: string, dirPath: string, filePath: string): void {
-    const fullPath = path.join(dirPath, filePath);
-    const entry = this.watchers.get(spaceId);
-    if (!entry) return;
-
-    let action: FileAction;
-    try {
-      fs.accessSync(fullPath);
-      action = entry.knownFiles.has(filePath) ? 'modified' : 'created';
-      entry.knownFiles.add(filePath);
-    } catch {
-      action = 'deleted';
-      entry.knownFiles.delete(filePath);
-    }
-
-    this.emit('file:changed', { spaceId, path: filePath, action });
-  }
-
   unwatch(spaceId: string): void {
     const entry = this.watchers.get(spaceId);
     if (!entry) return;
 
-    try {
-      entry.watcher.close();
-    } catch { /* ignore close errors */ }
+    entry.watcher.close().catch((err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error(`[FileWatcher] Error closing watcher for space ${spaceId}:`, message);
+    });
 
     this.watchers.delete(spaceId);
     console.log(`[FileWatcher] Stopped watching space ${spaceId}`);
@@ -108,10 +80,6 @@ export class FileWatcher extends EventEmitter {
     for (const spaceId of this.watchers.keys()) {
       this.unwatch(spaceId);
     }
-    for (const timer of this.debounceTimers.values()) {
-      clearTimeout(timer);
-    }
-    this.debounceTimers.clear();
   }
 }
 

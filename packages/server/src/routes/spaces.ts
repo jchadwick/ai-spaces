@@ -60,7 +60,8 @@ spacesRouter.get('/:id/files', async (c) => {
     return c.json({ error: 'Space not found' }, 404);
   }
 
-  const fullPath = dirPath ? path.join(space.path, dirPath) : space.path;
+  const spaceRoot = path.join(config.AI_SPACES_ROOT, space.path);
+  const fullPath = dirPath ? path.join(spaceRoot, dirPath) : spaceRoot;
 
   try {
     const entries = await fs.promises.readdir(fullPath, { withFileTypes: true });
@@ -94,17 +95,27 @@ spacesRouter.get('/:id/files', async (c) => {
 spacesRouter.get('/:id/files/:filePath{.*}', async (c) => {
   const id = c.req.param('id');
   const filePath = c.req.param('filePath');
-  const auth = c.req.header('Authorization');
+  const space = getSpace(id);
 
-  const encodedFilePath = filePath.split('/').map(encodeURIComponent).join('/');
-  const gatewayUrl = `${config.GATEWAY_URL}/api/spaces/${id}/files/${encodedFilePath}`;
+  if (!space) {
+    return c.json({ error: 'Space not found' }, 404);
+  }
+
+  const spaceRoot = path.join(config.AI_SPACES_ROOT, space.path);
+  const fullPath = path.resolve(spaceRoot, filePath);
+
+  if (!fullPath.startsWith(spaceRoot + path.sep) && fullPath !== spaceRoot) {
+    return c.json({ error: 'Access denied' }, 403);
+  }
 
   try {
-    return await fetch(gatewayUrl, {
-      headers: auth ? { Authorization: auth } : {},
-    });
+    const content = await fs.promises.readFile(fullPath, 'utf-8');
+    const ext = path.extname(filePath).toLowerCase();
+    const contentType = ext === '.md' ? 'text/markdown' : 'text/plain';
+    c.header('Content-Type', contentType);
+    return c.body(content);
   } catch {
-    return c.json({ error: 'Failed to reach plugin gateway' }, 502);
+    return c.json({ error: 'File not found' }, 404);
   }
 });
 
@@ -123,11 +134,10 @@ spacesRouter.put('/:id/files/:filePath{.*}', zValidator('json', writeFileSchema)
     return c.json({ error: 'Space not found' }, 404);
   }
 
-  const fullPath = path.join(space.path, filePath);
-  const normalizedSpacePath = path.normalize(space.path);
-  const normalizedFullPath = path.normalize(fullPath);
+  const spaceRoot = path.join(config.AI_SPACES_ROOT, space.path);
+  const fullPath = path.resolve(spaceRoot, filePath);
 
-  if (!normalizedFullPath.startsWith(normalizedSpacePath)) {
+  if (!fullPath.startsWith(spaceRoot + path.sep) && fullPath !== spaceRoot) {
     return c.json({ error: 'Access denied: path escape attempt' }, 403);
   }
 

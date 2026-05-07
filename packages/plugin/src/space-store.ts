@@ -15,18 +15,23 @@ export function resolveSpaceRoot(space: SpaceRecord): string {
 
 function getAllSpaces(): SpaceRecord[] {
   const openclawHome = config.OPENCLAW_HOME;
+
+  // Always include the main workspace
+  const mainWorkspace = sharedGetAgentWorkspace(openclawHome, 'main');
+  const spaces: SpaceRecord[] = scanWorkspace(openclawHome, mainWorkspace, 'main');
+
+  // Also include any per-agent workspaces under agents/
   const agentsHome = path.join(openclawHome, 'agents');
+  if (fs.existsSync(agentsHome)) {
+    try {
+      const agentNames = fs.readdirSync(agentsHome, { withFileTypes: true })
+        .filter(e => e.isDirectory())
+        .map(e => e.name);
+      spaces.push(...agentNames.flatMap(name => scanWorkspace(openclawHome, sharedGetAgentWorkspace(openclawHome, name), name)));
+    } catch { /* agents dir unreadable, skip */ }
+  }
 
-  if (!fs.existsSync(agentsHome)) return [];
-
-  let agentNames: string[];
-  try {
-    agentNames = fs.readdirSync(agentsHome, { withFileTypes: true })
-      .filter(e => e.isDirectory())
-      .map(e => e.name);
-  } catch { return []; }
-
-  return agentNames.flatMap(name => scanWorkspace(openclawHome, sharedGetAgentWorkspace(openclawHome, name), name));
+  return spaces;
 }
 
 export function getSpace(id: string): SpaceRecord | null {

@@ -21,4 +21,6 @@ export const config = {
   GATEWAY_TOKEN: process.env.GATEWAY_TOKEN ?? 'secret',
   DEFAULT_DENIED_TOOLS: parseList(process.env.AI_SPACES_DENIED_TOOLS, ['exec', 'messaging', 'spawn_agents', 'browser', 'credentials']),
   DEFAULT_ALLOWED_TOOLS: parseList(process.env.AI_SPACES_ALLOWED_TOOLS, ['read', 'write', 'edit', 'glob']),
+  MAX_FILE_SIZE_MB: parseFloat(process.env.MAX_FILE_SIZE_MB ?? '10'),
+  FILE_STREAM_THRESHOLD_MB: parseFloat(process.env.FILE_STREAM_THRESHOLD_MB ?? '1'),
 };

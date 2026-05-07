@@ -23,12 +23,6 @@ export function getSpaceById(id: string): SpaceRecord | null {
   return getSpace(id);
 }
 
-const createSpaceSchema = z.object({
-  path: z.string().min(1),
-  agentId: z.string().optional(),
-  agentType: z.string().optional(),
-});
-
 spacesRouter.get('/', (c) => {
   const spaces = listSpaces().map(s => ({
     id: s.id,
@@ -298,40 +292,6 @@ spacesRouter.patch('/:id/directories/:dirPath{.*}', zValidator('json', renameDir
   }
 });
 
-
-spacesRouter.post('/', zValidator('json', createSpaceSchema), (c) => {
-  const { path: spacePath, agentId, agentType } = c.req.valid('json');
-  const resolvedAgentId = agentId || 'default';
-
-  const existing = getSpaceByPath(resolvedAgentId, spacePath);
-  if (existing) {
-    return c.json({ error: 'Space already exists', spaceId: existing.id }, 409);
-  }
-
-  const configFilePath = path.join(spacePath, '.space', 'spaces.json');
-  let storedConfig: SpaceConfig = { name: path.basename(spacePath) };
-  try {
-    if (fs.existsSync(configFilePath)) {
-      storedConfig = JSON.parse(fs.readFileSync(configFilePath, 'utf-8')) as SpaceConfig;
-    }
-  } catch {}
-
-  const id = storedConfig.id ?? computeSpaceId(resolvedAgentId, spacePath);
-  const now = new Date().toISOString();
-
-  const space = insertSpace({
-    id,
-    agentId: resolvedAgentId,
-    agentType: agentType || 'default',
-    path: spacePath,
-    configPath: configFilePath,
-    config: storedConfig,
-    createdAt: now,
-    updatedAt: now,
-  });
-
-  return c.json({ space }, 201);
-});
 
 spacesRouter.delete('/:id', (c) => {
   const id = c.req.param('id');

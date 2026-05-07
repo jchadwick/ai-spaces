@@ -102,8 +102,20 @@ export function createToolHook({ spaceConfig, spacePath }: ToolHookConfig): Tool
     // --- 2. Path containment check ---
     if (params) {
       for (const [key, value] of Object.entries(params)) {
-        if (!PATH_ARG_KEYS.has(key)) continue;
         if (typeof value !== 'string' || !value) continue;
+
+        // For known path keys, always validate.
+        // For other string args, validate if they look like a filesystem path
+        // (absolute path, home-dir reference, or contains traversal segments).
+        const isKnownPathKey = PATH_ARG_KEYS.has(key);
+        const looksLikePath =
+          value.startsWith('/') ||
+          value.startsWith('~/') ||
+          value.startsWith('~\\') ||
+          value.includes('..') ||
+          value.includes('./');
+
+        if (!isKnownPathKey && !looksLikePath) continue;
 
         const result = validatePath(value, spacePath);
         if (!result.valid) {

@@ -143,7 +143,7 @@ function HomePage() {
           <div style={{ background: 'var(--t-bgRaised)', border: '1px solid var(--t-hair)', borderRadius: 14, padding: '48px 32px', textAlign: 'center' }}>
             <h3 style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 30, fontWeight: 400, fontStyle: 'italic', color: 'var(--t-ink)', marginBottom: 12 }}>No spaces yet</h3>
             <p style={{ fontSize: 15, color: 'var(--t-inkMid)', maxWidth: 400, margin: '0 auto', lineHeight: 1.5 }}>
-              Create a space by adding a <code style={{ fontFamily: 'JetBrains Mono, monospace', background: 'var(--t-bgWell)', padding: '2px 6px', borderRadius: 4, fontSize: 13 }}>.space/config.json</code> file to a directory.
+              Create a space by adding a <code style={{ fontFamily: 'JetBrains Mono, monospace', background: 'var(--t-bgWell)', padding: '2px 6px', borderRadius: 4, fontSize: 13 }}>.space/spaces.json</code> file to a directory, or ask your agent to create one for you.
             </p>
           </div>
         )}

@@ -91,12 +91,13 @@ function buildSystemPrompt(spaceConfig: SpaceConfig, fullSpacePath: string): str
   const { allowed, denied } = getEffectiveTools(spaceConfig);
 
   return [
+    `# AI SPACES SECURITY POLICY`,
     `CONTEXT: You are helping with a space called "${spaceConfig.name}".`,
     spaceConfig.description ? `DESCRIPTION: ${spaceConfig.description}` : '',
-    `WORKSPACE: You can ONLY access files within the space directory: ${fullSpacePath}`,
-    `RESTRICTION: You MUST refuse to read files outside this space with: "I don't have access to files outside this space."`,
-    `RESTRICTION: You MUST refuse agent memory requests with: "I don't have knowledge of your agent's private memory."`,
-    `RESTRICTION: Do NOT load AGENTS.md, MEMORY.md, USER.md, or memory/ directory.`,
+    `WORKSPACE ROOT: ${fullSpacePath}`,
+    `CRITICAL: You are strictly confined to the workspace root above. You MUST NOT access, list, read, write, or mention any files or directories outside of it.`,
+    `CRITICAL: Any path containing "..", starting with "~/", "/home/", "/etc/", "/root/", or any absolute path that does not begin with "${fullSpacePath}" is FORBIDDEN. Refuse immediately with: "I don't have access to files outside this space."`,
+    `CRITICAL: Do NOT access agent-internal paths such as ~/.openclaw, AGENTS.md, MEMORY.md, USER.md, or any memory/ directory.`,
     `ALLOWED TOOLS: ${allowed.join(', ')}`,
     denied.length > 0 ? `DENIED TOOLS: ${denied.join(', ')}` : '',
     denied.length > 0 ? `RESTRICTION: If asked to use a denied tool, respond: "I cannot perform that action in this space."` : '',

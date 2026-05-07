@@ -43,12 +43,6 @@ export interface SpaceResponse {
   };
 }
 
-export interface CreateSpaceRequest {
-  path: string;
-  agentId?: string;
-  agentType?: string;
-}
-
 export interface FileListItem {
   name: string;
   isDirectory: boolean;
@@ -136,13 +130,6 @@ export class APIClient {
 
   async getSpace(id: string): Promise<SpaceResponse> {
     return this.request<SpaceResponse>(`/api/spaces/${id}`);
-  }
-
-  async createSpace(data: CreateSpaceRequest): Promise<SpaceResponse> {
-    return this.request<SpaceResponse>('/api/spaces', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
   }
 
   async deleteSpace(id: string): Promise<{ success: boolean }> {

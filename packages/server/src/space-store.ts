@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import type { SpaceConfig } from '@ai-spaces/shared';
 import { SpaceConfigSchema } from '@ai-spaces/shared';
-import { computeSpaceId } from './space-id.js';
+import { computeSpaceId } from '@ai-spaces/shared';
 import { logAudit } from './audit.js';
 import { db, schema } from './db/connection.js';
 import { eq, and } from 'drizzle-orm';

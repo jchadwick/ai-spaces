@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { computeSpaceId } from '../space-id.js';
+import { computeSpaceId } from '@ai-spaces/shared';
 import { config } from '../config.js';
 
 interface CreateSpaceOptions {

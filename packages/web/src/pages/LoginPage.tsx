@@ -23,6 +23,18 @@ function LoginPage() {
 
     try {
       await login(email, password);
+
+      const pendingToken = sessionStorage.getItem('pendingInviteToken');
+      if (pendingToken) {
+        sessionStorage.removeItem('pendingInviteToken'); // delete immediately after reading
+        await fetch('/api/invites/redeem', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ token: pendingToken }),
+        });
+      }
+
       navigate("/spaces");
     } catch (err) {
       console.error('[LoginPage] Login error:', err);

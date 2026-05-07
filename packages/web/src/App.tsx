@@ -7,6 +7,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import HomePage from './pages/HomePage'
 import SpacePage from './pages/SpacePage'
 import LoginPage from './pages/LoginPage'
+import InvitePage from './pages/InvitePage'
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
           <BrowserRouter>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
+              <Route path="/invite" element={<InvitePage />} />
               <Route
                 path="/"
                 element={

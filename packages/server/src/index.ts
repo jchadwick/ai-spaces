@@ -4,16 +4,21 @@ import { WebSocketServer, WebSocket } from 'ws';
 import * as fs from 'fs';
 import * as path from 'path';
 import jwt from 'jsonwebtoken';
-import { config } from './config.js';
+import { config, assertProductionHttps } from './config.js';
 import { authRouter } from './routes/auth.js';
 import { spacesRouter, getSpaceById } from './routes/spaces.js';
 import { filesRouter, setFileProvider } from './routes/files.js';
 import { auditRouter } from './routes/audit.js';
+import { membersRouter } from './routes/members.js';
+import { invitesRouter } from './routes/invites.js';
+import { identityRouter } from './routes/identity.js';
+import { confirmRouter } from './routes/confirm.js';
 import { createFileProvider } from './file-provider.js';
 import { seedAdmin } from './seed-admin.js';
 import { runMigrations } from './db/migrate.js';
 import { seedFromJsonIfNeeded } from './db/seed-from-json.js';
 import { reconcileAllAgents } from './reconcile.js';
+import { createInternalMiddleware } from './middleware/ip-allowlist.js';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
@@ -21,20 +26,41 @@ import { logger } from 'hono/logger';
 
 setFileProvider(createFileProvider());
 
+assertProductionHttps(config.INVITE_BASE_URL, 'INVITE_BASE_URL');
+
 const app = new Hono();
 
-
-app.use('*', logger());
+// WS logger with token redaction
+app.use('*', logger((str, ...rest) => {
+  const redacted = str.replace(/[?&]token=[^&\s]*/g, (m) => m.replace(/token=[^&\s]*/, 'token=[REDACTED]'));
+  console.log(redacted, ...rest);
+}));
 
 app.use('/api/*', cors({
   origin: '*',
   credentials: true,
 }));
 
+// CSP middleware for invite and login routes — register before static file serving
+app.use(['/invite*', '/login*'], async (c, next) => {
+  await next();
+  c.res.headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'");
+});
+
 app.route('/api/auth', authRouter);
 app.route('/api/spaces', spacesRouter);
+app.route('/api/spaces', membersRouter);
+app.route('/api/spaces', identityRouter);
 app.route('/api/files', filesRouter);
 app.route('/api/audit', auditRouter);
+app.route('/api/invites', invitesRouter);
+app.route('/api', confirmRouter);
+
+const internalMiddleware = createInternalMiddleware(config.GATEWAY_TOKEN);
+app.post('/api/internal/reconcile', internalMiddleware, async (c) => {
+  await reconcileAllAgents();
+  return c.json({ success: true });
+});
 
 if (fs.existsSync(config.WEB_DIST)) {
   app.use('*', async (c, next) => {

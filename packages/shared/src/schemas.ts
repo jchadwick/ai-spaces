@@ -9,6 +9,10 @@ export const SpaceConfigSchema = z.object({
     name: z.string().optional(),
     role: z.enum(['viewer', 'editor', 'admin']),
   })).optional(),
+  members: z.array(z.object({
+    userId: z.string(),
+    role: z.enum(['viewer', 'editor', 'admin']),
+  })).optional(),
   agent: z.object({
     capabilities: z.array(z.string()).optional(),
     denied: z.array(z.string()).optional(),

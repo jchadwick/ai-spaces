@@ -26,4 +26,13 @@ export const config = {
   PLUGIN_WS_URL:      process.env.PLUGIN_WS_URL      ?? 'ws://127.0.0.1:3002',
   // WEB_DIST default assumes project at ~/ai-spaces — set explicitly in production
   WEB_DIST:           process.env.WEB_DIST           ?? path.join(HOME, 'ai-spaces', 'packages', 'web', 'dist'),
+  INVITE_BASE_URL:    process.env.INVITE_BASE_URL    ?? 'http://localhost:5173',
+  ALLOW_ORPHAN_COLLABORATORS: process.env.ALLOW_ORPHAN_COLLABORATORS === 'true',
+  CONFIRMATION_NONCE_TTL_MS: parseInt(process.env.CONFIRMATION_NONCE_TTL_MS ?? '300000', 10),
 };
+
+export function assertProductionHttps(url: string, name: string): void {
+  if (process.env.NODE_ENV === 'production' && !url.startsWith('https://')) {
+    throw new Error(`[config] ${name} must use HTTPS in production. Got: ${url}`);
+  }
+}

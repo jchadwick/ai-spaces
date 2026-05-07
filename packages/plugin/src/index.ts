@@ -33,6 +33,31 @@ export default defineChannelPluginEntry({
     const spaceWatcher = new SpaceWatcher(mainWorkspaceRoot, 'main');
     spaceWatcher.start();
 
+    let reconcileInFlight = false;
+    let reconcileDirty = false;
+
+    async function triggerReconcile(): Promise<void> {
+      reconcileDirty = true;
+      if (reconcileInFlight) return;
+      reconcileInFlight = true;
+      try {
+        while (reconcileDirty) {
+          reconcileDirty = false;
+          await fetch(`${config.AI_SPACES_URL}/api/internal/reconcile`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${config.GATEWAY_TOKEN}` },
+          });
+        }
+      } catch (err) {
+        console.warn('[ai-spaces] Reconcile trigger failed:', err instanceof Error ? err.message : String(err));
+      } finally {
+        reconcileInFlight = false;
+      }
+    }
+
+    spaceWatcher.on('space:added', () => { void triggerReconcile(); });
+    spaceWatcher.on('space:removed', () => { void triggerReconcile(); });
+
     const stopSpaceWatcher = () => spaceWatcher.stop();
     process.once('SIGTERM', stopSpaceWatcher);
     process.once('SIGINT', stopSpaceWatcher);

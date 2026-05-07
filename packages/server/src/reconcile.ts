@@ -1,7 +1,11 @@
 import * as path from 'path';
+import * as crypto from 'crypto';
 import { scanWorkspace, getAgentWorkspace } from '@ai-spaces/shared';
 import { listSpaces, deleteSpace, insertSpace } from './space-store.js';
 import { config } from './config.js';
+import { db } from './db/connection.js';
+import { spaceMembers, users } from './db/index.js';
+import { eq, and } from 'drizzle-orm';
 import * as fs from 'fs';
 
 export async function reconcileSpaces(agentId: string, workspaceRoot: string): Promise<void> {
@@ -57,7 +61,65 @@ export async function reconcileSpaces(agentId: string, workspaceRoot: string): P
   }
 }
 
+/**
+ * Migrate legacy collaborators (email-based) to space_members (userId-based).
+ * Idempotent: skips spaces where members already exist in DB.
+ */
+export async function migrateCollaboratorsToMembers(): Promise<void> {
+  const allSpaces = listSpaces();
+
+  for (const space of allSpaces) {
+    let spaceConfig: { collaborators?: Array<{ email?: string; name?: string; role: string }> };
+    try {
+      spaceConfig = typeof space.config === 'string' ? JSON.parse(space.config) : space.config;
+    } catch {
+      continue;
+    }
+
+    if (!spaceConfig.collaborators || spaceConfig.collaborators.length === 0) continue;
+
+    // Check if any members already exist for this space
+    const existingMembers = db.select().from(spaceMembers)
+      .where(eq(spaceMembers.spaceId, space.id))
+      .all();
+
+    if (existingMembers.length > 0) continue; // already migrated
+
+    for (const collaborator of spaceConfig.collaborators) {
+      if (!collaborator.email) {
+        if (config.ALLOW_ORPHAN_COLLABORATORS) {
+          console.warn(`[reconcile] Collaborator without email in space ${space.id} — skipping`);
+        }
+        continue;
+      }
+
+      const user = db.select().from(users).where(eq(users.email, collaborator.email)).get();
+
+      if (!user) {
+        if (config.ALLOW_ORPHAN_COLLABORATORS) {
+          console.warn(`[reconcile] No user found for collaborator email ${collaborator.email} in space ${space.id}`);
+        }
+        continue;
+      }
+
+      const now = new Date().toISOString();
+      db.insert(spaceMembers).values({
+        id: crypto.randomUUID(),
+        spaceId: space.id,
+        userId: user.id,
+        role: collaborator.role,
+        createdAt: now,
+        updatedAt: now,
+      }).onConflictDoNothing().run();
+
+      console.info(`[reconcile] Migrated collaborator ${collaborator.email} to space_members for space ${space.id}`);
+    }
+  }
+}
+
 export async function reconcileAllAgents(): Promise<void> {
+  await migrateCollaboratorsToMembers();
+
   const openclawHome = config.OPENCLAW_HOME;
   const agentsHome = path.join(openclawHome, 'agents');
 

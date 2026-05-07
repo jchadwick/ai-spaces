@@ -19,6 +19,7 @@ WORKDIR /plugins
 RUN npm init -y && \
     npm install --save \
       bcrypt@^6.0.0 \
+      chokidar@^4.0.3 \
       jsonwebtoken@^9.0.3 \
       mime-types@^3.0.2 \
       ws@^8.20.0 \

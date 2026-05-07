@@ -5,7 +5,6 @@ import { HTTPException } from 'hono/http-exception';
 import { authRouter } from './routes/auth.js';
 import { spacesRouter } from './routes/spaces.js';
 import { filesRouter, setFileProvider } from './routes/files.js';
-import { chatRouter } from './routes/chat.js';
 import { auditRouter } from './routes/audit.js';
 import { createFileProvider } from './file-provider.js';
 
@@ -23,7 +22,6 @@ app.use('/api/*', cors({
 app.route('/api/auth', authRouter);
 app.route('/api/spaces', spacesRouter);
 app.route('/api/files', filesRouter);
-app.route('/api/chat', chatRouter);
 app.route('/api/audit', auditRouter);
 
 app.get('/health', (c) => {

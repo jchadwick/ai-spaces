@@ -8,7 +8,6 @@ import { config } from './config.js';
 import { authRouter } from './routes/auth.js';
 import { spacesRouter, getSpaceById } from './routes/spaces.js';
 import { filesRouter, setFileProvider } from './routes/files.js';
-import { chatRouter } from './routes/chat.js';
 import { auditRouter } from './routes/audit.js';
 import { createFileProvider } from './file-provider.js';
 import { seedAdmin } from './seed-admin.js';
@@ -24,12 +23,6 @@ setFileProvider(createFileProvider());
 
 const app = new Hono();
 
-app.use('*', async (c, next) => {
-  if (c.req.path.startsWith('/api/chat')) {
-    console.log('[MAIN] Chat request:', c.req.path, c.req.method);
-  }
-  await next();
-});
 
 app.use('*', logger());
 
@@ -41,7 +34,6 @@ app.use('/api/*', cors({
 app.route('/api/auth', authRouter);
 app.route('/api/spaces', spacesRouter);
 app.route('/api/files', filesRouter);
-app.route('/api/chat', chatRouter);
 app.route('/api/audit', auditRouter);
 
 if (fs.existsSync(config.WEB_DIST)) {
@@ -118,36 +110,49 @@ wss.on('upgrade', (request, socket, head) => {
     return;
   }
 
-  // Require JWT — check Authorization header first, then ?token= query param
-  const authHeader = request.headers.authorization;
-  const rawToken = authHeader?.startsWith('Bearer ')
-    ? authHeader.substring(7)
-    : url.searchParams.get('token');
-
-  if (!rawToken) {
-    wss.handleUpgrade(request, socket, head, (ws) => ws.close(1008, 'Authentication required'));
-    return;
-  }
-
   let userId: string;
   let userRole: string;
-  try {
-    const decoded = jwt.verify(rawToken, config.JWT_SECRET) as jwt.JwtPayload;
-    if (!decoded.userId) throw new Error('Missing userId');
-    userId = decoded.userId as string;
-    userRole = (decoded.role as string) || 'viewer';
-  } catch {
-    wss.handleUpgrade(request, socket, head, (ws) => ws.close(1008, 'Invalid token'));
-    return;
+  let rawToken: string | null = null;
+
+  // In non-production dev mode with DEV_VIRTUAL_USER, bypass JWT validation
+  if (process.env.NODE_ENV !== 'production' && process.env.DEV_VIRTUAL_USER === 'true') {
+    userId = 'dev-user-00000000-0000-0000-0000-000000000000';
+    userRole = 'admin';
+  } else {
+    // Require JWT — check Authorization header first, then ?token= query param
+    const authHeader = request.headers.authorization;
+    rawToken = authHeader?.startsWith('Bearer ')
+      ? authHeader.substring(7)
+      : url.searchParams.get('token');
+
+    if (!rawToken) {
+      wss.handleUpgrade(request, socket, head, (ws) => ws.close(1008, 'Authentication required'));
+      return;
+    }
+
+    try {
+      const decoded = jwt.verify(rawToken, config.JWT_SECRET) as jwt.JwtPayload;
+      if (!decoded.userId) throw new Error('Missing userId');
+      userId = decoded.userId as string;
+      userRole = (decoded.role as string) || 'viewer';
+    } catch {
+      wss.handleUpgrade(request, socket, head, (ws) => ws.close(1008, 'Invalid token'));
+      return;
+    }
   }
 
   const pluginWsUrl = `${config.PLUGIN_WS_URL}/api/spaces/${spaceId}/ws`;
 
-  console.log('[WS-PROXY] Proxying WebSocket to plugin:', pluginWsUrl, '(userId:', userId, 'role:', userRole, ')');
+  // If no rawToken (dev bypass), mint a short-lived JWT so the plugin WS can validate it
+  const forwardToken = rawToken ?? jwt.sign(
+    { userId, role: userRole },
+    config.JWT_SECRET,
+    { expiresIn: '1h' },
+  );
 
   const gatewayWs = new WebSocket(pluginWsUrl, {
     headers: {
-      Authorization: `Bearer ${rawToken}`,
+      Authorization: `Bearer ${forwardToken}`,
     },
   });
 
@@ -172,7 +177,6 @@ wss.on('upgrade', (request, socket, head) => {
   };
 
   gatewayWs.on('open', () => {
-    console.log('[WS-PROXY] Gateway connection open');
     flushToGateway();
   });
 
@@ -193,7 +197,6 @@ wss.on('upgrade', (request, socket, head) => {
   });
 
   gatewayWs.on('close', () => {
-    console.log('[WS-PROXY] Gateway WebSocket closed');
     if (clientWs && clientWs.readyState === WebSocket.OPEN) {
       clientWs.close(1000, 'Gateway closed');
     }
@@ -201,7 +204,6 @@ wss.on('upgrade', (request, socket, head) => {
 
   wss.handleUpgrade(request, socket, head, (ws) => {
     clientWs = ws;
-    console.log('[WS-PROXY] Browser WebSocket connected');
     flushToClient();
 
     ws.on('message', (data) => {
@@ -213,7 +215,6 @@ wss.on('upgrade', (request, socket, head) => {
     });
 
     ws.on('close', () => {
-      console.log('[WS-PROXY] Browser WebSocket closed');
       gatewayWs.close();
     });
 

@@ -22,6 +22,7 @@ services:
       - ./scripts/sandbox-template/.openclaw/openclaw.json:/tpl/openclaw.json.tpl:ro
       - ./scripts/sandbox-template/spaces.json:/tpl/spaces.json.tpl:ro
       - ./scripts/sandbox-template/workspace:/tpl/workspace:ro
+      - ${HOME}/.local/share/opencode/auth.json:/tpl/opencode-auth.json:ro
     networks:
       - ai-spaces
 

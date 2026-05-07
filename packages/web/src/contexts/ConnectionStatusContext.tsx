@@ -96,7 +96,6 @@ export function ConnectionStatusProvider({
   const pendingMessageIdRef = useRef<string | null>(null);
   const currentStreamContentRef = useRef<string>('');
   const onFileChangedRef = useRef(onFileChanged);
-  const mountedRef = useRef(false);
   const pendingRequestsRef = useRef<Map<string, PendingRequest>>(new Map());
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const intentionalDisconnectRef = useRef(false);
@@ -126,14 +125,6 @@ export function ConnectionStatusProvider({
   }, []);
 
   useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!mountedRef.current) return;
     if (accessToken === null) return;
 
     intentionalDisconnectRef.current = false;
@@ -159,18 +150,18 @@ export function ConnectionStatusProvider({
     };
 
     ws.onerror = () => {
-      if (!mountedRef.current || wsRef.current !== ws) return;
+      if (wsRef.current !== ws) return;
       setStatus('error');
     };
 
     ws.onclose = () => {
-      if (!mountedRef.current || wsRef.current !== ws) return;
+      if (wsRef.current !== ws) return;
       if (!intentionalDisconnectRef.current) {
         setStatus('reconnecting');
         wasReconnectingRef.current = true;
         const delay = Math.min(1000 * 2 ** reconnectAttempt, 30000);
         reconnectTimeoutRef.current = setTimeout(() => {
-          if (mountedRef.current && !intentionalDisconnectRef.current) {
+          if (!intentionalDisconnectRef.current) {
             setReconnectAttempt((n) => n + 1);
           }
         }, delay);
@@ -182,7 +173,7 @@ export function ConnectionStatusProvider({
     const resetHeartbeat = () => {
       clearHeartbeatTimeout();
       heartbeatTimeoutRef.current = setTimeout(() => {
-        if (!mountedRef.current || intentionalDisconnectRef.current) return;
+        if (intentionalDisconnectRef.current) return;
         const currentWs = wsRef.current;
         if (currentWs && currentWs.readyState === WebSocket.OPEN) {
           currentWs.close(4000, 'heartbeat timeout');
@@ -191,7 +182,6 @@ export function ConnectionStatusProvider({
     };
 
     ws.onmessage = (event) => {
-      if (!mountedRef.current) return;
 
       // Any message from the server resets the dead-connection timer
       resetHeartbeat();
@@ -341,7 +331,6 @@ export function ConnectionStatusProvider({
   const disconnect = useCallback(() => {
     intentionalDisconnectRef.current = true;
     clearReconnectTimeout();
-    mountedRef.current = false;
 
     if (wsRef.current) {
       wsRef.current.close();

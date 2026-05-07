@@ -1,4 +1,4 @@
-import type { Space, SpaceConfig, ChatMessage } from '@ai-spaces/shared';
+import type { Space, SpaceConfig } from '@ai-spaces/shared';
 
 export interface LoginRequest {
   email: string;
@@ -67,19 +67,6 @@ export interface FileWriteRequest {
   content: string;
 }
 
-export interface ChatHistoryResponse {
-  messages: ChatMessage[];
-}
-
-export interface ChatMessageRequest {
-  userId?: string;
-  content: string;
-  role?: 'user' | 'assistant' | 'system';
-}
-
-export interface ChatMessageResponse {
-  message: ChatMessage;
-}
 
 export class APIClient {
   private baseURL: string;
@@ -179,18 +166,6 @@ export class APIClient {
     });
   }
 
-  async getChatHistory(spaceId: string, userId?: string): Promise<ChatHistoryResponse> {
-    const params = new URLSearchParams({ spaceId });
-    if (userId) params.append('userId', userId);
-    return this.request<ChatHistoryResponse>(`/api/chat/${spaceId}/history?${params}`);
-  }
-
-  async sendChatMessage(spaceId: string, data: ChatMessageRequest): Promise<ChatMessageResponse> {
-    return this.request<ChatMessageResponse>(`/api/chat/${spaceId}/messages`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  }
 }
 
 export const createAPIClient = (baseURL?: string) => new APIClient(baseURL);

@@ -26,5 +26,4 @@ export const config = {
   PLUGIN_WS_URL:      process.env.PLUGIN_WS_URL      ?? 'ws://127.0.0.1:3002',
   // WEB_DIST default assumes project at ~/ai-spaces — set explicitly in production
   WEB_DIST:           process.env.WEB_DIST           ?? path.join(HOME, 'ai-spaces', 'packages', 'web', 'dist'),
-  GROQ_API_KEY:       process.env.GROQ_API_KEY as string | undefined,
 };

@@ -8,6 +8,13 @@ CURRENT_TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
 SPACE_ID="testspace"
 GATEWAY_PORT="${OPENCLAW_GATEWAY_PORT:-19000}"
 
+# Extract OPENCODE_API_KEY from mounted auth.json if not already set
+if [ -z "$OPENCODE_API_KEY" ] && [ -f /tpl/opencode-auth.json ]; then
+  OPENCODE_API_KEY="$(grep -A2 '"opencode-go"' /tpl/opencode-auth.json | grep '"key"' | sed 's/.*"key": *"\([^"]*\)".*/\1/')"
+  echo "[entrypoint] Extracted OPENCODE_API_KEY from opencode-auth.json"
+fi
+export OPENCODE_API_KEY
+
 echo "[entrypoint] OPENCLAW_HOME=$OPENCLAW_HOME"
 echo "[entrypoint] PLUGIN_DIST=$PLUGIN_DIST"
 

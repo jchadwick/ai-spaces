@@ -14,6 +14,7 @@ import { createFileProvider } from './file-provider.js';
 import { seedAdmin } from './seed-admin.js';
 import { runMigrations } from './db/migrate.js';
 import { seedFromJsonIfNeeded } from './db/seed-from-json.js';
+import { reconcileAllAgents } from './reconcile.js';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
@@ -83,6 +84,12 @@ app.get('/health', (c) => {
 runMigrations();
 seedFromJsonIfNeeded();
 await seedAdmin();
+
+try {
+  await reconcileAllAgents();
+} catch (err) {
+  console.error('[reconcile] Startup reconciliation failed:', err instanceof Error ? err.message : String(err));
+}
 
 function rawDataToBuffer(data: unknown): Buffer {
   if (Buffer.isBuffer(data)) return data;

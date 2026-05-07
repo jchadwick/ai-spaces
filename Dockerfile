@@ -41,6 +41,7 @@ COPY --from=builder /build/node_modules ./node_modules
 COPY --from=builder /build/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /build/packages/shared/package.json ./packages/shared/package.json
 COPY --from=builder /build/packages/server/dist ./packages/server/dist
+COPY --from=builder /build/packages/server/drizzle ./packages/server/drizzle
 COPY --from=builder /build/packages/server/package.json ./packages/server/package.json
 COPY --from=builder /build/packages/web/dist ./packages/web/dist
 

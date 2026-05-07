@@ -36,6 +36,7 @@ services:
       GATEWAY_TOKEN: secret
       PLUGIN_WS_URL: ws://openclaw:3002
       AI_SPACES_ROOT: /home/openclaw/workspace
+      DEV_VIRTUAL_USER: "true"
     volumes:
       - openclaw-home:/home/openclaw
       - sidecar-data:/data
@@ -45,6 +46,29 @@ services:
       - openclaw
     networks:
       - ai-spaces
+
+  drizzle-studio:
+    build:
+      context: .
+      dockerfile: Dockerfile.sidecar
+      target: deps
+    working_dir: /build/packages/server
+    command: npx drizzle-kit studio --host 0.0.0.0
+    ports:
+      - "4983:4983"
+    volumes:
+      - sidecar-data:/data
+      - ./packages/server:/build/packages/server
+      - ./packages/shared:/build/packages/shared
+      - ./tsconfig.base.json:/build/tsconfig.base.json:ro
+    environment:
+      - AI_SPACES_DB=/data/ai-spaces.db
+    depends_on:
+      - sidecar
+    networks:
+      - ai-spaces
+    profiles:
+      - studio
 
 volumes:
   openclaw-home:

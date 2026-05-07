@@ -1,4 +1,7 @@
-FROM ghcr.io/openclaw/openclaw:latest
+# ─────────────────────────────────────────────
+# Stage 1: build — install native deps with compiler toolchain
+# ─────────────────────────────────────────────
+FROM ghcr.io/openclaw/openclaw:latest AS build
 USER root
 
 # Build tools needed for native modules (bcrypt)
@@ -8,6 +11,7 @@ RUN apt-get update -qq && \
 
 WORKDIR /plugins
 
+# Copy package manifest first for layer caching — npm install only reruns when deps change
 # Install plugin runtime deps at /plugins/node_modules so Node resolves them
 # from /plugins/ai-spaces/* (walks up to /plugins/node_modules).
 # openclaw SDK is excluded — provided by the runtime.
@@ -19,6 +23,17 @@ RUN npm init -y && \
       mime-types@^3.0.2 \
       ws@^8.20.0 \
       zod@^3.24.2
+
+# ─────────────────────────────────────────────
+# Stage 2: runtime — clean image, no compiler toolchain
+# ─────────────────────────────────────────────
+FROM ghcr.io/openclaw/openclaw:latest
+USER root
+
+WORKDIR /plugins
+
+# Copy only the compiled node_modules from the build stage (no python3/make/g++)
+COPY --from=build /plugins/node_modules ./node_modules
 
 # Copy shared package after npm install so it isn't removed by npm's cleanup
 COPY packages/shared/dist ./node_modules/@ai-spaces/shared/dist

@@ -11,6 +11,15 @@ export interface AuthVariables {
 }
 
 export const authMiddleware = createMiddleware<{ Variables: AuthVariables }>(async (c, next) => {
+  if (process.env.NODE_ENV !== 'production' && process.env.DEV_VIRTUAL_USER === 'true') {
+    c.set('user', {
+      userId: 'dev-user-00000000-0000-0000-0000-000000000000',
+      email: 'dev@local',
+      role: 'admin',
+    });
+    return next();
+  }
+
   const authHeader = c.req.header('Authorization');
   const path = c.req.path;
   console.log('[DEBUG-AUTH] Path:', path, 'Auth:', authHeader?.substring(0, 30));

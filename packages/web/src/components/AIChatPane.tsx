@@ -1,24 +1,11 @@
 import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import {
-  useSpaceWebSocket,
-  type FileChangedPayload,
-} from "../hooks/useSpaceWebSocket";
-import { useAuth } from "../contexts/AuthContext";
+import { useConnectionStatus, type ConnectionStatus } from "../contexts/ConnectionStatusContext";
 import type { ChatMessage } from "@ai-spaces/shared";
 
-type ConnectionStatus =
-  | "connecting"
-  | "connected"
-  | "disconnected"
-  | "reconnecting"
-  | "error";
-
 interface AIChatPaneProps {
-  spaceId: string;
   role?: "viewer" | "editor" | "admin";
-  onFileChanged?: (event: FileChangedPayload) => void;
 }
 
 interface ConnectionStatusIndicatorProps {
@@ -207,23 +194,16 @@ function TypingIndicator() {
 }
 
 export default function AIChatPane({
-  spaceId,
   role = "viewer",
-  onFileChanged,
 }: AIChatPaneProps) {
   const [inputValue, setInputValue] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const prevMessagesLengthRef = useRef(0);
-  const { accessToken } = useAuth();
 
-  const { messages, sendMessage, isStreaming, connectionStatus } =
-    useSpaceWebSocket({
-      spaceId,
-      accessToken,
-      onFileChanged,
-    });
+  const { messages, sendMessage, isStreaming, status: connectionStatus, reconnectAttempt, reconnect } = useConnectionStatus();
 
   const isViewer = role === "viewer";
+  const isDisconnected = connectionStatus !== "connected" && connectionStatus !== "connecting";
   const showTypingIndicator =
     isStreaming &&
     messages.every((m) => m.role !== "assistant" || m.content.length === 0);
@@ -240,7 +220,7 @@ export default function AIChatPane({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputValue.trim() || isViewer || isStreaming) return;
+    if (!inputValue.trim() || isViewer || isStreaming || isDisconnected) return;
 
     sendMessage(inputValue.trim());
     setInputValue("");
@@ -255,7 +235,11 @@ export default function AIChatPane({
           <span style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 16, fontStyle: 'italic', letterSpacing: -0.2, color: 'var(--t-agent)' }}>agent</span>
         </div>
         <div data-testid="chat-ws-status" data-status={connectionStatus}>
-          <ConnectionStatusIndicator status={isStreaming ? "connecting" : connectionStatus} />
+          <ConnectionStatusIndicator
+            status={isStreaming ? "connecting" : connectionStatus}
+            reconnectAttempt={reconnectAttempt}
+            onRetry={reconnect}
+          />
         </div>
       </div>
 
@@ -300,12 +284,14 @@ export default function AIChatPane({
             <textarea
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              disabled={isViewer || isStreaming}
-              style={{ background: 'transparent', border: 'none', outline: 'none', resize: 'none', fontSize: 13.5, color: isViewer ? 'var(--t-inkFaint)' : 'var(--t-ink)', fontFamily: "'Inter Tight', sans-serif", height: 72, width: '100%', opacity: isViewer || isStreaming ? 0.6 : 1 }}
+              disabled={isViewer || isStreaming || isDisconnected}
+              style={{ background: 'transparent', border: 'none', outline: 'none', resize: 'none', fontSize: 13.5, color: isViewer ? 'var(--t-inkFaint)' : 'var(--t-ink)', fontFamily: "'Inter Tight', sans-serif", height: 72, width: '100%', opacity: isViewer || isStreaming || isDisconnected ? 0.6 : 1 }}
               placeholder={
                 isViewer
                   ? "Read-only mode - cannot send messages"
-                  : "Ask AI anything..."
+                  : isDisconnected
+                    ? "Reconnecting..."
+                    : "Ask AI anything..."
               }
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
@@ -317,8 +303,8 @@ export default function AIChatPane({
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button
                 type="submit"
-                disabled={isViewer || !inputValue.trim() || isStreaming}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: 'var(--t-accent)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: isViewer || !inputValue.trim() || isStreaming ? 'not-allowed' : 'pointer', opacity: isViewer || !inputValue.trim() || isStreaming ? 0.5 : 1, fontFamily: "'Inter Tight', sans-serif" }}
+                disabled={isViewer || !inputValue.trim() || isStreaming || isDisconnected}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: 'var(--t-accent)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: isViewer || !inputValue.trim() || isStreaming || isDisconnected ? 'not-allowed' : 'pointer', opacity: isViewer || !inputValue.trim() || isStreaming || isDisconnected ? 0.5 : 1, fontFamily: "'Inter Tight', sans-serif" }}
               >
                 <AgentGlyph size={11} color="#fff" /> Send
               </button>

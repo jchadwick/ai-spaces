@@ -5,16 +5,17 @@ import FileExplorer from "../components/FileExplorer";
 import FileEditor from "../components/FileEditor";
 import AIChatPane from "../components/AIChatPane";
 import ResizeHandle from "../components/ResizeHandle";
-import { ErrorBoundary, WebSocketErrorBoundary } from "../components/errors";
+import { ErrorBoundary } from "../components/errors";
 import { ToastProvider } from "../components/ui/toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useAPI } from "@/hooks/useAPI";
-import type { FileChangedPayload } from "@/hooks/useSpaceWebSocket";
-
-const LEFT_DEFAULT = 256;
-const RIGHT_DEFAULT = 320;
-const SIDEBAR_MIN = 150;
-const SIDEBAR_MAX = 600;
+import { ConnectionStatusProvider, type FileChangedPayload } from "@/contexts/ConnectionStatusContext";
+import {
+  SIDEBAR_LEFT_DEFAULT,
+  SIDEBAR_RIGHT_DEFAULT,
+  SIDEBAR_MIN,
+  SIDEBAR_MAX,
+} from "@/constants/layout";
 
 interface Space {
   id: string;
@@ -30,7 +31,7 @@ interface Space {
 export default function SpacePage() {
   const { spaceId } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, accessToken } = useAuth();
   const apiFetch = useAPI();
 
   const [loading, setLoading] = useState(true);
@@ -38,8 +39,8 @@ export default function SpacePage() {
   const [space, setSpace] = useState<Space | null>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [editorRefreshKey, setEditorRefreshKey] = useState(0);
-  const [leftWidth, setLeftWidth] = useState(LEFT_DEFAULT);
-  const [rightWidth, setRightWidth] = useState(RIGHT_DEFAULT);
+  const [leftWidth, setLeftWidth] = useState(SIDEBAR_LEFT_DEFAULT);
+  const [rightWidth, setRightWidth] = useState(SIDEBAR_RIGHT_DEFAULT);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const leftRef = useRef<HTMLDivElement>(null);
@@ -181,80 +182,84 @@ export default function SpacePage() {
 
   return (
     <ToastProvider>
-      <div className="bg-surface font-body text-on-surface overflow-hidden h-screen flex flex-col">
-        <ErrorBoundary>
-          <TopNavBar
-            spaceName={space?.config?.name}
-          />
-        </ErrorBoundary>
+      <ConnectionStatusProvider
+        spaceId={spaceId!}
+        accessToken={accessToken}
+        onFileChanged={handleFileChanged}
+      >
+        <div className="bg-surface font-body text-on-surface overflow-hidden h-screen flex flex-col">
+          <ErrorBoundary>
+            <TopNavBar
+              spaceName={space?.config?.name}
+            />
+          </ErrorBoundary>
 
-        <main className="flex flex-1 overflow-hidden">
-          <div
-            ref={leftRef}
-            className="flex-shrink-0 min-w-0 overflow-hidden transition-[width] duration-200"
-            style={{ width: leftCollapsed ? 0 : leftWidth }}
-          >
-            <ErrorBoundary>
-              <FileExplorer
-                spaceId={spaceId}
-                role={role}
-                selectedFile={selectedFile}
-                onFileSelect={setSelectedFile}
-              />
-            </ErrorBoundary>
-          </div>
-          <ResizeHandle
-            side="left"
-            collapsed={leftCollapsed}
-            containerRef={leftRef}
-            minWidth={SIDEBAR_MIN}
-            maxWidth={SIDEBAR_MAX}
-            onResize={setLeftWidth}
-            onCollapse={() => setLeftCollapsed(true)}
-            onExpand={() => setLeftCollapsed(false)}
-          />
-          <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
-            <ErrorBoundary>
-              <FileEditor
-                spaceId={spaceId}
-                filePath={selectedFile ?? undefined}
-                role={role}
-                externalRefreshKey={editorRefreshKey}
-                onFileModified={() => {
-                  const event = new CustomEvent("fileModified");
-                  window.dispatchEvent(event);
-                }}
-                onFileRenamed={(_oldPath, newPath) => {
-                  setSelectedFile(newPath);
-                }}
-              />
-            </ErrorBoundary>
-          </div>
-          <ResizeHandle
-            side="right"
-            collapsed={rightCollapsed}
-            containerRef={rightRef}
-            minWidth={SIDEBAR_MIN}
-            maxWidth={SIDEBAR_MAX}
-            onResize={setRightWidth}
-            onCollapse={() => setRightCollapsed(true)}
-            onExpand={() => setRightCollapsed(false)}
-          />
-          <div
-            ref={rightRef}
-            className="flex-shrink-0 min-w-0 overflow-hidden transition-[width] duration-200"
-            style={{ width: rightCollapsed ? 0 : rightWidth }}
-          >
-            <WebSocketErrorBoundary showInline>
-              <AIChatPane
-                spaceId={spaceId!}
-                role={role}
-                onFileChanged={handleFileChanged}
-              />
-            </WebSocketErrorBoundary>
-          </div>
-        </main>
-      </div>
+          <main className="flex flex-1 overflow-hidden">
+            <div
+              ref={leftRef}
+              className="flex-shrink-0 min-w-0 overflow-hidden transition-[width] duration-200"
+              style={{ width: leftCollapsed ? 0 : leftWidth }}
+            >
+              <ErrorBoundary>
+                <FileExplorer
+                  spaceId={spaceId}
+                  role={role}
+                  selectedFile={selectedFile}
+                  onFileSelect={setSelectedFile}
+                />
+              </ErrorBoundary>
+            </div>
+            <ResizeHandle
+              side="left"
+              collapsed={leftCollapsed}
+              containerRef={leftRef}
+              minWidth={SIDEBAR_MIN}
+              maxWidth={SIDEBAR_MAX}
+              onResize={setLeftWidth}
+              onCollapse={() => setLeftCollapsed(true)}
+              onExpand={() => setLeftCollapsed(false)}
+            />
+            <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
+              <ErrorBoundary>
+                <FileEditor
+                  spaceId={spaceId}
+                  filePath={selectedFile ?? undefined}
+                  role={role}
+                  externalRefreshKey={editorRefreshKey}
+                  onFileModified={() => {
+                    const event = new CustomEvent("fileModified");
+                    window.dispatchEvent(event);
+                  }}
+                  onFileRenamed={(_oldPath, newPath) => {
+                    setSelectedFile(newPath);
+                  }}
+                />
+              </ErrorBoundary>
+            </div>
+            <ResizeHandle
+              side="right"
+              collapsed={rightCollapsed}
+              containerRef={rightRef}
+              minWidth={SIDEBAR_MIN}
+              maxWidth={SIDEBAR_MAX}
+              onResize={setRightWidth}
+              onCollapse={() => setRightCollapsed(true)}
+              onExpand={() => setRightCollapsed(false)}
+            />
+            <div
+              ref={rightRef}
+              className="flex-shrink-0 min-w-0 overflow-hidden transition-[width] duration-200"
+              style={{ width: rightCollapsed ? 0 : rightWidth }}
+            >
+              <ErrorBoundary>
+                <AIChatPane
+                  role={role}
+                />
+              </ErrorBoundary>
+            </div>
+          </main>
+        </div>
+      </ConnectionStatusProvider>
     </ToastProvider>
   );
 }

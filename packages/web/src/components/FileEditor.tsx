@@ -3,6 +3,7 @@ import { writeSpaceFileHttp, renameSpaceFile } from '../api/spaceFiles'
 import { useToast } from './ui/toast'
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { getFileTypeHandler } from './editors/registry'
+import { useConnectionStatus } from '../contexts/ConnectionStatusContext'
 
 interface FileEditorProps {
   spaceId?: string
@@ -68,6 +69,9 @@ export default function FileEditor({
   onFileModified,
   onFileRenamed,
 }: FileEditorProps) {
+  const { status: wsStatus } = useConnectionStatus()
+  const isWsDisconnected = wsStatus !== 'connected' && wsStatus !== 'connecting'
+
   const [fileVersion, setFileVersion] = useState(0)
   const { content, fileInfo, loading, error } = useFileContent(spaceId, filePath, {
     refreshKey: fileVersion + externalRefreshKey,
@@ -319,6 +323,14 @@ export default function FileEditor({
   if (editMode && Editor) {
     return (
       <section className="flex-1 flex flex-col bg-surface-container-lowest overflow-hidden">
+        {isWsDisconnected && (
+          <div style={{ background: 'transparent', borderBottom: '1px solid var(--t-hair)', padding: '5px 16px', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--t-inkDim)', display: 'inline-block', flexShrink: 0 }} />
+            <span style={{ fontSize: 11.5, color: 'var(--t-inkDim)', fontFamily: "'JetBrains Mono', monospace", letterSpacing: 0.3 }}>
+              AI connection lost — edits will save but AI cannot see changes until reconnected
+            </span>
+          </div>
+        )}
         {showConcurrentWarning && (
           <div className="bg-warning-container border-b border-warning text-on-warning-container px-4 py-2 flex items-center gap-2">
             <span className="material-symbols-outlined text-sm">warning</span>
@@ -369,6 +381,14 @@ export default function FileEditor({
 
   return (
     <section className="flex-1 flex flex-col bg-surface-container-lowest overflow-hidden">
+      {isWsDisconnected && (
+        <div style={{ background: 'transparent', borderBottom: '1px solid var(--t-hair)', padding: '5px 16px', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--t-inkDim)', display: 'inline-block', flexShrink: 0 }} />
+          <span style={{ fontSize: 11.5, color: 'var(--t-inkDim)', fontFamily: "'JetBrains Mono', monospace", letterSpacing: 0.3 }}>
+            AI connection lost — edits will save but AI cannot see changes until reconnected
+          </span>
+        </div>
+      )}
       <header className="flex-shrink-0 px-6 py-4 bg-surface-container-lowest border-b border-outline-variant/20">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">

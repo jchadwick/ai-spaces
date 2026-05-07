@@ -137,7 +137,52 @@ A small 4-point constellation SVG replaces sparkle icons everywhere for AI attri
 
 ---
 
-## 6. Do's and Don'ts
+## 6. Tailwind Configuration
+
+Design tokens are implemented as CSS custom properties and must also be reflected in `tailwind.config.ts` so they are available as Tailwind utility classes.
+
+### Color tokens → Tailwind classes
+
+| Design token | Tailwind class | Usage |
+|---|---|---|
+| `bg` | `bg-t-bg` / `text-t-bg` | Page background |
+| `bgAlt` | `bg-t-bg-alt` | Sidebar, secondary panels |
+| `bgRaised` | `bg-t-bg-raised` | Cards, modals, chat pane |
+| `bgWell` | `bg-t-bg-well` | Inputs, code blocks |
+| `ink` | `text-t-ink` | Primary text |
+| `inkMid` | `text-t-ink-mid` | Body text, labels |
+| `inkDim` | `text-t-ink-dim` | Tertiary, placeholders |
+| `inkFaint` | `text-t-ink-faint` | Hairlines, disabled |
+| `hair` | `border-t-hair` | Dividers, borders |
+| `accent` | `bg-t-accent` / `text-t-accent` | Primary action (rust) |
+| `accentSoft` | `bg-t-accent-soft` | Rust tint background |
+| `accentInk` | `text-t-accent-ink` | Rust dark text |
+| `agent` | `text-t-agent` | AI-only accent (moss) |
+| `agentSoft` | `bg-t-agent-soft` | Agent tint background |
+| `agentInk` | `text-t-agent-ink` | Agent dark text |
+
+### Layout constants → Tailwind theme extensions
+
+Never use bare pixel literals for these values. Define them in `tailwind.config.ts` under `theme.extend` and reference by name:
+
+| Constant | Value | Tailwind key |
+|---|---|---|
+| Header height | 52px | `h-header` |
+| Sidebar min width | 150px | `min-w-sidebar` |
+| Sidebar max width | 600px | `max-w-sidebar` |
+| Content max width | 1100px | `max-w-content` |
+| Tree indent base | 8px | `pl-indent-base` |
+| Tree indent step | 16px | `pl-indent-step` |
+
+For values used in resize calculations (JS `useState`, `useMemo`), keep a parallel `packages/web/src/constants/layout.ts` file that exports the same values as numbers. The Tailwind config and the constants file are the two sources of truth — inline style objects must reference the constants file, never magic numbers.
+
+### Rule: no bare pixel literals for layout
+
+Arbitrary Tailwind values like `w-[350px]` or `min-w-[140px]` are acceptable for one-off component constraints, but **must not be used for any value that appears in more than one place**. Extract repeated dimensions to `tailwind.config.ts` and reference them by name (e.g., `min-w-sidebar`).
+
+---
+
+## 7. Do's and Don'ts
 
 ### Do
 - Use **Instrument Serif italic** for display headings and the brand wordmark

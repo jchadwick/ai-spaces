@@ -35,6 +35,8 @@ docker compose down           # stop and remove all containers
 docker compose restart <service>           # restart one service (openclaw | ws | server | web)
 docker compose logs -f <service>           # stream logs for a service
 docker compose logs --tail=100 <service>   # read recent log output
+
+docker compose --profile studio up drizzle-studio   # open Drizzle Studio at http://localhost:4983
 ```
 
 Services: `openclaw`, `ws`, `server`, `web`

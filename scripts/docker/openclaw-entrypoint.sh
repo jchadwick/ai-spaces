@@ -23,6 +23,7 @@ substitute() {
     -e "s|\${PLUGIN_DIST}|$PLUGIN_DIST|g" \
     -e "s|\${CURRENT_TIMESTAMP}|$CURRENT_TIMESTAMP|g" \
     -e "s|\${SPACE_ID}|$SPACE_ID|g" \
+    -e "s|\${GATEWAY_TOKEN}|${GATEWAY_TOKEN:-secret}|g" \
     "$1"
 }
 

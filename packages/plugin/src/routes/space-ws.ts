@@ -918,8 +918,8 @@ export function startWebSocketServer(port: number): void {
     });
   });
 
-  httpServer.listen(port, '127.0.0.1', () => {
-    console.log(`[ai-spaces] WebSocket server listening on ws://127.0.0.1:${port}`);
+  httpServer.listen(port, '0.0.0.0', () => {
+    console.log(`[ai-spaces] WebSocket server listening on ws://0.0.0.0:${port}`);
   });
 }
 

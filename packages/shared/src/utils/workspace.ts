@@ -42,7 +42,15 @@ export function scanWorkspace(openclawHome: string, workspaceDir: string, agentN
     let entries: fs.Dirent[];
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });
-    } catch { return; }
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code;
+      if (code === 'EACCES' || code === 'EPERM') {
+        console.warn(`[scanWorkspace] Permission denied reading directory: ${dir}`);
+      } else {
+        console.error(`[scanWorkspace] Failed to read directory: ${dir}`, err);
+      }
+      return;
+    }
 
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
@@ -63,8 +71,20 @@ export function scanWorkspace(openclawHome: string, workspaceDir: string, agentN
               configPath,
               config: parsed.data,
             });
+          } else {
+            console.warn(
+              `[scanWorkspace] Schema validation failed for ${configPath}:`,
+              parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(', ')
+            );
           }
-        } catch {}
+        } catch (err) {
+          const code = (err as NodeJS.ErrnoException).code;
+          if (code === 'EACCES' || code === 'EPERM') {
+            console.warn(`[scanWorkspace] Permission denied reading config: ${configPath}`);
+          } else {
+            console.error(`[scanWorkspace] Failed to load space config: ${configPath}`, err);
+          }
+        }
       }
 
       scan(childDir, childRelPath);

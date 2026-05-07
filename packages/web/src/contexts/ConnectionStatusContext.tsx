@@ -101,6 +101,7 @@ export function ConnectionStatusProvider({
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const intentionalDisconnectRef = useRef(false);
   const wasReconnectingRef = useRef(false);
+  const heartbeatTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     onFileChangedRef.current = onFileChanged;
@@ -110,6 +111,13 @@ export function ConnectionStatusProvider({
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
+    }
+  }, []);
+
+  const clearHeartbeatTimeout = useCallback(() => {
+    if (heartbeatTimeoutRef.current) {
+      clearTimeout(heartbeatTimeoutRef.current);
+      heartbeatTimeoutRef.current = null;
     }
   }, []);
 
@@ -169,11 +177,35 @@ export function ConnectionStatusProvider({
       }
     };
 
+    // Reset the heartbeat timeout — called on every received message.
+    // If no message arrives within 60s, assume a ghost connection and reconnect.
+    const resetHeartbeat = () => {
+      clearHeartbeatTimeout();
+      heartbeatTimeoutRef.current = setTimeout(() => {
+        if (!mountedRef.current || intentionalDisconnectRef.current) return;
+        const currentWs = wsRef.current;
+        if (currentWs && currentWs.readyState === WebSocket.OPEN) {
+          currentWs.close(4000, 'heartbeat timeout');
+        }
+      }, 60_000);
+    };
+
     ws.onmessage = (event) => {
       if (!mountedRef.current) return;
 
+      // Any message from the server resets the dead-connection timer
+      resetHeartbeat();
+
       try {
         const raw = JSON.parse(event.data);
+
+        // Respond to server ping with a pong
+        if (raw.type === 'ping') {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'pong' }));
+          }
+          return;
+        }
 
         if (raw.type === 'file:changed') {
           const payload = raw as { type: 'file:changed'; spaceId: string; path: string; action: FileChangedAction };
@@ -284,12 +316,13 @@ export function ConnectionStatusProvider({
       cancelled = true;
       intentionalDisconnectRef.current = true;
       clearReconnectTimeout();
+      clearHeartbeatTimeout();
       wsRef.current = null;
       if (ws.readyState === WebSocket.OPEN) {
         ws.close(1000, 'effect cleanup');
       }
     };
-  }, [spaceId, accessToken, reconnectAttempt, clearReconnectTimeout]);
+  }, [spaceId, accessToken, reconnectAttempt, clearReconnectTimeout, clearHeartbeatTimeout]);
 
   const reconnect = useCallback(() => {
     clearReconnectTimeout();

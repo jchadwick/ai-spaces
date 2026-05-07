@@ -25,9 +25,22 @@ interface WebSocketClient {
   sessionId: string;
 }
 
+interface ActiveWriteStream {
+  stream: fs.WriteStream;
+  chunksReceived: number;
+  totalChunks: number;
+  clientId: string;
+  messageId: string;
+  client: WebSocketClient;
+  relativePath: string;
+  action: 'created' | 'modified';
+}
+
 const wss = new WebSocketServer({ noServer: true });
 const connectedClients: Map<string, WebSocketClient> = new Map();
 const activeStreams: Map<string, AbortController> = new Map();
+// Track in-progress chunked file write streams, keyed by absolute file path
+const activeWriteStreams: Map<string, ActiveWriteStream> = new Map();
 // Track client count per space to start/stop file watching
 const spaceClientCount: Map<string, number> = new Map();
 // Paths recently written via handleFileWrite — suppress watcher double-fire
@@ -297,6 +310,173 @@ async function handleFileWrite(
   }
 }
 
+async function handleFileWriteStart(
+  clientId: string,
+  messageId: string,
+  filePath: string,
+  totalChunks: number,
+  client: WebSocketClient
+): Promise<void> {
+  // Clean up any existing stream for this path
+  const existing = activeWriteStreams.get(filePath);
+  if (existing) {
+    existing.stream.destroy();
+    activeWriteStreams.delete(filePath);
+  }
+
+  const dir = path.dirname(filePath);
+  await fs.promises.mkdir(dir, { recursive: true });
+
+  const relativePath = path.relative(client.spaceRoot, filePath);
+
+  let action: 'created' | 'modified' = 'modified';
+  try {
+    await fs.promises.access(filePath);
+  } catch {
+    action = 'created';
+  }
+
+  const stream = fs.createWriteStream(filePath, { encoding: 'utf8' });
+
+  await new Promise<void>((resolve, reject) => {
+    stream.once('open', resolve);
+    stream.once('error', reject);
+  });
+
+  activeWriteStreams.set(filePath, {
+    stream,
+    chunksReceived: 0,
+    totalChunks,
+    clientId,
+    messageId,
+    client,
+    relativePath,
+    action,
+  });
+
+  sendWebSocketMessage(client, {
+    type: 'res',
+    id: messageId,
+    result: { success: true },
+  });
+}
+
+async function handleFileWriteChunk(
+  _clientId: string,
+  messageId: string,
+  filePath: string,
+  index: number,
+  data: string,
+  client: WebSocketClient
+): Promise<void> {
+  const writeState = activeWriteStreams.get(filePath);
+  if (!writeState) {
+    sendWebSocketMessage(client, {
+      type: 'res',
+      id: messageId,
+      error: { code: 400, message: 'No active write stream for this path. Send file.write.start first.' },
+    });
+    return;
+  }
+
+  await new Promise<void>((resolve, reject) => {
+    const ok = writeState.stream.write(data, 'utf8');
+    if (ok) {
+      resolve();
+    } else {
+      writeState.stream.once('drain', resolve);
+      writeState.stream.once('error', reject);
+    }
+  });
+
+  writeState.chunksReceived += 1;
+
+  // Send progress acknowledgment
+  sendWebSocketMessage(client, {
+    type: 'event',
+    event: 'file.write.progress',
+    payload: {
+      path: writeState.relativePath,
+      chunksReceived: writeState.chunksReceived,
+      totalChunks: writeState.totalChunks,
+      index,
+    },
+  });
+
+  sendWebSocketMessage(client, {
+    type: 'res',
+    id: messageId,
+    result: { success: true, chunksReceived: writeState.chunksReceived },
+  });
+}
+
+async function handleFileWriteEnd(
+  clientId: string,
+  messageId: string,
+  filePath: string,
+  client: WebSocketClient
+): Promise<void> {
+  const writeState = activeWriteStreams.get(filePath);
+  if (!writeState) {
+    sendWebSocketMessage(client, {
+      type: 'res',
+      id: messageId,
+      error: { code: 400, message: 'No active write stream for this path.' },
+    });
+    return;
+  }
+
+  activeWriteStreams.delete(filePath);
+
+  await new Promise<void>((resolve, reject) => {
+    writeState.stream.end((err?: Error | null) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+
+  const { relativePath, action } = writeState;
+
+  // Suppress watcher event for this write
+  const suppressKey = `${client.spaceId}:${relativePath}`;
+  recentlyWritten.add(suppressKey);
+  setTimeout(() => recentlyWritten.delete(suppressKey), 500);
+
+  const stats = await fs.promises.stat(filePath);
+
+  logFileModification(
+    client.spacePath,
+    relativePath,
+    action,
+    client.sessionId,
+    'user'
+  );
+
+  sendWebSocketMessage(client, {
+    type: 'res',
+    id: messageId,
+    result: {
+      success: true,
+      path: relativePath,
+      modified: stats.mtime.toISOString(),
+    },
+  });
+
+  for (const [id, otherClient] of connectedClients) {
+    if (id !== clientId) {
+      sendWebSocketMessage(otherClient, {
+        type: 'event',
+        event: 'file_modified',
+        payload: {
+          path: relativePath,
+          action,
+          triggeredBy: 'user',
+        },
+      });
+    }
+  }
+}
+
 function handleMessage(clientId: string, message: WebSocketMessage): void {
   const client = connectedClients.get(clientId);
 
@@ -406,12 +586,13 @@ function handleMessage(clientId: string, message: WebSocketMessage): void {
         return;
       }
 
+      const maxFileSizeBytes = config.MAX_FILE_SIZE_MB * 1024 * 1024;
       const contentSize = Buffer.byteLength(fileContent, 'utf8');
-      if (contentSize > 10 * 1024 * 1024) {
+      if (contentSize > maxFileSizeBytes) {
         sendWebSocketMessage(client, {
           type: 'res',
           id: message.id,
-          error: { code: 400, message: 'File size exceeds 10MB limit' },
+          error: { code: 400, message: `File size exceeds ${config.MAX_FILE_SIZE_MB}MB limit` },
         });
         return;
       }
@@ -432,6 +613,167 @@ function handleMessage(clientId: string, message: WebSocketMessage): void {
           type: 'res',
           id: message.id,
           error: { code: 500, message: `Failed to write file: ${(error as Error).message}` },
+        });
+      });
+
+      break;
+    }
+
+    case 'file.write.start': {
+      if (client.role === 'viewer') {
+        sendWebSocketMessage(client, {
+          type: 'res',
+          id: message.id,
+          error: { code: 403, message: 'Permission denied: viewers cannot write files' },
+        });
+        return;
+      }
+
+      const startPath = message.params?.path as string | undefined;
+      const totalSize = message.params?.totalSize as number | undefined;
+      const chunkCount = message.params?.chunkCount as number | undefined;
+
+      if (!startPath || typeof startPath !== 'string') {
+        sendWebSocketMessage(client, {
+          type: 'res',
+          id: message.id,
+          error: { code: 400, message: 'File path required' },
+        });
+        return;
+      }
+
+      if (typeof totalSize !== 'number' || typeof chunkCount !== 'number') {
+        sendWebSocketMessage(client, {
+          type: 'res',
+          id: message.id,
+          error: { code: 400, message: 'totalSize and chunkCount required' },
+        });
+        return;
+      }
+
+      const maxFileSizeBytesStart = config.MAX_FILE_SIZE_MB * 1024 * 1024;
+      if (totalSize > maxFileSizeBytesStart) {
+        sendWebSocketMessage(client, {
+          type: 'res',
+          id: message.id,
+          error: { code: 400, message: `File size exceeds ${config.MAX_FILE_SIZE_MB}MB limit` },
+        });
+        return;
+      }
+
+      const startPathValidation = validatePath(startPath, client.spaceRoot);
+      if (!startPathValidation.valid) {
+        sendWebSocketMessage(client, {
+          type: 'res',
+          id: message.id,
+          error: { code: 403, message: 'Permission denied: path escape attempt' },
+        });
+        return;
+      }
+
+      handleFileWriteStart(clientId, message.id, startPathValidation.resolvedPath!, chunkCount, client).catch((error) => {
+        console.error('[ai-spaces] File write start error:', error);
+        sendWebSocketMessage(client, {
+          type: 'res',
+          id: message.id,
+          error: { code: 500, message: `Failed to start file write: ${(error as Error).message}` },
+        });
+      });
+
+      break;
+    }
+
+    case 'file.write.chunk': {
+      if (client.role === 'viewer') {
+        sendWebSocketMessage(client, {
+          type: 'res',
+          id: message.id,
+          error: { code: 403, message: 'Permission denied: viewers cannot write files' },
+        });
+        return;
+      }
+
+      const chunkPath = message.params?.path as string | undefined;
+      const chunkIndex = message.params?.index as number | undefined;
+      const chunkData = message.params?.data as string | undefined;
+
+      if (!chunkPath || typeof chunkPath !== 'string') {
+        sendWebSocketMessage(client, {
+          type: 'res',
+          id: message.id,
+          error: { code: 400, message: 'File path required' },
+        });
+        return;
+      }
+
+      if (typeof chunkIndex !== 'number' || chunkData === undefined || chunkData === null) {
+        sendWebSocketMessage(client, {
+          type: 'res',
+          id: message.id,
+          error: { code: 400, message: 'chunk index and data required' },
+        });
+        return;
+      }
+
+      const chunkPathValidation = validatePath(chunkPath, client.spaceRoot);
+      if (!chunkPathValidation.valid) {
+        sendWebSocketMessage(client, {
+          type: 'res',
+          id: message.id,
+          error: { code: 403, message: 'Permission denied: path escape attempt' },
+        });
+        return;
+      }
+
+      handleFileWriteChunk(clientId, message.id, chunkPathValidation.resolvedPath!, chunkIndex, chunkData, client).catch((error) => {
+        console.error('[ai-spaces] File write chunk error:', error);
+        sendWebSocketMessage(client, {
+          type: 'res',
+          id: message.id,
+          error: { code: 500, message: `Failed to write chunk: ${(error as Error).message}` },
+        });
+      });
+
+      break;
+    }
+
+    case 'file.write.end': {
+      if (client.role === 'viewer') {
+        sendWebSocketMessage(client, {
+          type: 'res',
+          id: message.id,
+          error: { code: 403, message: 'Permission denied: viewers cannot write files' },
+        });
+        return;
+      }
+
+      const endPath = message.params?.path as string | undefined;
+
+      if (!endPath || typeof endPath !== 'string') {
+        sendWebSocketMessage(client, {
+          type: 'res',
+          id: message.id,
+          error: { code: 400, message: 'File path required' },
+        });
+        return;
+      }
+
+      const endPathValidation = validatePath(endPath, client.spaceRoot);
+      if (!endPathValidation.valid) {
+        sendWebSocketMessage(client, {
+          type: 'res',
+          id: message.id,
+          error: { code: 403, message: 'Permission denied: path escape attempt' },
+        });
+        return;
+      }
+
+      handleFileWriteEnd(clientId, message.id, endPathValidation.resolvedPath!, client).catch((error) => {
+        console.error('[ai-spaces] File write end error:', error);
+        sendWebSocketMessage(client, {
+          type: 'res',
+          id: message.id,
+          error: { code: 500, message: `Failed to finalize file write: ${(error as Error).message}` },
         });
       });
 
@@ -480,14 +822,30 @@ function setupWebSocketClient(ws: WsWebSocket, spaceId: string, space: SpaceReco
     });
   }
 
+  // Send application-level ping every 30s so the client can detect ghost connections.
+  // Browser WebSocket API does not expose native ping/pong frames, so we use a JSON message.
+  const pingInterval = setInterval(() => {
+    if (ws.readyState === WsWebSocket.OPEN) {
+      try {
+        ws.send(JSON.stringify({ type: 'ping' }));
+      } catch {
+        // If send fails the close/error handler will clean up
+      }
+    }
+  }, 30_000);
+
   ws.on('message', (data) => {
     try {
       const message: WebSocketMessage = JSON.parse(String(data));
+      // Respond to client pong — no-op on server side, just absorb it
+      if ((message as { type: string }).type === 'pong') return;
       handleMessage(clientId, message);
     } catch {}
   });
 
   const cleanupClient = () => {
+    clearInterval(pingInterval);
+
     const abortController = activeStreams.get(clientId);
     if (abortController) {
       abortController.abort();

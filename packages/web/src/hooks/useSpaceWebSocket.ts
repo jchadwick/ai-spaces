@@ -6,6 +6,10 @@ const generateId = () =>
   crypto.randomUUID?.() ??
   `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 
+// File size thresholds — kept in sync with server defaults (FILE_STREAM_THRESHOLD_MB / MAX_FILE_SIZE_MB)
+const FILE_STREAM_THRESHOLD_BYTES = 1 * 1024 * 1024; // 1 MB
+const FILE_CHUNK_SIZE_BYTES = 256 * 1024; // 256 KB per chunk
+
 type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'reconnecting' | 'error';
 
 export type FileChangedAction = 'created' | 'modified' | 'deleted';
@@ -74,6 +78,7 @@ export function useSpaceWebSocket({ spaceId, accessToken, onMessage, onFileChang
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const intentionalDisconnectRef = useRef(false);
   const wasReconnectingRef = useRef(false);
+  const heartbeatTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     onMessageRef.current = onMessage;
@@ -87,6 +92,13 @@ export function useSpaceWebSocket({ spaceId, accessToken, onMessage, onFileChang
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
+    }
+  }, []);
+
+  const clearHeartbeatTimeout = useCallback(() => {
+    if (heartbeatTimeoutRef.current) {
+      clearTimeout(heartbeatTimeoutRef.current);
+      heartbeatTimeoutRef.current = null;
     }
   }, []);
 
@@ -153,11 +165,35 @@ export function useSpaceWebSocket({ spaceId, accessToken, onMessage, onFileChang
       }
     };
 
+    // Reset the heartbeat timeout — called on every received message.
+    // If no message arrives within 60s, assume a ghost connection and close to trigger reconnect.
+    const resetHeartbeat = () => {
+      clearHeartbeatTimeout();
+      heartbeatTimeoutRef.current = setTimeout(() => {
+        if (!mountedRef.current || intentionalDisconnectRef.current) return;
+        const currentWs = wsRef.current;
+        if (currentWs && currentWs.readyState === WebSocket.OPEN) {
+          currentWs.close(4000, 'heartbeat timeout');
+        }
+      }, 60_000);
+    };
+
     ws.onmessage = (event) => {
       if (!mountedRef.current) return;
 
+      // Any message from the server resets the dead-connection timer
+      resetHeartbeat();
+
       try {
         const raw = JSON.parse(event.data);
+
+        // Respond to server ping with a pong
+        if (raw.type === 'ping') {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'pong' }));
+          }
+          return;
+        }
 
         // Handle server-originated file change events (not from gateway)
         if (raw.type === 'file:changed') {
@@ -285,6 +321,7 @@ export function useSpaceWebSocket({ spaceId, accessToken, onMessage, onFileChang
       cancelled = true;
       intentionalDisconnectRef.current = true;
       clearReconnectTimeout();
+      clearHeartbeatTimeout();
       wsRef.current = null;
       // Only close if already OPEN — if still CONNECTING, onopen will close it
       // once the handshake finishes (avoids the "closed before established" error).
@@ -292,7 +329,7 @@ export function useSpaceWebSocket({ spaceId, accessToken, onMessage, onFileChang
         ws.close(1000, 'effect cleanup');
       }
     };
-  }, [spaceId, accessToken, reconnectAttempt]);
+  }, [spaceId, accessToken, reconnectAttempt, clearHeartbeatTimeout]);
 
   const reconnect = useCallback(() => {
     clearReconnectTimeout();
@@ -351,7 +388,7 @@ export function useSpaceWebSocket({ spaceId, accessToken, onMessage, onFileChang
     [],
   );
 
-  const writeFile = useCallback((path: string, content: string): Promise<{ success: boolean; path?: string; modified?: string; error?: string }> => {
+  const sendRequest = useCallback(<T>(method: string, params: Record<string, unknown>, timeoutMs = 30000): Promise<T> => {
     return new Promise((resolve, reject) => {
       if (!wsRef.current || connectionStatus !== 'connected') {
         reject(new Error('WebSocket not connected'));
@@ -362,25 +399,81 @@ export function useSpaceWebSocket({ spaceId, accessToken, onMessage, onFileChang
       const message: WebSocketMessage = {
         type: 'req',
         id: requestId,
-        method: 'file.write',
-        params: { path, content },
+        method,
+        params,
       };
 
       pendingRequestsRef.current.set(requestId, {
-        resolve: (result) => resolve(result as { success: boolean; path?: string, modified?: string }),
+        resolve: (result) => resolve(result as T),
         reject,
       });
 
       wsRef.current.send(JSON.stringify(message));
 
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         if (pendingRequestsRef.current.has(requestId)) {
           pendingRequestsRef.current.delete(requestId);
           reject(new Error('Request timeout'));
         }
-      }, 30000);
+      }, timeoutMs);
+
+      // Attach cleanup so we don't leak the timer if the request completes
+      const originalPending = pendingRequestsRef.current.get(requestId)!;
+      pendingRequestsRef.current.set(requestId, {
+        resolve: (result) => { clearTimeout(timer); originalPending.resolve(result); },
+        reject: (err) => { clearTimeout(timer); originalPending.reject(err); },
+      });
     });
   }, [connectionStatus]);
+
+  const writeFile = useCallback(async (filePath: string, content: string): Promise<{ success: boolean; path?: string; modified?: string; error?: string }> => {
+    if (!wsRef.current || connectionStatus !== 'connected') {
+      throw new Error('WebSocket not connected');
+    }
+
+    const encoder = new TextEncoder();
+    const contentBytes = encoder.encode(content);
+    const totalSize = contentBytes.byteLength;
+
+    // Small files: use existing single-message write
+    if (totalSize <= FILE_STREAM_THRESHOLD_BYTES) {
+      return sendRequest<{ success: boolean; path?: string; modified?: string }>(
+        'file.write',
+        { path: filePath, content },
+        30000
+      );
+    }
+
+    // Large files: split into chunks and use the chunked streaming protocol
+    const chunks: string[] = [];
+    const decoder = new TextDecoder();
+    for (let offset = 0; offset < contentBytes.length; offset += FILE_CHUNK_SIZE_BYTES) {
+      chunks.push(decoder.decode(contentBytes.slice(offset, offset + FILE_CHUNK_SIZE_BYTES)));
+    }
+
+    // Start the write stream (timeout: 15s)
+    await sendRequest<{ success: boolean }>(
+      'file.write.start',
+      { path: filePath, totalSize, chunkCount: chunks.length },
+      15000
+    );
+
+    // Send each chunk (timeout: 30s per chunk)
+    for (let i = 0; i < chunks.length; i++) {
+      await sendRequest<{ success: boolean; chunksReceived: number }>(
+        'file.write.chunk',
+        { path: filePath, index: i, data: chunks[i] },
+        30000
+      );
+    }
+
+    // Finalize the stream (timeout: 15s)
+    return sendRequest<{ success: boolean; path?: string; modified?: string }>(
+      'file.write.end',
+      { path: filePath },
+      15000
+    );
+  }, [connectionStatus, sendRequest]);
 
   return {
     messages,

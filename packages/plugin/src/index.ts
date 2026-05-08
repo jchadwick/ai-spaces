@@ -2,13 +2,12 @@ import { defineChannelPluginEntry } from 'openclaw/plugin-sdk/core';
 import { aiSpacesPlugin } from './channel.js';
 import type { IncomingMessage, ServerResponse } from 'http';
 import { setRuntime, tryGetRuntime } from './runtime.js';
-import { getSpace } from './space-store.js';
+import { getSpace, listSpaces, initSpaceStore, resolveSpaceRoot } from './space-store.js';
 import { proxyRequest } from './routes/proxy.js';
 import { handleSpaceWebSocket, startWebSocketServer } from './routes/space-ws.js';
 import { handleFileContent, handleFileTree } from './routes/space-files.js';
 import { validateSession } from './session-middleware.js';
 import type { Role } from '@ai-spaces/shared';
-import { getAgentWorkspace } from '@ai-spaces/shared';
 import * as crypto from 'crypto';
 import * as path from 'path';
 import { config } from './config.js';
@@ -27,11 +26,27 @@ export default defineChannelPluginEntry({
 
     startWebSocketServer(config.AI_SPACES_WS_PORT);
 
-    // Start workspace-level watcher for real-time space discovery
-    const openclawHome = config.OPENCLAW_HOME;
-    const mainWorkspaceRoot = getAgentWorkspace(openclawHome, 'main');
-    const spaceWatcher = new SpaceWatcher(mainWorkspaceRoot, 'main');
-    spaceWatcher.start();
+    // Build agent→workspace mapping from gateway config (authoritative source)
+    const agentList = api.config.agents?.list ?? [];
+    const agentWorkspaces = agentList
+      .filter((a): a is typeof a & { workspace: string } => typeof a.workspace === 'string')
+      .map(a => ({ agentId: a.id, workspaceRoot: a.workspace }));
+
+    initSpaceStore(agentWorkspaces);
+
+    // Start one watcher per unique workspace root
+    const watchers: SpaceWatcher[] = [];
+    const watchedRoots = new Set<string>();
+
+    for (const { agentId, workspaceRoot } of agentWorkspaces) {
+      if (watchedRoots.has(workspaceRoot)) continue;
+      watchedRoots.add(workspaceRoot);
+      const watcher = new SpaceWatcher(workspaceRoot, agentId);
+      watcher.on('space:added', () => { void triggerReconcile(); });
+      watcher.on('space:removed', () => { void triggerReconcile(); });
+      watcher.start();
+      watchers.push(watcher);
+    }
 
     let reconcileInFlight = false;
     let reconcileDirty = false;
@@ -45,7 +60,11 @@ export default defineChannelPluginEntry({
           reconcileDirty = false;
           await fetch(`${config.AI_SPACES_URL}/api/internal/reconcile`, {
             method: 'POST',
-            headers: { Authorization: `Bearer ${config.GATEWAY_TOKEN}` },
+            headers: {
+              Authorization: `Bearer ${config.GATEWAY_TOKEN}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ spaces: listSpaces() }),
           });
         }
       } catch (err) {
@@ -55,12 +74,11 @@ export default defineChannelPluginEntry({
       }
     }
 
-    spaceWatcher.on('space:added', () => { void triggerReconcile(); });
-    spaceWatcher.on('space:removed', () => { void triggerReconcile(); });
+    const stopWatchers = () => watchers.forEach(w => w.stop());
+    process.once('SIGTERM', stopWatchers);
+    process.once('SIGINT', stopWatchers);
 
-    const stopSpaceWatcher = () => spaceWatcher.stop();
-    process.once('SIGTERM', stopSpaceWatcher);
-    process.once('SIGINT', stopSpaceWatcher);
+    void triggerReconcile();
 
     api.registerHttpRoute({
       path: '/api/spaces',
@@ -191,7 +209,7 @@ export default defineChannelPluginEntry({
           return true;
         }
 
-        const fullSpacePath = path.join(config.OPENCLAW_HOME, 'workspace', space.path);
+        const fullSpacePath = resolveSpaceRoot(space);
         const messageId = crypto.randomBytes(8).toString('hex');
 
         let responseText = '';
@@ -199,7 +217,7 @@ export default defineChannelPluginEntry({
         await runtime.agent.runEmbeddedPiAgent({
           sessionId: `space:${spaceId}:http`,
           runId: messageId,
-          sessionFile: path.join(config.OPENCLAW_HOME, 'sessions', `space-${spaceId}-http.jsonl`),
+          sessionFile: path.join(fullSpacePath, '.sessions', `space-${spaceId}-http.jsonl`),
           workspaceDir: fullSpacePath,
           prompt: content,
           timeoutMs: 120000,

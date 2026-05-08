@@ -1,6 +1,7 @@
 import { cpSync, mkdirSync, existsSync, writeFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { build } from 'esbuild';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pluginDir = resolve(__dirname, '..');
@@ -9,7 +10,35 @@ const webDist = resolve(pluginDir, '../web/dist');
 const pluginDist = resolve(__dirname, '../dist');
 const pluginWebDist = resolve(pluginDist, 'web');
 
-// Bundle shared package
+// Bundle index.js into a single self-contained file (keeps openclaw/* as external)
+await build({
+  entryPoints: [resolve(pluginDist, 'index.js')],
+  bundle: true,
+  format: 'esm',
+  platform: 'node',
+  outfile: resolve(pluginDist, 'index.js'),
+  allowOverwrite: true,
+  packages: 'bundle',
+  external: ['openclaw', 'openclaw/*'],
+});
+console.log('Bundled plugin index.js');
+
+// Bundle setup-entry.js into a single self-contained file
+if (existsSync(resolve(pluginDist, 'setup-entry.js'))) {
+  await build({
+    entryPoints: [resolve(pluginDist, 'setup-entry.js')],
+    bundle: true,
+    format: 'esm',
+    platform: 'node',
+    outfile: resolve(pluginDist, 'setup-entry.js'),
+    allowOverwrite: true,
+    packages: 'bundle',
+    external: ['openclaw', 'openclaw/*'],
+  });
+  console.log('Bundled plugin setup-entry.js');
+}
+
+// Bundle shared package (kept for reference/compat but no longer needed at runtime)
 const sharedTarget = resolve(pluginDist, 'shared');
 if (existsSync(sharedDist)) {
   mkdirSync(sharedTarget, { recursive: true });

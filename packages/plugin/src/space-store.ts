@@ -1,37 +1,35 @@
-import * as fs from 'fs';
 import * as path from 'path';
-import type { SpaceConfig } from '@ai-spaces/shared';
-import { SpaceConfigSchema, scanWorkspace, resolveSpaceRoot as sharedResolveSpaceRoot, getAgentWorkspace as sharedGetAgentWorkspace } from '@ai-spaces/shared';
+import { scanWorkspace } from '@ai-spaces/shared';
 import type { WorkspaceSpaceRecord } from '@ai-spaces/shared';
-import { config } from './config.js';
 
 export type SpaceRecord = WorkspaceSpaceRecord;
-
 export { WorkspaceSpaceRecord };
 
-export function resolveSpaceRoot(space: SpaceRecord): string {
-  return sharedResolveSpaceRoot(config.OPENCLAW_HOME, space);
+type AgentWorkspace = { agentId: string; workspaceRoot: string };
+
+let agentWorkspaces: AgentWorkspace[] = [];
+
+export function initSpaceStore(workspaces: AgentWorkspace[]): void {
+  agentWorkspaces = workspaces;
 }
 
 function getAllSpaces(): SpaceRecord[] {
-  const openclawHome = config.OPENCLAW_HOME;
+  const seen = new Set<string>();
+  const results: SpaceRecord[] = [];
 
-  // Always include the main workspace
-  const mainWorkspace = sharedGetAgentWorkspace(openclawHome, 'main');
-  const spaces: SpaceRecord[] = scanWorkspace(openclawHome, mainWorkspace, 'main');
-
-  // Also include any per-agent workspaces under agents/
-  const agentsHome = path.join(openclawHome, 'agents');
-  if (fs.existsSync(agentsHome)) {
-    try {
-      const agentNames = fs.readdirSync(agentsHome, { withFileTypes: true })
-        .filter(e => e.isDirectory())
-        .map(e => e.name);
-      spaces.push(...agentNames.flatMap(name => scanWorkspace(openclawHome, sharedGetAgentWorkspace(openclawHome, name), name)));
-    } catch { /* agents dir unreadable, skip */ }
+  for (const { agentId, workspaceRoot } of agentWorkspaces) {
+    if (seen.has(workspaceRoot)) continue;
+    seen.add(workspaceRoot);
+    results.push(...scanWorkspace(workspaceRoot, workspaceRoot, agentId));
   }
 
-  return spaces;
+  return results;
+}
+
+export function resolveSpaceRoot(space: SpaceRecord): string {
+  const entry = agentWorkspaces.find(w => w.agentId === space.agentId);
+  const workspaceRoot = entry?.workspaceRoot ?? '';
+  return path.join(workspaceRoot, space.path);
 }
 
 export function getSpace(id: string): SpaceRecord | null {

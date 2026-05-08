@@ -31,7 +31,7 @@ export function getAgentWorkspace(openclawHome: string, agentName: string): stri
       if (data.workspace) return data.workspace;
     } catch {}
   }
-  return path.join(openclawHome, 'workspace', agentName);
+  return path.join(openclawHome, 'workspaces', agentName);
 }
 
 export function scanWorkspace(openclawHome: string, workspaceDir: string, agentName: string): WorkspaceSpaceRecord[] {
@@ -118,5 +118,5 @@ export function resolveSpaceRoot(openclawHome: string, space: { agentId: string;
     } catch {}
   }
 
-  return path.join(openclawHome, 'workspace', space.agentId, space.path);
+  return path.join(openclawHome, 'workspaces', space.agentId, space.path);
 }

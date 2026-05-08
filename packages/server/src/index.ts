@@ -17,7 +17,7 @@ import { createFileProvider } from './file-provider.js';
 import { seedAdmin } from './seed-admin.js';
 import { runMigrations } from './db/migrate.js';
 import { seedFromJsonIfNeeded } from './db/seed-from-json.js';
-import { reconcileAllAgents } from './reconcile.js';
+import { reconcileAllAgents, reconcileFromSpaceList } from './reconcile.js';
 import { createInternalMiddleware } from './middleware/ip-allowlist.js';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
@@ -42,7 +42,12 @@ app.use('/api/*', cors({
 }));
 
 // CSP middleware for invite and login routes — register before static file serving
-app.use(['/invite*', '/login*'], async (c, next) => {
+// Note: Hono's use() does not accept an array of paths; register each path separately
+app.use('/invite*', async (c, next) => {
+  await next();
+  c.res.headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'");
+});
+app.use('/login*', async (c, next) => {
   await next();
   c.res.headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'");
 });
@@ -58,7 +63,15 @@ app.route('/api', confirmRouter);
 
 const internalMiddleware = createInternalMiddleware(config.GATEWAY_TOKEN);
 app.post('/api/internal/reconcile', internalMiddleware, async (c) => {
-  await reconcileAllAgents();
+  let body: unknown;
+  try { body = await c.req.json(); } catch { body = null; }
+
+  const spaces = (body as { spaces?: unknown })?.spaces;
+  if (Array.isArray(spaces)) {
+    await reconcileFromSpaceList(spaces);
+  } else {
+    await reconcileAllAgents();
+  }
   return c.json({ success: true });
 });
 

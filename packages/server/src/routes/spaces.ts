@@ -15,6 +15,21 @@ import {
   type SpaceRecord,
 } from '../space-store.js';
 import { authMiddleware } from '../middleware/auth.js';
+import type { Context } from 'hono';
+
+async function proxyFileRequestToGateway(c: Context, spaceId: string, subPath: string): Promise<Response> {
+  const url = `${config.GATEWAY_URL}/api/spaces/${spaceId}/files${subPath ? `/${subPath}` : ''}`;
+  const gatewayRes = await fetch(url, {
+    headers: { Authorization: `Bearer ${config.GATEWAY_TOKEN}` },
+  });
+  const body = await gatewayRes.arrayBuffer();
+  return new Response(body, {
+    status: gatewayRes.status,
+    headers: {
+      'Content-Type': gatewayRes.headers.get('Content-Type') ?? 'application/json',
+    },
+  });
+}
 
 export const spacesRouter = new Hono();
 spacesRouter.use('*', authMiddleware);
@@ -55,6 +70,11 @@ spacesRouter.get('/:id/files', async (c) => {
   }
 
   const spaceRoot = path.join(config.AI_SPACES_ROOT, space.path);
+
+  if (!fs.existsSync(spaceRoot)) {
+    return proxyFileRequestToGateway(c, id, dirPath);
+  }
+
   const fullPath = dirPath ? path.join(spaceRoot, dirPath) : spaceRoot;
 
   try {
@@ -96,6 +116,11 @@ spacesRouter.get('/:id/files/:filePath{.*}', async (c) => {
   }
 
   const spaceRoot = path.join(config.AI_SPACES_ROOT, space.path);
+
+  if (!fs.existsSync(spaceRoot)) {
+    return proxyFileRequestToGateway(c, id, filePath);
+  }
+
   const fullPath = path.resolve(spaceRoot, filePath);
 
   if (!fullPath.startsWith(spaceRoot + path.sep) && fullPath !== spaceRoot) {

@@ -1,5 +1,6 @@
 import { createMiddleware } from 'hono/factory';
 import * as crypto from 'crypto';
+import type { IncomingMessage } from 'http';
 
 function ipToNum(ip: string): number | null {
   const parts = ip.split('.').map(Number);
@@ -36,8 +37,8 @@ function timingSafeEqual(a: string, b: string): boolean {
 
 export function createInternalMiddleware(gatewayToken: string) {
   return createMiddleware(async (c, next) => {
-    const raw = c.req.raw as unknown as { socket?: { remoteAddress?: string } };
-    const remoteIp = raw?.socket?.remoteAddress ?? '';
+    const env = c.env as { incoming?: IncomingMessage };
+    const remoteIp = env?.incoming?.socket?.remoteAddress ?? '';
 
     if (!isAllowedIp(remoteIp)) {
       return c.json({ error: 'Forbidden' }, 403);

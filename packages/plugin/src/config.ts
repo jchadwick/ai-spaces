@@ -6,13 +6,7 @@ const parseList = (value: string | undefined, defaults: string[]): string[] =>
   value ? value.split(',').map((s) => s.trim()).filter(Boolean) : defaults;
 
 export const config = {
-  get OPENCLAW_HOME(): string {
-    const value = process.env.OPENCLAW_HOME;
-    if (!value) {
-      throw new Error(`Required environment variable "OPENCLAW_HOME" is not set.`);
-    }
-    return value;
-  },
+  OPENCLAW_HOME: process.env.OPENCLAW_HOME ?? path.join(HOME, '.openclaw'),
   JWT_SECRET:     process.env.JWT_SECRET     ?? 'ai-spaces-dev-secret-change-in-production',
   AI_SPACES_ROOT: process.env.AI_SPACES_ROOT ?? path.join(HOME, 'ai-spaces-workspace'),
   AI_SPACES_URL:  process.env.AI_SPACES_URL  ?? 'http://127.0.0.1:3001',

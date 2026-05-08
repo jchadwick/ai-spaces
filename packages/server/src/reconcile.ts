@@ -1,6 +1,6 @@
 import * as path from 'path';
 import * as crypto from 'crypto';
-import { scanWorkspace, getAgentWorkspace } from '@ai-spaces/shared';
+import { scanWorkspace, getAgentWorkspace, type WorkspaceSpaceRecord } from '@ai-spaces/shared';
 import { listSpaces, deleteSpace, insertSpace } from './space-store.js';
 import { config } from './config.js';
 import { db } from './db/connection.js';
@@ -113,6 +113,40 @@ export async function migrateCollaboratorsToMembers(): Promise<void> {
       }).onConflictDoNothing().run();
 
       console.info(`[reconcile] Migrated collaborator ${collaborator.email} to space_members for space ${space.id}`);
+    }
+  }
+}
+
+export async function reconcileFromSpaceList(spaces: WorkspaceSpaceRecord[]): Promise<void> {
+  await migrateCollaboratorsToMembers();
+
+  const diskById = new Map(spaces.map(s => [s.id, s]));
+  const dbSpaces = listSpaces();
+  const dbById = new Map(dbSpaces.map(s => [s.id, s]));
+
+  for (const [id, diskSpace] of diskById) {
+    const dbSpace = dbById.get(id);
+    const now = new Date().toISOString();
+    if (!dbSpace || dbSpace.path !== diskSpace.path) {
+      insertSpace({
+        id: diskSpace.id,
+        agentId: diskSpace.agentId,
+        agentType: diskSpace.agentType,
+        path: diskSpace.path,
+        configPath: diskSpace.configPath,
+        config: diskSpace.config,
+        createdAt: dbSpace?.createdAt ?? now,
+        updatedAt: now,
+      });
+      if (!dbSpace) console.info(`[reconcile] Registered missing space: ${id} at ${diskSpace.path}`);
+      else console.info(`[reconcile] Updated path for space: ${id} ${dbSpace.path} → ${diskSpace.path}`);
+    }
+  }
+
+  for (const [id, dbSpace] of dbById) {
+    if (!diskById.has(id)) {
+      deleteSpace(id, 'system');
+      console.info(`[reconcile] Removed zombie space: ${id} (path: ${dbSpace.path})`);
     }
   }
 }

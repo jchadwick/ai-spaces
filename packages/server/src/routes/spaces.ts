@@ -15,21 +15,7 @@ import {
   type SpaceRecord,
 } from '../space-store.js';
 import { authMiddleware } from '../middleware/auth.js';
-import type { Context } from 'hono';
-
-async function proxyFileRequestToGateway(c: Context, spaceId: string, subPath: string): Promise<Response> {
-  const url = `${config.GATEWAY_URL}/api/spaces/${spaceId}/files${subPath ? `/${subPath}` : ''}`;
-  const gatewayRes = await fetch(url, {
-    headers: { Authorization: `Bearer ${config.GATEWAY_TOKEN}` },
-  });
-  const body = await gatewayRes.arrayBuffer();
-  return new Response(body, {
-    status: gatewayRes.status,
-    headers: {
-      'Content-Type': gatewayRes.headers.get('Content-Type') ?? 'application/json',
-    },
-  });
-}
+import { agentAdapter } from '../agent-adapter-instance.js';
 
 export const spacesRouter = new Hono();
 spacesRouter.use('*', authMiddleware);
@@ -69,40 +55,11 @@ spacesRouter.get('/:id/files', async (c) => {
     return c.json({ error: 'Space not found' }, 404);
   }
 
-  const spaceRoot = path.join(config.AI_SPACES_ROOT, space.path);
-
-  if (!fs.existsSync(spaceRoot)) {
-    return proxyFileRequestToGateway(c, id, dirPath);
-  }
-
-  const fullPath = dirPath ? path.join(spaceRoot, dirPath) : spaceRoot;
-
   try {
-    const entries = await fs.promises.readdir(fullPath, { withFileTypes: true });
-    const nodes = await Promise.all(
-      entries.map(async entry => {
-        const relativePath = dirPath ? `${dirPath}/${entry.name}` : entry.name;
-        try {
-          const stats = await fs.promises.stat(path.join(fullPath, entry.name));
-          return {
-            name: entry.name,
-            type: entry.isDirectory() ? 'directory' : 'file',
-            path: relativePath,
-            size: entry.isDirectory() ? undefined : stats.size,
-            modified: stats.mtime.toISOString(),
-          };
-        } catch {
-          return null;
-        }
-      }),
-    );
-    const files = (nodes.filter(Boolean) as object[]).sort((a: any, b: any) => {
-      if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
-      return a.name.localeCompare(b.name);
-    });
+    const files = await agentAdapter.listFiles(space, dirPath);
     return c.json({ files });
-  } catch {
-    return c.json({ error: 'Failed to list files' }, 500);
+  } catch (err: any) {
+    return c.json({ error: err.message ?? 'Failed to list files' }, 500);
   }
 });
 
@@ -115,26 +72,12 @@ spacesRouter.get('/:id/files/:filePath{.*}', async (c) => {
     return c.json({ error: 'Space not found' }, 404);
   }
 
-  const spaceRoot = path.join(config.AI_SPACES_ROOT, space.path);
-
-  if (!fs.existsSync(spaceRoot)) {
-    return proxyFileRequestToGateway(c, id, filePath);
-  }
-
-  const fullPath = path.resolve(spaceRoot, filePath);
-
-  if (!fullPath.startsWith(spaceRoot + path.sep) && fullPath !== spaceRoot) {
-    return c.json({ error: 'Access denied' }, 403);
-  }
-
   try {
-    const content = await fs.promises.readFile(fullPath, 'utf-8');
-    const ext = path.extname(filePath).toLowerCase();
-    const contentType = ext === '.md' ? 'text/markdown' : 'text/plain';
+    const { content, contentType } = await agentAdapter.readFile(space, filePath);
     c.header('Content-Type', contentType);
     return c.body(content);
-  } catch {
-    return c.json({ error: 'File not found' }, 404);
+  } catch (err: any) {
+    return c.json({ error: err.message ?? 'File not found' }, 404);
   }
 });
 
@@ -153,24 +96,11 @@ spacesRouter.put('/:id/files/:filePath{.*}', zValidator('json', writeFileSchema)
     return c.json({ error: 'Space not found' }, 404);
   }
 
-  const spaceRoot = path.join(config.AI_SPACES_ROOT, space.path);
-  const fullPath = path.resolve(spaceRoot, filePath);
-
-  if (!fullPath.startsWith(spaceRoot + path.sep) && fullPath !== spaceRoot) {
-    return c.json({ error: 'Access denied: path escape attempt' }, 403);
-  }
-
   try {
-    const dir = path.dirname(fullPath);
-    await fs.promises.mkdir(dir, { recursive: true });
-    if (encoding === 'base64') {
-      await fs.promises.writeFile(fullPath, Buffer.from(content, 'base64'));
-    } else {
-      await fs.promises.writeFile(fullPath, content, 'utf-8');
-    }
+    await agentAdapter.writeFile(space, filePath, content, encoding);
     return c.json({ success: true, path: filePath });
-  } catch {
-    return c.json({ error: 'Failed to write file' }, 500);
+  } catch (err: any) {
+    return c.json({ error: err.message ?? 'Failed to write file' }, 500);
   }
 });
 
@@ -187,23 +117,13 @@ spacesRouter.post('/:id/directories', zValidator('json', createDirSchema), async
     return c.json({ error: 'Space not found' }, 404);
   }
 
-  const fullPath = path.join(space.path, dirPath);
-  const normalizedSpacePath = path.normalize(space.path);
-  const normalizedFullPath = path.normalize(fullPath);
-
-  if (!normalizedFullPath.startsWith(normalizedSpacePath)) {
-    return c.json({ error: 'Access denied: path escape attempt' }, 403);
-  }
-
   try {
-    await fs.promises.mkdir(fullPath, { recursive: true });
+    await agentAdapter.createDirectory(space, dirPath);
     return c.json({ success: true, path: dirPath });
-  } catch {
-    return c.json({ error: 'Failed to create directory' }, 500);
+  } catch (err: any) {
+    return c.json({ error: err.message ?? 'Failed to create directory' }, 500);
   }
 });
-
-const deleteFileSchema = z.object({});
 
 spacesRouter.delete('/:id/files/:filePath{.*}', async (c) => {
   const id = c.req.param('id');
@@ -214,19 +134,11 @@ spacesRouter.delete('/:id/files/:filePath{.*}', async (c) => {
     return c.json({ error: 'Space not found' }, 404);
   }
 
-  const fullPath = path.join(space.path, filePath);
-  const normalizedSpacePath = path.normalize(space.path);
-  const normalizedFullPath = path.normalize(fullPath);
-
-  if (!normalizedFullPath.startsWith(normalizedSpacePath)) {
-    return c.json({ error: 'Access denied: path escape attempt' }, 403);
-  }
-
   try {
-    await fs.promises.unlink(fullPath);
+    await agentAdapter.deleteFile(space, filePath);
     return c.json({ success: true });
-  } catch {
-    return c.json({ error: 'Failed to delete file' }, 500);
+  } catch (err: any) {
+    return c.json({ error: err.message ?? 'Failed to delete file' }, 500);
   }
 });
 
@@ -244,21 +156,11 @@ spacesRouter.patch('/:id/files/:filePath{.*}', zValidator('json', renameFileSche
     return c.json({ error: 'Space not found' }, 404);
   }
 
-  const fullPath = path.join(space.path, filePath);
-  const newFullPath = path.join(space.path, newPath);
-  const normalizedSpacePath = path.normalize(space.path);
-
-  if (!path.normalize(fullPath).startsWith(normalizedSpacePath) || !path.normalize(newFullPath).startsWith(normalizedSpacePath)) {
-    return c.json({ error: 'Access denied: path escape attempt' }, 403);
-  }
-
   try {
-    const newDir = path.dirname(newFullPath);
-    await fs.promises.mkdir(newDir, { recursive: true });
-    await fs.promises.rename(fullPath, newFullPath);
+    await agentAdapter.renameFile(space, filePath, newPath);
     return c.json({ success: true, path: newPath });
-  } catch {
-    return c.json({ error: 'Failed to rename file' }, 500);
+  } catch (err: any) {
+    return c.json({ error: err.message ?? 'Failed to rename file' }, 500);
   }
 });
 
@@ -271,19 +173,11 @@ spacesRouter.delete('/:id/directories/:dirPath{.*}', async (c) => {
     return c.json({ error: 'Space not found' }, 404);
   }
 
-  const fullPath = path.join(space.path, dirPath);
-  const normalizedSpacePath = path.normalize(space.path);
-  const normalizedFullPath = path.normalize(fullPath);
-
-  if (!normalizedFullPath.startsWith(normalizedSpacePath)) {
-    return c.json({ error: 'Access denied: path escape attempt' }, 403);
-  }
-
   try {
-    await fs.promises.rm(fullPath, { recursive: true, force: true });
+    await agentAdapter.deleteDirectory(space, dirPath);
     return c.json({ success: true });
-  } catch {
-    return c.json({ error: 'Failed to delete directory' }, 500);
+  } catch (err: any) {
+    return c.json({ error: err.message ?? 'Failed to delete directory' }, 500);
   }
 });
 
@@ -301,19 +195,11 @@ spacesRouter.patch('/:id/directories/:dirPath{.*}', zValidator('json', renameDir
     return c.json({ error: 'Space not found' }, 404);
   }
 
-  const fullPath = path.join(space.path, dirPath);
-  const newFullPath = path.join(space.path, newPath);
-  const normalizedSpacePath = path.normalize(space.path);
-
-  if (!path.normalize(fullPath).startsWith(normalizedSpacePath) || !path.normalize(newFullPath).startsWith(normalizedSpacePath)) {
-    return c.json({ error: 'Access denied: path escape attempt' }, 403);
-  }
-
   try {
-    await fs.promises.rename(fullPath, newFullPath);
+    await agentAdapter.renameDirectory(space, dirPath, newPath);
     return c.json({ success: true, path: newPath });
-  } catch {
-    return c.json({ error: 'Failed to rename directory' }, 500);
+  } catch (err: any) {
+    return c.json({ error: err.message ?? 'Failed to rename directory' }, 500);
   }
 });
 

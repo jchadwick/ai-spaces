@@ -29,6 +29,7 @@ export const config = {
   INVITE_BASE_URL:    process.env.INVITE_BASE_URL    ?? 'http://localhost:5173',
   ALLOW_ORPHAN_COLLABORATORS: process.env.ALLOW_ORPHAN_COLLABORATORS === 'true',
   CONFIRMATION_NONCE_TTL_MS: parseInt(process.env.CONFIRMATION_NONCE_TTL_MS ?? '300000', 10),
+  AGENT_RUNTIME: (process.env.AGENT_RUNTIME ?? 'openclaw') as 'openclaw' | 'local',
 };
 
 export function assertProductionHttps(url: string, name: string): void {

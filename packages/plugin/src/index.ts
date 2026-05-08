@@ -128,6 +128,19 @@ export default defineChannelPluginEntry({
           }
         }
 
+        // Intercept POST /api/spaces/scan — plugin owns space discovery
+        if (req.method === 'POST' && url.pathname === '/api/spaces/scan') {
+          const spaces = listSpaces();
+          void triggerReconcile();
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({
+            discovered: spaces.map(s => ({ id: s.id, name: s.config?.name ?? s.path, agent: s.agentId, path: s.path, config: s.config })),
+            registered: 0,
+          }));
+          return true;
+        }
+
         // File content: plugin owns all file I/O
         if (req.method === 'GET') {
           const fileContentMatch = url.pathname.match(/^\/api\/spaces\/([^/]+)\/files\/(.+)$/);

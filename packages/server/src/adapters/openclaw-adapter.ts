@@ -1,6 +1,7 @@
 import type { AgentAdapter, FileNode } from './agent-adapter.js';
 import type { SpaceRecord } from '../space-store.js';
 import { config } from '../config.js';
+import type { WorkspaceSpaceRecord } from '@ai-spaces/shared';
 
 export class OpenClawAgentAdapter implements AgentAdapter {
   private filesBase(space: SpaceRecord): string {
@@ -93,5 +94,9 @@ export class OpenClawAgentAdapter implements AgentAdapter {
       body: JSON.stringify({ newPath }),
     });
     await this.checkOk(res, 'renameDirectory');
+  }
+
+  async scanSpaces(): Promise<WorkspaceSpaceRecord[]> {
+    return [];
   }
 }

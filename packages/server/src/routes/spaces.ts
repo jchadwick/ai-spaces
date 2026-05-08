@@ -1,21 +1,15 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
-import * as fs from 'fs';
-import * as path from 'path';
-import type { SpaceConfig } from '@ai-spaces/shared';
-import { computeSpaceId } from '@ai-spaces/shared';
-import { config } from '../config.js';
 import {
   getSpace,
   listSpaces,
   deleteSpace,
-  insertSpace,
-  getSpaceByPath,
   type SpaceRecord,
 } from '../space-store.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { agentAdapter } from '../agent-adapter-instance.js';
+import { reconcileFromSpaceList } from '../reconcile.js';
 
 export const spacesRouter = new Hono();
 spacesRouter.use('*', authMiddleware);
@@ -215,123 +209,20 @@ spacesRouter.delete('/:id', (c) => {
   return c.json({ success: true });
 });
 
-interface DiscoveredSpace {
-  id: string;
-  agentName: string;
-  spaceName: string;
-  spacePath: string;
-  configPath: string;
-  config: SpaceConfig;
-}
-
-async function findSpacesInWorkspace(workspaceDir: string, agentName: string): Promise<DiscoveredSpace[]> {
-  const spaces: DiscoveredSpace[] = [];
-
-  if (!fs.existsSync(workspaceDir)) {
-    return spaces;
-  }
-
-  async function scanDir(dir: string, relativePath: string = '') {
-    const entries = fs.readdirSync(dir, { withFileTypes: true });
-
-    for (const entry of entries) {
-      if (entry.isDirectory()) {
-        const spaceDir = path.join(dir, entry.name);
-        const spaceConfigPath = path.join(spaceDir, '.space', 'spaces.json');
-
-        if (fs.existsSync(spaceConfigPath)) {
-          try {
-            const configContent = fs.readFileSync(spaceConfigPath, 'utf-8');
-            const spaceConfig: SpaceConfig = JSON.parse(configContent);
-            const spacePathRel = relativePath ? `${relativePath}/${entry.name}` : entry.name;
-            const id = spaceConfig.id ?? computeSpaceId(agentName, spacePathRel);
-
-            spaces.push({
-              id,
-              agentName,
-              spaceName: spaceConfig.name || entry.name,
-              spacePath: spacePathRel,
-              configPath: spaceConfigPath,
-              config: spaceConfig,
-            });
-          } catch {}
-        }
-
-        await scanDir(spaceDir, relativePath ? `${relativePath}/${entry.name}` : entry.name);
-      }
-    }
-  }
-
-  await scanDir(workspaceDir);
-  return spaces;
-}
-
-function getAgentWorkspace(agentName: string): string | null {
-  const agentFile = path.join(config.OPENCLAW_HOME, 'agents', agentName, 'agent.json');
-
-  if (!fs.existsSync(agentFile)) {
-    return null;
-  }
-
-  try {
-    const agentData = JSON.parse(fs.readFileSync(agentFile, 'utf-8'));
-    return agentData.workspace || null;
-  } catch {
-    return null;
-  }
-}
-
 spacesRouter.post('/scan', async (c) => {
-  const openclawHome = config.OPENCLAW_HOME;
-  const agentsHome = path.join(openclawHome, 'agents');
-
-  if (!fs.existsSync(agentsHome)) {
-    return c.json({ discovered: [], registered: 0 });
-  }
-
-  const agentDirs = fs.readdirSync(agentsHome, { withFileTypes: true })
-    .filter(entry => entry.isDirectory())
-    .map(entry => entry.name);
-
-  const allSpaces: DiscoveredSpace[] = [];
-
-  for (const agentName of agentDirs) {
-    const workspacePath = agentName === 'main'
-      ? path.join(openclawHome, 'workspace')
-      : (getAgentWorkspace(agentName) ?? path.join(openclawHome, 'workspace', agentName));
-
-    const spaces = await findSpacesInWorkspace(workspacePath, agentName);
-    allSpaces.push(...spaces);
-  }
-
-  let registered = 0;
-
-  for (const space of allSpaces) {
-    const existing = getSpaceByPath(space.agentName, space.spacePath);
-
-    if (!existing) {
-      const now = new Date().toISOString();
-      insertSpace({
-        id: space.id,
-        agentId: space.agentName,
-        agentType: space.agentName === 'main' ? 'main' : 'agent',
-        path: space.spacePath,
-        configPath: space.configPath,
-        config: space.config,
-        createdAt: now,
-        updatedAt: now,
-      });
-      registered++;
-    }
-  }
+  const spaces = await agentAdapter.scanSpaces();
+  const before = listSpaces().length;
+  await reconcileFromSpaceList(spaces);
+  const after = listSpaces().length;
+  const registered = Math.max(0, after - before);
 
   return c.json({
-    discovered: allSpaces.map(space => ({
-      id: space.id,
-      name: space.spaceName,
-      agent: space.agentName,
-      path: space.spacePath,
-      config: space.config,
+    discovered: spaces.map(s => ({
+      id: s.id,
+      name: s.config?.name ?? s.path,
+      agent: s.agentId,
+      path: s.path,
+      config: s.config,
     })),
     registered,
   });

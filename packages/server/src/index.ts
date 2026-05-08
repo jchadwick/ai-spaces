@@ -17,7 +17,8 @@ import { createFileProvider } from './file-provider.js';
 import { seedAdmin } from './seed-admin.js';
 import { runMigrations } from './db/migrate.js';
 import { seedFromJsonIfNeeded } from './db/seed-from-json.js';
-import { reconcileAllAgents, reconcileFromSpaceList } from './reconcile.js';
+import { reconcileFromSpaceList } from './reconcile.js';
+import { agentAdapter } from './agent-adapter-instance.js';
 import { createInternalMiddleware } from './middleware/ip-allowlist.js';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
@@ -70,7 +71,8 @@ app.post('/api/internal/reconcile', internalMiddleware, async (c) => {
   if (Array.isArray(spaces)) {
     await reconcileFromSpaceList(spaces);
   } else {
-    await reconcileAllAgents();
+    const startupSpaces = await agentAdapter.scanSpaces();
+    await reconcileFromSpaceList(startupSpaces);
   }
   return c.json({ success: true });
 });
@@ -117,7 +119,8 @@ seedFromJsonIfNeeded();
 await seedAdmin();
 
 try {
-  await reconcileAllAgents();
+  const startupSpaces = await agentAdapter.scanSpaces();
+  await reconcileFromSpaceList(startupSpaces);
 } catch (err) {
   console.error('[reconcile] Startup reconciliation failed:', err instanceof Error ? err.message : String(err));
 }

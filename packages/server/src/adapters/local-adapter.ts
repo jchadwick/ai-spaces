@@ -3,6 +3,7 @@ import * as path from 'path';
 import type { AgentAdapter, FileNode } from './agent-adapter.js';
 import type { SpaceRecord } from '../space-store.js';
 import { config } from '../config.js';
+import { scanWorkspace, getAgentWorkspace, type WorkspaceSpaceRecord } from '@ai-spaces/shared';
 
 export class LocalAgentAdapter implements AgentAdapter {
   private spaceRoot(space: SpaceRecord): string {
@@ -135,5 +136,28 @@ export class LocalAgentAdapter implements AgentAdapter {
     }
 
     await fs.promises.rename(fullPath, newFullPath);
+  }
+
+  async scanSpaces(): Promise<WorkspaceSpaceRecord[]> {
+    const openclawHome = config.OPENCLAW_HOME;
+    const agentsHome = path.join(openclawHome, 'agents');
+    const results: WorkspaceSpaceRecord[] = [];
+
+    // Always include main workspace
+    const mainWorkspaceRoot = getAgentWorkspace(openclawHome, 'main');
+    results.push(...scanWorkspace(openclawHome, mainWorkspaceRoot, 'main'));
+
+    if (!fs.existsSync(agentsHome)) return results;
+
+    const agentNames = fs.readdirSync(agentsHome, { withFileTypes: true })
+      .filter(e => e.isDirectory() && e.name !== 'main')
+      .map(e => e.name);
+
+    for (const agentName of agentNames) {
+      const workspaceRoot = getAgentWorkspace(openclawHome, agentName);
+      results.push(...scanWorkspace(openclawHome, workspaceRoot, agentName));
+    }
+
+    return results;
   }
 }

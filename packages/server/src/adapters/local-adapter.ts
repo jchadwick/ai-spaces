@@ -17,9 +17,30 @@ export class LocalAgentAdapter implements AgentAdapter {
     const entries = await fs.promises.readdir(fullPath, { withFileTypes: true });
     const nodes = await Promise.all(
       entries.map(async (entry) => {
+        if (entry.name === '.space') return null;
         const relativePath = dirPath ? `${dirPath}/${entry.name}` : entry.name;
         try {
-          const stats = await fs.promises.stat(path.join(fullPath, entry.name));
+          const entryFullPath = path.join(fullPath, entry.name);
+          const stats = await fs.promises.stat(entryFullPath);
+
+          if (entry.isDirectory()) {
+            const childSpaceConfig = path.join(entryFullPath, '.space', 'spaces.json');
+            try {
+              const raw = JSON.parse(await fs.promises.readFile(childSpaceConfig, 'utf-8'));
+              if (raw.id) {
+                return {
+                  name: entry.name,
+                  type: 'space' as const,
+                  path: relativePath,
+                  spaceId: raw.id,
+                  modified: stats.mtime.toISOString(),
+                } satisfies FileNode;
+              }
+            } catch {
+              // not a child space
+            }
+          }
+
           return {
             name: entry.name,
             type: (entry.isDirectory() ? 'directory' : 'file') as 'file' | 'directory',
@@ -34,7 +55,8 @@ export class LocalAgentAdapter implements AgentAdapter {
     );
 
     return (nodes.filter(Boolean) as FileNode[]).sort((a, b) => {
-      if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
+      const rank = (n: FileNode) => n.type === 'directory' ? 0 : n.type === 'space' ? 1 : 2;
+      if (a.type !== b.type) return rank(a) - rank(b);
       return a.name.localeCompare(b.name);
     });
   }

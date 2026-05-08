@@ -46,8 +46,9 @@ export const SessionContextSchema = z.object({
 
 export interface FileNodeType {
   name: string;
-  type: 'file' | 'directory';
+  type: 'file' | 'directory' | 'space';
   path: string;
+  spaceId?: string;
   children?: FileNodeType[];
   size?: number;
   modified?: string;
@@ -55,8 +56,9 @@ export interface FileNodeType {
 
 export const FileNodeSchema: z.ZodType<FileNodeType> = z.object({
   name: z.string(),
-  type: z.enum(['file', 'directory']),
+  type: z.enum(['file', 'directory', 'space']),
   path: z.string(),
+  spaceId: z.string().optional(),
   children: z.lazy(() => z.array(FileNodeSchema)).optional(),
   size: z.number().optional(),
   modified: z.string().optional(),

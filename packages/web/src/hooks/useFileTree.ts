@@ -46,7 +46,7 @@ export function useFileTree(spaceId: string | undefined): FileTree {
     const res = await apiFetch(url)
     if (!res.ok) return []
     const data = await res.json()
-    return sortNodes(data.files || [])
+    return sortNodes((data.files || []).filter((f: FileNode) => f.type !== 'space'))
   }, [apiFetch])
 
   const prefetchAll = useCallback(async (sid: string, nodes: FileNode[]) => {

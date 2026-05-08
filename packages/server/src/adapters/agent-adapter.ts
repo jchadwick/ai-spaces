@@ -3,8 +3,9 @@ import type { WorkspaceSpaceRecord } from '@ai-spaces/shared';
 
 export interface FileNode {
   name: string;
-  type: 'file' | 'directory';
+  type: 'file' | 'directory' | 'space';
   path: string;
+  spaceId?: string;
   size?: number;
   modified: string;
 }

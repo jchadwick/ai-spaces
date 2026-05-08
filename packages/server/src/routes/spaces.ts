@@ -19,13 +19,20 @@ export function getSpaceById(id: string): SpaceRecord | null {
 }
 
 spacesRouter.get('/', (c) => {
-  const spaces = listSpaces().map(s => ({
-    id: s.id,
-    path: s.path,
-    config: s.config,
-    createdAt: s.createdAt,
-    updatedAt: s.updatedAt,
-  }));
+  const allSpaces = listSpaces();
+  const spaces = allSpaces.map(s => {
+    const parent = allSpaces
+      .filter(other => other.id !== s.id && s.path.startsWith(other.path + '/'))
+      .sort((a, b) => b.path.length - a.path.length)[0];
+    return {
+      id: s.id,
+      path: s.path,
+      config: s.config,
+      createdAt: s.createdAt,
+      updatedAt: s.updatedAt,
+      parentSpaceId: parent?.id ?? null,
+    };
+  });
   return c.json({ spaces });
 });
 

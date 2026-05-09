@@ -46,6 +46,7 @@ interface ConnectionStatusContextValue {
 
 const ConnectionStatusContext = createContext<ConnectionStatusContextValue | null>(null);
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useConnectionStatus(): ConnectionStatusContextValue {
   const ctx = useContext(ConnectionStatusContext);
   if (!ctx) {

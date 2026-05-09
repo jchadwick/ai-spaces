@@ -13,6 +13,7 @@ export interface Palette extends ThemeTokens {
   dark?: boolean;
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const PALETTES: Record<string, Palette> = {
   paper: {
     name: 'Paper',
@@ -105,6 +106,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useTheme() {
   return useContext(ThemeContext)
 }

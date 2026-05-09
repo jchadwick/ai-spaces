@@ -70,8 +70,7 @@ export default function SpacePage() {
 
   useEffect(() => {
     if (!spaceId) {
-      setError("Space ID is required");
-      setLoading(false);
+      Promise.resolve().then(() => { setError("Space ID is required"); setLoading(false) });
       return;
     }
 

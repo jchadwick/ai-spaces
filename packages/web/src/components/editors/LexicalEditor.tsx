@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { LexicalComposer } from '@lexical/react/LexicalComposer'
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin'
 import { PlainTextPlugin } from '@lexical/react/LexicalPlainTextPlugin'
@@ -57,7 +57,7 @@ export interface LexicalEditorProps extends EditorProps {
 
 export default function LexicalEditor({ content, onChange, format }: LexicalEditorProps) {
   const onChangeRef = useRef(onChange)
-  onChangeRef.current = onChange
+  useEffect(() => { onChangeRef.current = onChange }, [onChange])
 
   const isMarkdown = format === 'markdown'
 

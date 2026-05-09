@@ -43,4 +43,5 @@ export default function RoleBadge({ role }: RoleBadgeProps) {
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export { roleConfigs }

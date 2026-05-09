@@ -537,7 +537,7 @@ export default function FileExplorer({
     e.dataTransfer.dropEffect = "copy";
   }, [isViewer]);
 
-  const handleDragLeave = useCallback((_e: React.DragEvent) => {
+  const handleDragLeave = useCallback(() => {
     dragCounter.current--;
     if (dragCounter.current === 0) {
       setIsDragOver(false);

@@ -1,6 +1,7 @@
 import type { ViewerProps } from './types'
 
-export default function BinaryViewer(_: ViewerProps) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export default function BinaryViewer(_props: ViewerProps) {
   return (
     <div className="flex-1 overflow-y-auto custom-scrollbar flex items-center justify-center p-8">
       <div className="flex flex-col items-center gap-4 text-on-surface-variant">

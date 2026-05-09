@@ -49,6 +49,8 @@ export function useFileTree(spaceId: string | undefined): FileTree {
     return sortNodes((data.files || []).filter((f: FileNode) => f.type !== 'space'))
   }, [apiFetch])
 
+  const prefetchAllRef = useRef<(sid: string, nodes: FileNode[]) => Promise<void>>(() => Promise.resolve())
+
   const prefetchAll = useCallback(async (sid: string, nodes: FileNode[]) => {
     const dirs = nodes.filter(n => n.type === 'directory')
     if (dirs.length === 0) return
@@ -75,15 +77,16 @@ export function useFileTree(spaceId: string | undefined): FileTree {
       return updated
     })
 
-    await Promise.all(valid.map(({ children }) => prefetchAll(sid, children)))
+    await Promise.all(valid.map(({ children }) => prefetchAllRef.current(sid, children)))
   }, [fetchDir])
+
+  useEffect(() => { prefetchAllRef.current = prefetchAll }, [prefetchAll])
 
   useEffect(() => {
     if (!fetchKey) return
 
     activeSpaceId.current = fetchKey
-    setLoading(true)
-    setError(null)
+    Promise.resolve().then(() => { setLoading(true); setError(null) })
 
     fetchDir(fetchKey, '')
       .then(rootFiles => {

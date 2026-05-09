@@ -32,8 +32,7 @@ export function useAuditLog(spaceId?: string, limit: number = 50): UseAuditLogRe
     if (authLoading || !isAuthenticated) return
 
     let mounted = true
-    setLoading(true)
-    setError(null)
+    Promise.resolve().then(() => { setLoading(true); setError(null) })
 
     const params = new URLSearchParams()
     params.set('limit', limit.toString())

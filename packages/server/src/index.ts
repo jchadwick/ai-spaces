@@ -183,7 +183,7 @@ wss.on('upgrade', (request, socket, head) => {
     }
   }
 
-  const pluginWsUrl = `${config.PLUGIN_WS_URL}/api/spaces/${spaceId}/ws`;
+  const pluginWsUrl = `${config.PLUGIN_SPACES_URL.replace(/^http/, 'ws')}/api/spaces/${spaceId}/ws`;
 
   // If no rawToken (dev bypass), mint a short-lived JWT so the plugin WS can validate it
   const forwardToken = rawToken ?? jwt.sign(

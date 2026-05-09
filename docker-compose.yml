@@ -61,17 +61,14 @@ services:
         COPY tsconfig.base.json ./
     command: sh -c "npm run build:shared && npx tsx watch packages/server/src/index.ts"
     environment:
-      OPENCLAW_HOME: /home/openclaw
       GATEWAY_URL: http://openclaw:19000
       GATEWAY_TOKEN: secret
-      PLUGIN_WS_URL: ws://openclaw:3002
-      AI_SPACES_ROOT: /home/openclaw/workspace
+      PLUGIN_SPACES_URL: http://openclaw:3002
       DEV_VIRTUAL_USER: "true"
       WEB_DIST: /build/packages/web/dist
       AI_SPACES_DATA: /data
       AI_SPACES_DB: /data/ai-spaces.db
     volumes:
-      - openclaw-home:/home/openclaw
       - sidecar-data:/data
       - ./packages/server/src:/build/packages/server/src:ro
       - ./packages/server/tsconfig.json:/build/packages/server/tsconfig.json:ro

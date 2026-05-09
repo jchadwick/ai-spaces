@@ -5,7 +5,8 @@ import * as crypto from 'crypto';
 import * as path from 'path';
 import * as fs from 'fs';
 import { WebSocketServer, WebSocket as WsWebSocket } from 'ws';
-import { getSpace, resolveSpaceRoot, type SpaceRecord } from '../space-store.js';
+import { getSpace, resolveSpaceRoot, initSpaceStore, listSpaces, type SpaceRecord } from '../space-store.js';
+import { handleFileTree, handleFileContent } from './space-files.js';
 import { validatePath } from '../validation.js';
 import { getOrCreateSession, addMessageToSession, getSessionMessages } from '../chat-history.js';
 import { logFileModification } from '../file-history.js';
@@ -868,17 +869,65 @@ function setupWebSocketClient(ws: WsWebSocket, spaceId: string, space: SpaceReco
   ws.on('error', cleanupClient);
 }
 
+function initSpaceStoreFromConfig(): void {
+  const openclawHome = process.env.OPENCLAW_HOME ?? '';
+  const configPath = path.join(openclawHome, '.openclaw', 'openclaw.json');
+  try {
+    const raw = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    const agentList: { id: string; workspace?: string }[] = raw?.agents?.list ?? [];
+    const defaultWorkspace: string = raw?.agents?.defaults?.workspace ?? '';
+    const agentWorkspaces = agentList.map((a) => ({
+      agentId: a.id,
+      workspaceRoot: a.workspace ?? defaultWorkspace,
+    }));
+    initSpaceStore(agentWorkspaces);
+    console.log('[ai-spaces] Space store initialized for agents:', agentWorkspaces.map(w => w.agentId).join(', '));
+  } catch (err) {
+    console.warn('[ai-spaces] Could not initialize space store from config:', err instanceof Error ? err.message : String(err));
+  }
+}
+
 /**
  * Starts a dedicated HTTP+WebSocket server for the plugin.
- * The gateway does not route WebSocket upgrades to plugin HTTP routes —
- * it treats all WS connections to its port as gateway control-plane clients.
- * This standalone server bypasses that limitation entirely.
+ * Handles both file listing/reading (HTTP) and real-time collaboration (WS)
+ * on the same port. The gateway cannot serve these routes reliably, so this
+ * standalone server bypasses that limitation entirely.
  */
-export function startWebSocketServer(port: number): void {
-  console.log(`[ai-spaces] Starting WebSocket server on port ${port}`);
-  const httpServer = http.createServer((_req, res) => {
-    res.statusCode = 200;
-    res.end('AI Spaces WebSocket server');
+export function startSpacesServer(port: number): void {
+  initSpaceStoreFromConfig();
+
+  console.log(`[ai-spaces] Starting spaces server on port ${port}`);
+  const httpServer = http.createServer(async (req: IncomingMessage, res: ServerResponse) => {
+    const url = new URL(req.url ?? '/', `http://localhost:${port}`);
+
+    if (req.method === 'GET') {
+      if (url.pathname === '/api/spaces') {
+        const spaces = listSpaces();
+        res.statusCode = 200;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify({ spaces }));
+        return;
+      }
+
+      const fileContentMatch = url.pathname.match(/^\/api\/spaces\/([^/]+)\/files\/(.+)$/);
+      if (fileContentMatch) {
+        const [, spaceId, filePath] = fileContentMatch;
+        await handleFileContent(req, res, spaceId, decodeURIComponent(filePath));
+        return;
+      }
+
+      const fileTreeMatch = url.pathname.match(/^\/api\/spaces\/([^/]+)\/files$/);
+      if (fileTreeMatch) {
+        const [, spaceId] = fileTreeMatch;
+        const payload = validateSession(req);
+        const role = ((payload?.role as string) ?? 'viewer') as import('@ai-spaces/shared').Role;
+        await handleFileTree(req, res, spaceId, role);
+        return;
+      }
+    }
+
+    res.statusCode = 404;
+    res.end(JSON.stringify({ error: 'Not found' }));
   });
 
   httpServer.on('error', (err) => {

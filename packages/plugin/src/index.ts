@@ -4,7 +4,7 @@ import type { IncomingMessage, ServerResponse } from 'http';
 import { setRuntime, tryGetRuntime } from './runtime.js';
 import { getSpace, listSpaces, initSpaceStore, resolveSpaceRoot } from './space-store.js';
 import { proxyRequest } from './routes/proxy.js';
-import { handleSpaceWebSocket, startWebSocketServer } from './routes/space-ws.js';
+import { handleSpaceWebSocket, startSpacesServer } from './routes/space-ws.js';
 import { handleFileContent, handleFileTree } from './routes/space-files.js';
 import { validateSession } from './session-middleware.js';
 import type { Role } from '@ai-spaces/shared';
@@ -24,7 +24,7 @@ export default defineChannelPluginEntry({
     console.log('[ai-spaces] Registering proxy plugin');
     console.log('[ai-spaces] Proxying to:', config.AI_SPACES_URL);
 
-    startWebSocketServer(config.AI_SPACES_WS_PORT);
+    startSpacesServer(config.AI_SPACES_WS_PORT);
 
     // Build agent→workspace mapping from gateway config (authoritative source)
     const agentList = api.config.agents?.list ?? [];

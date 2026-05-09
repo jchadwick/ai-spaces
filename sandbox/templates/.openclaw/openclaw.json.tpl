@@ -23,7 +23,12 @@
       "heartbeat": {
         "every": "0"
       }
-    }
+    },
+    "list": [
+      { "id": "main", "workspace": "${OPENCLAW_SANDBOX_HOME}/workspace" },
+      { "id": "home", "workspace": "${OPENCLAW_SANDBOX_HOME}/workspaces/home" },
+      { "id": "travel", "workspace": "${OPENCLAW_SANDBOX_HOME}/workspaces/travel" },
+    ]
   },
   "auth": {
     "profiles": {

@@ -13,7 +13,6 @@ function required(name: string): string {
 }
 
 export const config = {
-  get OPENCLAW_HOME(): string { return required('OPENCLAW_HOME'); },
   JWT_SECRET:         process.env.JWT_SECRET         ?? 'ai-spaces-dev-secret-change-in-production',
   JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET ?? 'ai-spaces-refresh-secret-change-in-production',
   AI_SPACES_DATA,
@@ -23,13 +22,12 @@ export const config = {
   GATEWAY_URL:        process.env.GATEWAY_URL        ?? 'http://localhost:19000',
   GATEWAY_TOKEN:      process.env.GATEWAY_TOKEN      ?? 'secret',
   // Plugin's dedicated WebSocket server (bypasses gateway control protocol)
-  PLUGIN_WS_URL:      process.env.PLUGIN_WS_URL      ?? 'ws://127.0.0.1:3002',
+  PLUGIN_SPACES_URL:  process.env.PLUGIN_SPACES_URL  ?? 'http://127.0.0.1:3002',
   // WEB_DIST default assumes project at ~/ai-spaces — set explicitly in production
   WEB_DIST:           process.env.WEB_DIST           ?? path.join(HOME, 'ai-spaces', 'packages', 'web', 'dist'),
   INVITE_BASE_URL:    process.env.INVITE_BASE_URL    ?? 'http://localhost:5173',
   ALLOW_ORPHAN_COLLABORATORS: process.env.ALLOW_ORPHAN_COLLABORATORS === 'true',
   CONFIRMATION_NONCE_TTL_MS: parseInt(process.env.CONFIRMATION_NONCE_TTL_MS ?? '300000', 10),
-  AGENT_RUNTIME: (process.env.AGENT_RUNTIME ?? 'openclaw') as 'openclaw' | 'local',
 };
 
 export function assertProductionHttps(url: string, name: string): void {

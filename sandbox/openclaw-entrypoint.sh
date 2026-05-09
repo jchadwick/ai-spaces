@@ -52,14 +52,13 @@ openclaw plugins install --link "$PLUGIN_DIST" 2>&1 || \
 # Start the AI Spaces WebSocket server as a standalone process.
 # The gateway plugin loading is unreliable across openclaw versions; running the
 # WS server directly ensures chat is always available regardless of gateway state.
-echo "[entrypoint] Starting AI Spaces WebSocket server on port ${AI_SPACES_WS_PORT:-3002}..."
+echo "[entrypoint] Starting AI Spaces server on port ${AI_SPACES_WS_PORT:-3002}..."
 node --input-type=module -e "
-import { startWebSocketServer } from '/plugins/ai-spaces/routes/space-ws.js';
-startWebSocketServer(parseInt(process.env.AI_SPACES_WS_PORT ?? '3002', 10));
-console.log('[ai-spaces-ws] Server started on port ' + (process.env.AI_SPACES_WS_PORT ?? '3002'));
+import { startSpacesServer } from '/plugins/ai-spaces/routes/space-ws.js';
+startSpacesServer(parseInt(process.env.AI_SPACES_WS_PORT ?? '3002', 10));
 " &
 WS_PID=$!
-echo "[entrypoint] AI Spaces WS server PID: $WS_PID"
+echo "[entrypoint] AI Spaces server PID: $WS_PID"
 
 echo "[entrypoint] Starting gateway on port $GATEWAY_PORT..."
 

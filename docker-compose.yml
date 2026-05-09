@@ -31,7 +31,7 @@ services:
       PLUGIN_DIST: /plugins/ai-spaces/index.js
       OPENCLAW_GATEWAY_PORT: "19000"
       OPENCLAW_DISABLE_BONJOUR: "1"
-      AI_SPACES_URL: http://sidecar:3001
+      AI_SPACES_URL: http://dev:3001
       AI_SPACES_WS_PORT: "3002"
       GATEWAY_URL: http://openclaw:19000
       GATEWAY_TOKEN: secret
@@ -45,7 +45,7 @@ services:
     networks:
       - ai-spaces
 
-  sidecar:
+  dev:
     build:
       context: .
       dockerfile_inline: |
@@ -59,25 +59,35 @@ services:
         COPY packages/plugin/package.json ./packages/plugin/
         RUN npm ci
         COPY tsconfig.base.json ./
-    command: sh -c "npm run build:shared && npx tsx watch packages/server/src/index.ts"
+    command: >
+      sh -c "npm run build:shared &&
+             npx tsx watch packages/server/src/index.ts &
+             node_modules/.bin/vite packages/web --port 80 &
+             wait"
     environment:
       GATEWAY_URL: http://openclaw:19000
       GATEWAY_TOKEN: secret
       PLUGIN_SPACES_URL: http://openclaw:3002
       DEV_VIRTUAL_USER: "true"
-      WEB_DIST: /build/packages/web/dist
       AI_SPACES_DATA: /data
       AI_SPACES_DB: /data/ai-spaces.db
+      # Vite uses this to proxy /api and /ws to the server within the container
+      AI_SPACES_URL: http://127.0.0.1:3001
     volumes:
-      - sidecar-data:/data
+      - dev-data:/data
+      # Server source (tsx watch)
       - ./packages/server/src:/build/packages/server/src:ro
       - ./packages/server/tsconfig.json:/build/packages/server/tsconfig.json:ro
       - ./packages/server/drizzle:/build/packages/server/drizzle:ro
+      # Shared source (rebuild on restart)
       - ./packages/shared/src:/build/packages/shared/src:ro
       - ./packages/shared/tsconfig.json:/build/packages/shared/tsconfig.json:ro
+      # Web source (Vite HMR)
+      - ./packages/web/src:/build/packages/web/src:ro
+      - ./packages/web/public:/build/packages/web/public:ro
+      - ./packages/web/index.html:/build/packages/web/index.html:ro
+      - ./packages/web/vite.config.ts:/build/packages/web/vite.config.ts:ro
       - ./tsconfig.base.json:/build/tsconfig.base.json:ro
-    ports:
-      - "3001:3001"
     depends_on:
       - openclaw
     networks:
@@ -101,14 +111,14 @@ services:
     ports:
       - "4983:4983"
     volumes:
-      - sidecar-data:/data
+      - dev-data:/data
       - ./packages/server:/build/packages/server
       - ./packages/shared:/build/packages/shared
       - ./tsconfig.base.json:/build/tsconfig.base.json:ro
     environment:
       AI_SPACES_DB: /data/ai-spaces.db
     depends_on:
-      - sidecar
+      - dev
     networks:
       - ai-spaces
     profiles:
@@ -116,7 +126,7 @@ services:
 
 volumes:
   openclaw-home:
-  sidecar-data:
+  dev-data:
 
 networks:
   ai-spaces:

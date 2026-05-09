@@ -25,12 +25,13 @@ function detectFileType(contentType: string | null, xFileContentType: string | n
   if (xFileContentType === 'markdown') return 'markdown'
   if (xFileContentType === 'pdf') return 'pdf'
 
-  if (contentType?.startsWith('image/')) return 'image'
-  if (contentType === 'application/octet-stream') return 'binary'
-  if (contentType === 'application/pdf') return 'pdf'
-  if (contentType === 'text/markdown') return 'markdown'
-  if (contentType === 'application/json') return 'json'
-  if (contentType?.startsWith('text/')) return 'text'
+  const mimeType = contentType?.split(';')[0].trim()
+  if (mimeType?.startsWith('image/')) return 'image'
+  if (mimeType === 'application/octet-stream') return 'binary'
+  if (mimeType === 'application/pdf') return 'pdf'
+  if (mimeType === 'text/markdown') return 'markdown'
+  if (mimeType === 'application/json') return 'json'
+  if (mimeType?.startsWith('text/')) return 'text'
 
   const ext = fileName.split('.').pop()?.toLowerCase()
   if (ext === 'md' || ext === 'markdown') return 'markdown'

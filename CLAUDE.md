@@ -20,12 +20,6 @@ The initial implementation will be exclusively for OpenClaw, however no architec
 
 ## Testing OpenClaw
 
-For local non-Docker testing, run the one-time sandbox setup first:
-
-```bash
-./scripts/setup-sandbox.sh   # one-time sandbox setup
-```
-
 ### Dev Environment (Docker)
 
 ```bash

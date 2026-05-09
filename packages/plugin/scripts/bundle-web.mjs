@@ -38,6 +38,23 @@ if (existsSync(resolve(pluginDist, 'setup-entry.js'))) {
   console.log('Bundled plugin setup-entry.js');
 }
 
+// Bundle routes/space-ws.js as standalone (used by docker entrypoint directly).
+// npm packages are available in /plugins/node_modules at runtime, so keep them external.
+// @ai-spaces/shared is a workspace package not available in the container, so bundle it in.
+const spaceWsDist = resolve(pluginDist, 'routes/space-ws.js');
+if (existsSync(spaceWsDist)) {
+  await build({
+    entryPoints: [spaceWsDist],
+    bundle: true,
+    format: 'esm',
+    platform: 'node',
+    outfile: spaceWsDist,
+    allowOverwrite: true,
+    external: ['openclaw', 'openclaw/*', 'ws', 'bcrypt', 'chokidar', 'jsonwebtoken', 'mime-types', 'zod'],
+  });
+  console.log('Bundled routes/space-ws.js');
+}
+
 // Bundle shared package (kept for reference/compat but no longer needed at runtime)
 const sharedTarget = resolve(pluginDist, 'shared');
 if (existsSync(sharedDist)) {

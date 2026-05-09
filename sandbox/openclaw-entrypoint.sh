@@ -5,7 +5,6 @@ OPENCLAW_HOME="${OPENCLAW_HOME:-/home/openclaw}"
 OPENCLAW_SANDBOX_HOME="${OPENCLAW_SANDBOX_HOME:-$OPENCLAW_HOME}"
 PLUGIN_DIST="${PLUGIN_DIST:-/plugins/ai-spaces/index.js}"
 CURRENT_TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
-SPACE_ID="testspace"
 GATEWAY_PORT="${OPENCLAW_GATEWAY_PORT:-19000}"
 
 # Extract OPENCODE_API_KEY from mounted auth.json if not already set
@@ -29,7 +28,6 @@ substitute() {
     -e "s|\${OPENCLAW_SANDBOX_HOME}|$OPENCLAW_SANDBOX_HOME|g" \
     -e "s|\${PLUGIN_DIST}|$PLUGIN_DIST|g" \
     -e "s|\${CURRENT_TIMESTAMP}|$CURRENT_TIMESTAMP|g" \
-    -e "s|\${SPACE_ID}|$SPACE_ID|g" \
     -e "s|\${GATEWAY_TOKEN}|${GATEWAY_TOKEN:-secret}|g" \
     "$1"
 }
@@ -44,12 +42,6 @@ if [ -z "$(ls -A "$OPENCLAW_HOME/workspace" 2>/dev/null)" ]; then
     cp -r /tpl/workspace/. "$OPENCLAW_HOME/workspace/"
     echo "[entrypoint] Workspace initialized from template"
   fi
-fi
-
-# Init spaces.json (only if not present)
-if [ ! -f "$OPENCLAW_HOME/spaces.json" ]; then
-  substitute /tpl/spaces.json.tpl > "$OPENCLAW_HOME/spaces.json"
-  echo "[entrypoint] spaces.json initialized"
 fi
 
 # Install plugin via CLI so openclaw writes the installs section it needs at startup

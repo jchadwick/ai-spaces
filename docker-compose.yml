@@ -21,7 +21,7 @@ services:
         USER root
         WORKDIR /plugins
         COPY --from=deps /plugins/node_modules ./node_modules
-        COPY scripts/docker/openclaw-entrypoint.sh /scripts/openclaw-entrypoint.sh
+        COPY sandbox/openclaw-entrypoint.sh /scripts/openclaw-entrypoint.sh
         RUN chmod +x /scripts/openclaw-entrypoint.sh
     user: root
     entrypoint: ["/bin/sh", "/scripts/openclaw-entrypoint.sh"]
@@ -39,9 +39,8 @@ services:
     volumes:
       - openclaw-home:/home/openclaw
       - ./packages/plugin/dist:/plugins/ai-spaces:ro
-      - ./scripts/sandbox-template/.openclaw/openclaw.json:/tpl/openclaw.json.tpl:ro
-      - ./scripts/sandbox-template/spaces.json:/tpl/spaces.json.tpl:ro
-      - ./scripts/sandbox-template/workspace:/tpl/workspace:ro
+      - ./sandbox/templates/.openclaw/openclaw.json.tpl:/tpl/openclaw.json.tpl:ro
+      - ./sandbox/templates/workspace:/tpl/workspace:ro
       - ${HOME}/.local/share/opencode/auth.json:/tpl/opencode-auth.json:ro
     networks:
       - ai-spaces

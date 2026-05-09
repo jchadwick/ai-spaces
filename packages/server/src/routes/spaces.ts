@@ -87,6 +87,7 @@ const writeFileSchema = z.object({
   encoding: z.enum(['utf-8', 'base64']).optional(),
 });
 
+// @ts-ignore -- tsgo TS2589: type instantiation depth limit on Hono+zValidator chains
 spacesRouter.put('/:id/files/:filePath{.*}', zValidator('json', writeFileSchema), async (c) => {
   const id = c.req.param('id');
   const filePath = c.req.param('filePath');
@@ -109,6 +110,7 @@ const createDirSchema = z.object({
   path: z.string().min(1),
 });
 
+// @ts-ignore -- tsgo TS2589: type instantiation depth limit on Hono+zValidator chains
 spacesRouter.post('/:id/directories', zValidator('json', createDirSchema), async (c) => {
   const id = c.req.param('id');
   const { path: dirPath } = c.req.valid('json');
@@ -147,6 +149,7 @@ const renameFileSchema = z.object({
   newPath: z.string().min(1),
 });
 
+// @ts-ignore -- tsgo TS2589: type instantiation depth limit on Hono+zValidator chains
 spacesRouter.patch('/:id/files/:filePath{.*}', zValidator('json', renameFileSchema), async (c) => {
   const id = c.req.param('id');
   const filePath = c.req.param('filePath');
@@ -186,6 +189,7 @@ const renameDirSchema = z.object({
   newPath: z.string().min(1),
 });
 
+// @ts-ignore -- tsgo TS2589: type instantiation depth limit on Hono+zValidator chains
 spacesRouter.patch('/:id/directories/:dirPath{.*}', zValidator('json', renameDirSchema), async (c) => {
   const id = c.req.param('id');
   const dirPath = c.req.param('dirPath');

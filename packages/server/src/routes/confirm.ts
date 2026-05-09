@@ -21,11 +21,8 @@ const issueNonceSchema = z.object({
   params: z.unknown(),
 });
 
-confirmRouter.post(
-  '/internal/confirm/issue',
-  createInternalMiddleware(config.GATEWAY_TOKEN),
-  zValidator('json', issueNonceSchema),
-  async (c) => {
+// @ts-ignore -- tsgo TS2589: type instantiation depth limit on Hono+zValidator chains
+confirmRouter.post('/internal/confirm/issue', createInternalMiddleware(config.GATEWAY_TOKEN), zValidator('json', issueNonceSchema), async (c) => {
     const { spaceId, issuingUserId, action, params } = c.req.valid('json');
 
     const id = crypto.randomUUID();
@@ -50,11 +47,8 @@ const redeemNonceSchema = z.object({
   nonceId: z.string().min(1),
 });
 
-confirmRouter.post(
-  '/confirm/redeem',
-  authMiddleware,
-  zValidator('json', redeemNonceSchema),
-  async (c) => {
+// @ts-ignore -- tsgo TS2589: type instantiation depth limit on Hono+zValidator chains
+confirmRouter.post('/confirm/redeem', authMiddleware, zValidator('json', redeemNonceSchema), async (c) => {
     const user = c.get('user');
     const { nonceId } = c.req.valid('json');
     const now = new Date().toISOString();

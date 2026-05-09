@@ -35,7 +35,7 @@ export type CreateSpaceResult = {
 };
 
 function rowToRecord(row: typeof schema.spaces.$inferSelect): SpaceRecord {
-  let parsedConfig: SpaceConfig = {};
+  let parsedConfig: SpaceConfig = { name: '' };
   try {
     parsedConfig = JSON.parse(row.config) as SpaceConfig;
   } catch {

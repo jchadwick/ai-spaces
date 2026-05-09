@@ -40,6 +40,7 @@ const addMemberSchema = z.object({
 });
 
 // POST /api/spaces/:spaceId/members — add member (admin only)
+// @ts-ignore -- tsgo TS2589: type instantiation depth limit on Hono+zValidator chains
 membersRouter.post('/:spaceId/members', zValidator('json', addMemberSchema), async (c) => {
   const user = c.get('user');
   const spaceId = c.req.param('spaceId');
@@ -76,6 +77,7 @@ const updateMemberSchema = z.object({
 });
 
 // PATCH /api/spaces/:spaceId/members/:userId — change role (admin only, last-admin guard)
+// @ts-ignore -- tsgo TS2589: type instantiation depth limit on Hono+zValidator chains
 membersRouter.patch('/:spaceId/members/:userId', zValidator('json', updateMemberSchema), async (c) => {
   const user = c.get('user');
   const spaceId = c.req.param('spaceId');
@@ -132,6 +134,7 @@ const createInviteSchema = z.object({
 });
 
 // POST /api/spaces/:spaceId/invites — create invite token (admin only)
+// @ts-ignore -- tsgo TS2589: type instantiation depth limit on Hono+zValidator chains
 membersRouter.post('/:spaceId/invites', zValidator('json', createInviteSchema), async (c) => {
   const user = c.get('user');
   const spaceId = c.req.param('spaceId');

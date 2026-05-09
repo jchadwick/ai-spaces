@@ -17,6 +17,7 @@ const refreshSchema = z.object({
   refreshToken: z.string().min(1),
 });
 
+// @ts-ignore -- tsgo TS2589: type instantiation depth limit on Hono+zValidator chains
 authRouter.post('/login', zValidator('json', loginSchema), async (c) => {
   console.log('[DEBUG] Login route entered');
   const { email, password } = c.req.valid('json');
@@ -36,7 +37,7 @@ authRouter.post('/login', zValidator('json', loginSchema), async (c) => {
     return c.json({ error: 'Invalid credentials' }, 401);
   }
 
-  const { accessToken, refreshToken } = generateTokens(user);
+  const { accessToken, refreshToken } = generateTokens(user as User);
 
   return c.json({
     accessToken,
@@ -44,7 +45,7 @@ authRouter.post('/login', zValidator('json', loginSchema), async (c) => {
     user: {
       id: user.id,
       email: user.email,
-      role: user.role,
+      role: user.role as string,
       displayName: user.displayName
     }
   });
@@ -54,6 +55,7 @@ authRouter.post('/logout', (c) => {
   return c.json({ success: true });
 });
 
+// @ts-ignore -- tsgo TS2589: type instantiation depth limit on Hono+zValidator chains
 authRouter.post('/refresh', zValidator('json', refreshSchema), async (c) => {
   const { refreshToken } = c.req.valid('json');
 
@@ -74,7 +76,7 @@ authRouter.post('/refresh', zValidator('json', refreshSchema), async (c) => {
     return c.json({ error: 'User no longer exists' }, 401);
   }
 
-  const { accessToken, refreshToken: newRefreshToken } = generateTokens(user);
+  const { accessToken, refreshToken: newRefreshToken } = generateTokens(user as User);
 
   return c.json({
     accessToken,
@@ -82,7 +84,7 @@ authRouter.post('/refresh', zValidator('json', refreshSchema), async (c) => {
     user: {
       id: user.id,
       email: user.email,
-      role: user.role,
+      role: user.role as string,
       displayName: user.displayName
     }
   });

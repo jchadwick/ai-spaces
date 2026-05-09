@@ -79,7 +79,7 @@ if (fs.existsSync(config.WEB_DIST)) {
     }
     const filePath = path.join(config.WEB_DIST, c.req.path);
     if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-      const content = fs.readFileSync(filePath);
+      const content = fs.readFileSync(filePath, 'utf-8');
       return c.text(content, 200, {
         'Content-Type': getContentType(filePath),
       });

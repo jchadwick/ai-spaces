@@ -10,11 +10,8 @@ import type { AuthVariables } from '../middleware/auth.js';
 
 export const invitesRouter = new Hono<{ Variables: AuthVariables }>();
 
-invitesRouter.post(
-  '/redeem',
-  authMiddleware,
-  zValidator('json', z.object({ token: z.string().length(64) })),
-  async (c) => {
+// @ts-ignore -- tsgo TS2589: type instantiation depth limit on Hono+zValidator chains
+invitesRouter.post('/redeem', authMiddleware, zValidator('json', z.object({ token: z.string().length(64) })), async (c) => {
     const user = c.get('user');
     const { token } = c.req.valid('json');
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');

@@ -7,13 +7,11 @@ import jwt from 'jsonwebtoken';
 import { config, assertProductionHttps } from './config.js';
 import { authRouter } from './routes/auth.js';
 import { spacesRouter, getSpaceById } from './routes/spaces.js';
-import { filesRouter, setFileProvider } from './routes/files.js';
 import { auditRouter } from './routes/audit.js';
 import { membersRouter } from './routes/members.js';
 import { invitesRouter } from './routes/invites.js';
 import { identityRouter } from './routes/identity.js';
 import { confirmRouter } from './routes/confirm.js';
-import { createFileProvider } from './file-provider.js';
 import { seedAdmin } from './seed-admin.js';
 import { runMigrations } from './db/migrate.js';
 import { seedFromJsonIfNeeded } from './db/seed-from-json.js';
@@ -24,8 +22,6 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 
-
-setFileProvider(createFileProvider());
 
 assertProductionHttps(config.INVITE_BASE_URL, 'INVITE_BASE_URL');
 
@@ -57,7 +53,6 @@ app.route('/api/auth', authRouter);
 app.route('/api/spaces', spacesRouter);
 app.route('/api/spaces', membersRouter);
 app.route('/api/spaces', identityRouter);
-app.route('/api/files', filesRouter);
 app.route('/api/audit', auditRouter);
 app.route('/api/invites', invitesRouter);
 app.route('/api', confirmRouter);

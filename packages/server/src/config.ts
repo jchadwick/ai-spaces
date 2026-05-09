@@ -16,7 +16,6 @@ export const config = {
   JWT_SECRET:         process.env.JWT_SECRET         ?? 'ai-spaces-dev-secret-change-in-production',
   JWT_REFRESH_SECRET: process.env.JWT_REFRESH_SECRET ?? 'ai-spaces-refresh-secret-change-in-production',
   AI_SPACES_DATA,
-  AI_SPACES_ROOT:     process.env.AI_SPACES_ROOT     ?? path.join(HOME, 'ai-spaces-workspace'),
   AI_SPACES_DB:       process.env.AI_SPACES_DB       ?? path.join(AI_SPACES_DATA, 'ai-spaces.db'),
   AI_SPACES_PORT:     parseInt(process.env.AI_SPACES_PORT ?? '3001', 10),
   GATEWAY_URL:        process.env.GATEWAY_URL        ?? 'http://localhost:19000',

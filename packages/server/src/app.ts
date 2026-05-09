@@ -4,11 +4,7 @@ import { logger } from 'hono/logger';
 import { HTTPException } from 'hono/http-exception';
 import { authRouter } from './routes/auth.js';
 import { spacesRouter } from './routes/spaces.js';
-import { filesRouter, setFileProvider } from './routes/files.js';
 import { auditRouter } from './routes/audit.js';
-import { createFileProvider } from './file-provider.js';
-
-setFileProvider(createFileProvider());
 
 export const app = new Hono();
 
@@ -21,7 +17,6 @@ app.use('/api/*', cors({
 
 app.route('/api/auth', authRouter);
 app.route('/api/spaces', spacesRouter);
-app.route('/api/files', filesRouter);
 app.route('/api/audit', auditRouter);
 
 app.get('/health', (c) => {

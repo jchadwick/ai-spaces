@@ -43,6 +43,14 @@ function App() {
                   </ProtectedRoute>
                 }
               />
+              <Route
+                path="/space/:spaceId/*"
+                element={
+                  <ProtectedRoute>
+                    <SpacePage />
+                  </ProtectedRoute>
+                }
+              />
             </Routes>
           </BrowserRouter>
         </ToastProvider>

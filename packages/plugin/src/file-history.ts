@@ -15,7 +15,7 @@ interface FileHistoryStore {
 }
 
 function getOpenClawHome(): string {
-  return config.OPENCLAW_HOME;
+  return process.env.OPENCLAW_HOME ?? config.OPENCLAW_HOME;
 }
 
 function getHistoryFilePath(spacePath: string): string {

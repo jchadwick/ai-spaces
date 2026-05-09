@@ -29,7 +29,7 @@ interface Space {
 }
 
 export default function SpacePage() {
-  const { spaceId } = useParams();
+  const { spaceId, '*': fileSplat } = useParams();
   const navigate = useNavigate();
   const { user, accessToken } = useAuth();
   const apiFetch = useAPI();
@@ -37,7 +37,11 @@ export default function SpacePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [space, setSpace] = useState<Space | null>(null);
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+
+  const selectedFile = fileSplat || null;
+  const setSelectedFile = useCallback((filePath: string | null) => {
+    navigate(filePath ? `/space/${spaceId}/${filePath}` : `/space/${spaceId}`, { replace: true });
+  }, [navigate, spaceId]);
   const [editorRefreshKey, setEditorRefreshKey] = useState(0);
   const [leftWidth, setLeftWidth] = useState(SIDEBAR_LEFT_DEFAULT);
   const [rightWidth, setRightWidth] = useState(SIDEBAR_RIGHT_DEFAULT);
@@ -65,7 +69,7 @@ export default function SpacePage() {
         setEditorRefreshKey((k) => k + 1);
       }
     },
-    [selectedFile],
+    [selectedFile, setSelectedFile],
   );
 
   useEffect(() => {

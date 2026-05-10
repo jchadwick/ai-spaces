@@ -6,7 +6,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { WebSocketServer, WebSocket as WsWebSocket } from 'ws';
 import { getSpace, resolveSpaceRoot, initSpaceStore, listSpaces, type SpaceRecord } from '../space-store.js';
-import { handleFileTree, handleFileContent } from './space-files.js';
+import { handleFileTree, handleFileContent, handleFileWrite as handleFileWriteHttp } from './space-files.js';
 import { validatePath } from '../validation.js';
 import { getOrCreateSession, addMessageToSession, getSessionMessages } from '../chat-history.js';
 import { logFileModification } from '../file-history.js';
@@ -922,6 +922,15 @@ export function startSpacesServer(port: number): void {
         const payload = validateSession(req);
         const role = ((payload?.role as string) ?? 'viewer') as import('@ai-spaces/shared').Role;
         await handleFileTree(req, res, spaceId, role);
+        return;
+      }
+    }
+
+    if (req.method === 'PUT') {
+      const fileWriteMatch = url.pathname.match(/^\/api\/spaces\/([^/]+)\/files\/(.+)$/);
+      if (fileWriteMatch) {
+        const [, spaceId, filePath] = fileWriteMatch;
+        await handleFileWriteHttp(req, res, spaceId, decodeURIComponent(filePath));
         return;
       }
     }

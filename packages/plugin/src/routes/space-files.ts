@@ -235,6 +235,64 @@ export async function handleFileContent(req: IncomingMessage, res: ServerRespons
   }
 }
 
+export async function handleFileWrite(req: IncomingMessage, res: ServerResponse, spaceId: string, filePath: string) {
+  const space = getSpace(spaceId);
+
+  if (!space) {
+    res.statusCode = 404;
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.end(JSON.stringify({ error: 'Space not found' }));
+    return true;
+  }
+
+  const spaceRoot = resolveSpaceRoot(space);
+  const validation = validatePath(filePath, spaceRoot);
+
+  if (!validation.valid) {
+    logPathEscapeAttempt(spaceId, filePath, validation.resolvedPath, undefined, getClientIp(req));
+    res.statusCode = 403;
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.end(JSON.stringify({ error: 'Access denied' }));
+    return true;
+  }
+
+  const fullPath = validation.resolvedPath!;
+
+  try {
+    const body = await new Promise<string>((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      req.on('data', (chunk: Buffer) => chunks.push(chunk));
+      req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+      req.on('error', reject);
+    });
+
+    const { content, encoding } = JSON.parse(body) as { content: string; encoding?: 'utf-8' | 'base64' };
+
+    await fsPromises.mkdir(path.dirname(fullPath), { recursive: true });
+
+    if (encoding === 'base64') {
+      await fsPromises.writeFile(fullPath, Buffer.from(content, 'base64'));
+    } else {
+      await fsPromises.writeFile(fullPath, content, 'utf8');
+    }
+
+    const stats = await fsPromises.stat(fullPath);
+
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.end(JSON.stringify({ success: true, path: filePath, modified: stats.mtime.toISOString() }));
+  } catch (error) {
+    res.statusCode = 500;
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.end(JSON.stringify({ error: `Failed to write file: ${(error as Error).message}` }));
+  }
+  return true;
+}
+
 function getMimeType(filePath: string): string {
   return mime.lookup(filePath) || 'application/octet-stream';
 }

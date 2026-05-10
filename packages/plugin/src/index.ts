@@ -5,7 +5,7 @@ import { setRuntime, tryGetRuntime } from './runtime.js';
 import { getSpace, listSpaces, initSpaceStore, resolveSpaceRoot } from './space-store.js';
 import { proxyRequest } from './routes/proxy.js';
 import { handleSpaceWebSocket, startSpacesServer } from './routes/space-ws.js';
-import { handleFileContent, handleFileTree } from './routes/space-files.js';
+import { handleFileContent, handleFileTree, handleFileWrite } from './routes/space-files.js';
 import { validateSession } from './session-middleware.js';
 import type { Role } from '@ai-spaces/shared';
 import * as crypto from 'crypto';
@@ -142,6 +142,14 @@ export default defineChannelPluginEntry({
         }
 
         // File content: plugin owns all file I/O
+        if (req.method === 'PUT') {
+          const fileWriteMatch = url.pathname.match(/^\/api\/spaces\/([^/]+)\/files\/(.+)$/);
+          if (fileWriteMatch) {
+            const [, spaceId, filePath] = fileWriteMatch;
+            return handleFileWrite(req, res, spaceId, decodeURIComponent(filePath));
+          }
+        }
+
         if (req.method === 'GET') {
           const fileContentMatch = url.pathname.match(/^\/api\/spaces\/([^/]+)\/files\/(.+)$/);
           if (fileContentMatch) {

@@ -5,7 +5,7 @@ import type { FileTypeHandler } from './types'
 const registry: Partial<Record<FileType, FileTypeHandler>> = {
   markdown: {
     viewer: lazy(() => import('./MarkdownViewer')),
-    editor: lazy(() => import('./LexicalMarkdownEditor')),
+    editor: lazy(() => import('./MarkdownSplitEditor')),
   },
   text: {
     viewer: lazy(() => import('./TextViewer')),

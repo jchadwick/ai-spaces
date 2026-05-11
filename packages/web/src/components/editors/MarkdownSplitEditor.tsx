@@ -1,9 +1,16 @@
+import { lazy, Suspense, isValidElement } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
 import rehypeHighlight from 'rehype-highlight'
 import rehypeRaw from 'rehype-raw'
-import MDEditor from '@uiw/react-md-editor'
+import rehypeKatex from 'rehype-katex'
+import 'highlight.js/styles/github.css'
+import 'katex/dist/katex.min.css'
+import { remarkCallouts } from './remarkCallouts'
 import type { EditorProps } from './types'
+
+const MermaidDiagram = lazy(() => import('./MermaidDiagram'))
 
 const markdownClasses =
   'prose prose-slate max-w-none prose-img:rounded-lg prose-headings:font-display prose-headings:font-semibold prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl prose-p:text-on-surface prose-a:text-primary prose-code:font-mono prose-code:bg-surface-container prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-pre:bg-surface-container-low prose-pre:font-mono'
@@ -11,42 +18,53 @@ const markdownClasses =
 export default function MarkdownSplitEditor({ content, onChange }: EditorProps) {
   return (
     <div className="h-full flex">
-      <div className="flex-1 flex flex-col border-r border-outline-variant/20">
-        <div className="px-4 py-2 bg-surface-container text-xs text-on-surface-variant uppercase tracking-wider font-medium border-b border-outline-variant/20">
+      <div className="flex-1 flex flex-col border-r border-t-hair">
+        <div className="px-4 py-2 bg-t-bg-well text-xs text-t-ink-dim uppercase tracking-wider font-mono border-b border-t-hair">
           Edit
         </div>
-        <div className="flex-1 overflow-hidden">
-          <MDEditor
-            value={content}
-            onChange={(val) => onChange(val || '')}
-            preview="edit"
-            height={500}
-            visibleDragbar={false}
-            hideToolbar={true}
-          />
-        </div>
+        <textarea
+          className="flex-1 resize-none p-4 font-mono text-sm bg-t-bg text-t-ink focus:outline-none"
+          value={content ?? ''}
+          onChange={(e) => onChange(e.target.value)}
+          spellCheck={false}
+        />
       </div>
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="px-4 py-2 bg-surface-container text-xs text-on-surface-variant uppercase tracking-wider font-medium border-b border-outline-variant/20">
+        <div className="px-4 py-2 bg-t-bg-well text-xs text-t-ink-dim uppercase tracking-wider font-mono border-b border-t-hair">
           Preview
         </div>
-        <div className="flex-1 overflow-y-auto custom-scrollbar">
-          <article className={`${markdownClasses} p-8`}>
+        <div className="flex-1 overflow-y-auto px-8 py-6">
+          <article className={markdownClasses}>
             <ReactMarkdown
-              remarkPlugins={[remarkGfm]}
-              rehypePlugins={[rehypeHighlight, rehypeRaw]}
+              remarkPlugins={[remarkGfm, remarkMath, remarkCallouts]}
+              rehypePlugins={[[rehypeHighlight, { ignoreMissing: true }], rehypeRaw, rehypeKatex]}
               components={{
                 img: ({ ...props }) => (
                   <img
                     {...props}
-                    className="max-w-full h-auto rounded-lg shadow-ambient"
+                    className="max-w-full h-auto rounded-lg"
                     loading="lazy"
-                    alt={props.alt || ''}
+                    alt={props.alt ?? ''}
                   />
                 ),
+                pre: ({ children, ...props }) => {
+                  const child = Array.isArray(children) ? children[0] : children
+                  if (
+                    isValidElement(child) &&
+                    (child.props as { className?: string }).className?.includes('language-mermaid')
+                  ) {
+                    const chart = String((child.props as { children?: unknown }).children ?? '').trim()
+                    return (
+                      <Suspense fallback={null}>
+                        <MermaidDiagram chart={chart} />
+                      </Suspense>
+                    )
+                  }
+                  return <pre {...props}>{children}</pre>
+                },
               }}
             >
-              {content}
+              {content ?? ''}
             </ReactMarkdown>
           </article>
         </div>

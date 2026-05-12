@@ -12,6 +12,7 @@ import * as crypto from 'crypto';
 import * as path from 'path';
 import { config } from './config.js';
 import { SpaceWatcher } from './space-watcher.js';
+import { registerWithServer, clearRegistrationState } from './registration.js';
 
 export default defineChannelPluginEntry({
   id: 'ai-spaces',
@@ -25,6 +26,9 @@ export default defineChannelPluginEntry({
     console.log('[ai-spaces] Proxying to:', config.AI_SPACES_URL);
 
     startSpacesServer(config.AI_SPACES_WS_PORT);
+
+    const registration = await registerWithServer();
+    const { serverId, callbackToken } = registration;
 
     // Build agent→workspace mapping from gateway config (authoritative source)
     const agentList = api.config.agents?.list ?? [];
@@ -58,14 +62,19 @@ export default defineChannelPluginEntry({
       try {
         while (reconcileDirty) {
           reconcileDirty = false;
-          await fetch(`${config.AI_SPACES_URL}/api/internal/reconcile`, {
+          const resp = await fetch(`${config.AI_SPACES_URL}/api/internal/reconcile`, {
             method: 'POST',
             headers: {
               Authorization: `Bearer ${config.GATEWAY_TOKEN}`,
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ spaces: listSpaces() }),
+            body: JSON.stringify({ spaces: listSpaces(), serverId, callbackToken }),
           });
+          if (resp.status === 401) {
+            console.warn('[ai-spaces] Server rejected callbackToken — clearing registration state and restarting');
+            clearRegistrationState();
+            process.exit(1);
+          }
         }
       } catch (err) {
         console.warn('[ai-spaces] Reconcile trigger failed:', err instanceof Error ? err.message : String(err));
@@ -135,19 +144,6 @@ export default defineChannelPluginEntry({
           res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
           res.writeHead(204);
           res.end();
-          return true;
-        }
-
-        // Intercept POST /api/spaces/scan — plugin owns space discovery
-        if (req.method === 'POST' && url.pathname === '/api/spaces/scan') {
-          const spaces = listSpaces();
-          void triggerReconcile();
-          res.statusCode = 200;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({
-            discovered: spaces.map(s => ({ id: s.id, name: s.config?.name ?? s.path, agent: s.agentId, path: s.path, config: s.config })),
-            registered: 0,
-          }));
           return true;
         }
 

@@ -29,6 +29,20 @@
       "when": 1747094400000,
       "tag": "0003_multi_table_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1778618629260,
+      "tag": "0004_grey_iron_patriot",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1778622743785,
+      "tag": "0005_pink_texas_twister",
+      "breakpoints": true
     }
   ]
 }

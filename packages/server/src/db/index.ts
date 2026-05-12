@@ -4,6 +4,9 @@ import { sql } from 'drizzle-orm';
 export const servers = sqliteTable('servers', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
+  pluginUrl: text('plugin_url'),
+  gatewayUrl: text('gateway_url'),
+  callbackToken: text('callback_token'),
   createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 

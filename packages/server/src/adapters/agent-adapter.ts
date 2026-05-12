@@ -1,5 +1,5 @@
 import type { SpaceRecord } from '../space-store.js';
-import type { WorkspaceSpaceRecord, SpaceRole, SpaceMetadata, FileMetadataEntry } from '@ai-spaces/shared';
+import type { SpaceRole, SpaceMetadata, FileMetadataEntry } from '@ai-spaces/shared';
 
 export interface FileNode {
   name: string;
@@ -19,7 +19,6 @@ export interface AgentAdapter {
   createDirectory(space: SpaceRecord, dirPath: string): Promise<void>;
   deleteDirectory(space: SpaceRecord, dirPath: string): Promise<void>;
   renameDirectory(space: SpaceRecord, dirPath: string, newPath: string): Promise<void>;
-  scanSpaces(): Promise<WorkspaceSpaceRecord[]>;
   getMetadata(space: SpaceRecord): Promise<SpaceMetadata>;
   patchMetadata(space: SpaceRecord, files: Record<string, Partial<FileMetadataEntry>>): Promise<void>;
 }

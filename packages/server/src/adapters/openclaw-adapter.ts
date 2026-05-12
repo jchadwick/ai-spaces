@@ -1,12 +1,18 @@
 import type { AgentAdapter, FileNode } from './agent-adapter.js';
 import type { SpaceRecord } from '../space-store.js';
-import { config } from '../config.js';
-import type { WorkspaceSpaceRecord, SpaceRole, SpaceMetadata, FileMetadataEntry } from '@ai-spaces/shared';
+import type { SpaceRole, SpaceMetadata, FileMetadataEntry } from '@ai-spaces/shared';
 import { SpaceMetadataSchema } from '@ai-spaces/shared';
+import { getServerById } from '../db/queries.js';
 
 export class OpenClawAgentAdapter implements AgentAdapter {
+  private getPluginUrl(space: SpaceRecord): string {
+    const server = getServerById(space.serverId);
+    if (!server?.pluginUrl) throw new Error(`No plugin URL registered for server ${space.serverId}`);
+    return server.pluginUrl;
+  }
+
   private filesBase(space: SpaceRecord): string {
-    return `${config.PLUGIN_SPACES_URL}/api/spaces/${space.id}/files`;
+    return `${this.getPluginUrl(space)}/api/spaces/${space.id}/files`;
   }
 
   private async checkOk(res: Response, context: string): Promise<void> {
@@ -61,7 +67,7 @@ export class OpenClawAgentAdapter implements AgentAdapter {
   }
 
   async createDirectory(space: SpaceRecord, dirPath: string): Promise<void> {
-    const url = `${config.PLUGIN_SPACES_URL}/api/spaces/${space.id}/directories`;
+    const url = `${this.getPluginUrl(space)}/api/spaces/${space.id}/directories`;
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -71,13 +77,13 @@ export class OpenClawAgentAdapter implements AgentAdapter {
   }
 
   async deleteDirectory(space: SpaceRecord, dirPath: string): Promise<void> {
-    const url = `${config.PLUGIN_SPACES_URL}/api/spaces/${space.id}/directories/${encodeURIComponent(dirPath)}`;
+    const url = `${this.getPluginUrl(space)}/api/spaces/${space.id}/directories/${encodeURIComponent(dirPath)}`;
     const res = await fetch(url, { method: 'DELETE' });
     await this.checkOk(res, 'deleteDirectory');
   }
 
   async renameDirectory(space: SpaceRecord, dirPath: string, newPath: string): Promise<void> {
-    const url = `${config.PLUGIN_SPACES_URL}/api/spaces/${space.id}/directories/${encodeURIComponent(dirPath)}`;
+    const url = `${this.getPluginUrl(space)}/api/spaces/${space.id}/directories/${encodeURIComponent(dirPath)}`;
     const res = await fetch(url, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -87,7 +93,7 @@ export class OpenClawAgentAdapter implements AgentAdapter {
   }
 
   async getMetadata(space: SpaceRecord): Promise<SpaceMetadata> {
-    const url = `${config.PLUGIN_SPACES_URL}/api/spaces/${space.id}/metadata`;
+    const url = `${this.getPluginUrl(space)}/api/spaces/${space.id}/metadata`;
     const res = await fetch(url);
     if (!res.ok) return { files: {} };
     const data = await res.json();
@@ -96,19 +102,12 @@ export class OpenClawAgentAdapter implements AgentAdapter {
   }
 
   async patchMetadata(space: SpaceRecord, files: Record<string, Partial<FileMetadataEntry>>): Promise<void> {
-    const url = `${config.PLUGIN_SPACES_URL}/api/spaces/${space.id}/metadata`;
+    const url = `${this.getPluginUrl(space)}/api/spaces/${space.id}/metadata`;
     const res = await fetch(url, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ files }),
     });
     await this.checkOk(res, 'patchMetadata');
-  }
-
-  async scanSpaces(): Promise<WorkspaceSpaceRecord[]> {
-    const res = await fetch(`${config.PLUGIN_SPACES_URL}/api/spaces`);
-    await this.checkOk(res, 'scanSpaces');
-    const data = await res.json() as { spaces: WorkspaceSpaceRecord[] };
-    return data.spaces;
   }
 }

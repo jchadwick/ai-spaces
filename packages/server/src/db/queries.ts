@@ -1,16 +1,37 @@
 import { db } from './connection.js';
-import { users, spaceMembers, serverRoles } from './index.js';
+import { users, spaceMembers, serverRoles, servers, spaces } from './index.js';
 import type { UserWithServerRole } from './index.js';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import type { SpaceRole } from '@ai-spaces/shared';
 import { DEFAULT_SERVER_ID } from './constants.js';
 
+export function getServerById(serverId: string): typeof servers.$inferSelect | null {
+  return db.select().from(servers).where(eq(servers.id, serverId)).get() ?? null;
+}
+
+export function getServerBySpaceId(spaceId: string): typeof servers.$inferSelect | null {
+  const row = db.select({ serverId: spaces.serverId }).from(spaces).where(eq(spaces.id, spaceId)).get();
+  if (!row) return null;
+  return db.select().from(servers).where(eq(servers.id, row.serverId)).get() ?? null;
+}
+
 export function getUserSpaceRole(userId: string, spaceId: string): SpaceRole | null {
+  const spaceRow = db.select({ serverId: spaces.serverId }).from(spaces).where(eq(spaces.id, spaceId)).get();
+  const resolvedServerId = spaceRow?.serverId ?? DEFAULT_SERVER_ID;
+
   const serverRole = db.select({ role: serverRoles.role })
     .from(serverRoles)
-    .where(and(eq(serverRoles.userId, userId), eq(serverRoles.serverId, DEFAULT_SERVER_ID)))
+    .where(and(eq(serverRoles.userId, userId), eq(serverRoles.serverId, resolvedServerId)))
     .get();
   if (serverRole?.role === 'admin') return 'owner';
+
+  if (resolvedServerId !== DEFAULT_SERVER_ID) {
+    const godRole = db.select({ role: serverRoles.role })
+      .from(serverRoles)
+      .where(and(eq(serverRoles.userId, userId), eq(serverRoles.serverId, DEFAULT_SERVER_ID)))
+      .get();
+    if (godRole?.role === 'admin') return 'owner';
+  }
 
   const membership = db.select({ role: spaceMembers.role })
     .from(spaceMembers)
@@ -23,21 +44,30 @@ export function getUserSpaceRoles(userId: string, spaceIds: string[]): Map<strin
   const map = new Map<string, SpaceRole>();
   if (spaceIds.length === 0) return map;
 
-  const serverRole = db.select({ role: serverRoles.role })
+  const spaceRows = db.select({ id: spaces.id, serverId: spaces.serverId })
+    .from(spaces)
+    .where(inArray(spaces.id, spaceIds))
+    .all();
+  const serverIdBySpace = new Map(spaceRows.map(r => [r.id, r.serverId]));
+
+  const adminRows = db.select({ serverId: serverRoles.serverId })
     .from(serverRoles)
-    .where(and(eq(serverRoles.userId, userId), eq(serverRoles.serverId, DEFAULT_SERVER_ID)))
-    .get();
-  if (serverRole?.role === 'admin') {
-    for (const id of spaceIds) map.set(id, 'owner');
-    return map;
+    .where(and(eq(serverRoles.userId, userId), eq(serverRoles.role, 'admin')))
+    .all();
+  const adminServerSet = new Set(adminRows.map(r => r.serverId));
+
+  for (const id of spaceIds) {
+    const sid = serverIdBySpace.get(id) ?? DEFAULT_SERVER_ID;
+    if (adminServerSet.has(sid)) map.set(id, 'owner');
   }
 
   const memberships = db.select({ spaceId: spaceMembers.spaceId, role: spaceMembers.role })
     .from(spaceMembers)
     .where(eq(spaceMembers.userId, userId))
     .all();
-
-  for (const m of memberships) map.set(m.spaceId, m.role as SpaceRole);
+  for (const m of memberships) {
+    if (!map.has(m.spaceId)) map.set(m.spaceId, m.role as SpaceRole);
+  }
   return map;
 }
 

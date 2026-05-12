@@ -18,10 +18,7 @@ export const config = {
   AI_SPACES_DATA,
   AI_SPACES_DB:       process.env.AI_SPACES_DB       ?? path.join(AI_SPACES_DATA, 'ai-spaces.db'),
   AI_SPACES_PORT:     parseInt(process.env.AI_SPACES_PORT ?? '3001', 10),
-  GATEWAY_URL:        process.env.GATEWAY_URL        ?? 'http://localhost:19000',
   GATEWAY_TOKEN:      process.env.GATEWAY_TOKEN      ?? 'secret',
-  // Plugin's dedicated WebSocket server (bypasses gateway control protocol)
-  PLUGIN_SPACES_URL:  process.env.PLUGIN_SPACES_URL  ?? 'http://127.0.0.1:3002',
   // WEB_DIST default assumes project at ~/ai-spaces — set explicitly in production
   WEB_DIST:           process.env.WEB_DIST           ?? path.join(HOME, 'ai-spaces', 'packages', 'web', 'dist'),
   INVITE_BASE_URL:    process.env.INVITE_BASE_URL    ?? 'http://localhost:5173',

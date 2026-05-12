@@ -11,6 +11,7 @@ import { validatePath } from '../validation.js';
 import { getOrCreateSession, addMessageToSession, getSessionMessages } from '../chat-history.js';
 import { logFileModification } from '../file-history.js';
 import { config } from '../config.js';
+import { loadRegistrationState, registerWithServer } from '../registration.js';
 import { validateSession } from '../session-middleware.js';
 import { fileWatcher, type FileChangedEvent } from '../file-watcher.js';
 import type { WebSocketMessage, SpaceConfig, ChatMessage, SpaceRole } from '@ai-spaces/shared';
@@ -161,7 +162,8 @@ async function handleChatSend(
   sendWebSocketMessage(client, { type: 'event', event: 'stream_start', payload: { messageId: streamMessageId } });
 
   try {
-    const res = await fetch(`${config.GATEWAY_URL}/v1/chat/completions`, {
+    const gatewayUrl = loadRegistrationState()?.gatewayUrl ?? 'http://127.0.0.1:19000';
+    const res = await fetch(`${gatewayUrl}/v1/chat/completions`, {
       method: 'POST',
       signal: abortController.signal,
       headers: {
@@ -1055,4 +1057,18 @@ export async function handleSpaceWebSocket(req: IncomingMessage, res: ServerResp
   });
 
   return true;
+}
+
+export async function registerAndStartSpacesServer(port: number): Promise<void> {
+  const { serverId, callbackToken } = await registerWithServer();
+  startSpacesServer(port);
+  try {
+    await fetch(`${config.AI_SPACES_URL}/api/internal/reconcile`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${config.GATEWAY_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ spaces: listSpaces(), serverId, callbackToken }),
+    });
+  } catch (err) {
+    console.warn('[ai-spaces] Initial reconcile failed:', err instanceof Error ? err.message : String(err));
+  }
 }

@@ -67,8 +67,8 @@ openclaw plugins install --link "$PLUGIN_DIST" 2>&1 || \
 # WS server directly ensures chat is always available regardless of gateway state.
 echo "[entrypoint] Starting AI Spaces server on port ${AI_SPACES_WS_PORT:-3002}..."
 node --input-type=module -e "
-import { startSpacesServer } from '/plugins/ai-spaces/routes/space-ws.js';
-startSpacesServer(parseInt(process.env.AI_SPACES_WS_PORT ?? '3002', 10));
+import { registerAndStartSpacesServer } from '/plugins/ai-spaces/routes/space-ws.js';
+await registerAndStartSpacesServer(parseInt(process.env.AI_SPACES_WS_PORT ?? '3002', 10));
 " &
 WS_PID=$!
 echo "[entrypoint] AI Spaces server PID: $WS_PID"

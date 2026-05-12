@@ -13,11 +13,13 @@ import { invitesRouter } from './routes/invites.js';
 import { identityRouter } from './routes/identity.js';
 import { confirmRouter } from './routes/confirm.js';
 import { adminRouter } from './routes/admin.js';
+import { internalRouter } from './routes/internal.js';
 import { runMigrations } from './db/migrate.js';
-import { reconcileFromSpaceList } from './reconcile.js';
-import { agentAdapter } from './agent-adapter-instance.js';
-import { getUserSpaceRole } from './db/queries.js';
+import { getUserSpaceRole, getServerBySpaceId } from './db/queries.js';
 import { createInternalMiddleware } from './middleware/ip-allowlist.js';
+import { db } from './db/connection.js';
+import { servers } from './db/index.js';
+import { DEFAULT_SERVER_ID } from './db/constants.js';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
@@ -53,6 +55,14 @@ app.use('/register*', async (c, next) => {
   c.res.headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'");
 });
 
+const internalMiddleware = createInternalMiddleware(config.GATEWAY_TOKEN);
+app.use('/api/internal/*', internalMiddleware);
+app.route('/api/internal', internalRouter);
+
+app.get('/health', (c) => {
+  return c.json({ status: 'ok' });
+});
+
 app.route('/api/auth', authRouter);
 app.route('/api/admin', adminRouter);
 app.route('/api/spaces', spacesRouter);
@@ -61,21 +71,6 @@ app.route('/api/spaces', identityRouter);
 app.route('/api/audit', auditRouter);
 app.route('/api/invites', invitesRouter);
 app.route('/api', confirmRouter);
-
-const internalMiddleware = createInternalMiddleware(config.GATEWAY_TOKEN);
-app.post('/api/internal/reconcile', internalMiddleware, async (c) => {
-  let body: unknown;
-  try { body = await c.req.json(); } catch { body = null; }
-
-  const spaces = (body as { spaces?: unknown })?.spaces;
-  if (Array.isArray(spaces)) {
-    await reconcileFromSpaceList(spaces);
-  } else {
-    const startupSpaces = await agentAdapter.scanSpaces();
-    await reconcileFromSpaceList(startupSpaces);
-  }
-  return c.json({ success: true });
-});
 
 if (fs.existsSync(config.WEB_DIST)) {
   app.use('*', async (c, next) => {
@@ -110,18 +105,13 @@ function getContentType(filePath: string): string {
   return types[ext] || 'text/plain';
 }
 
-app.get('/health', (c) => {
-  return c.json({ status: 'ok' });
-});
-
 runMigrations();
 
-try {
-  const startupSpaces = await agentAdapter.scanSpaces();
-  await reconcileFromSpaceList(startupSpaces);
-} catch (err) {
-  console.error('[reconcile] Startup reconciliation failed:', err instanceof Error ? err.message : String(err));
-}
+db.insert(servers).values({
+  id: DEFAULT_SERVER_ID,
+  name: 'God Server',
+  createdAt: new Date().toISOString(),
+}).onConflictDoNothing().run();
 
 function rawDataToBuffer(data: unknown): Buffer {
   if (Buffer.isBuffer(data)) return data;
@@ -193,7 +183,13 @@ wss.on('upgrade', (request, socket, head) => {
     return;
   }
 
-  const pluginWsUrl = `${config.PLUGIN_SPACES_URL.replace(/^http/, 'ws')}/api/spaces/${spaceId}/ws`;
+  const pluginServer = getServerBySpaceId(spaceId);
+  if (!pluginServer?.pluginUrl) {
+    console.log('[WS-PROXY] No plugin URL for space:', spaceId);
+    wss.handleUpgrade(request, socket, head, (ws) => ws.close(1011, 'No plugin registered for this space'));
+    return;
+  }
+  const pluginWsUrl = `${pluginServer.pluginUrl.replace(/^http/, 'ws')}/api/spaces/${spaceId}/ws`;
 
   // Mint a forwarding token with the resolved SpaceRole so the plugin gets the correct role
   const forwardToken = jwt.sign(

@@ -9,7 +9,6 @@ import {
 } from '../space-store.js';
 import { authMiddleware, type AuthVariables } from '../middleware/auth.js';
 import { agentAdapter } from '../agent-adapter-instance.js';
-import { reconcileFromSpaceList } from '../reconcile.js';
 import type { SpaceRole, FileMetadataEntry } from '@ai-spaces/shared';
 import { getUserSpaceRole, getUserSpaceRoles } from '../db/queries.js';
 
@@ -283,31 +282,6 @@ spacesRouter.delete('/:id', (c) => {
   }
 
   return c.json({ success: true });
-});
-
-spacesRouter.post('/scan', async (c) => {
-  const user = c.get('user');
-  if (user.serverRole !== 'admin') {
-    return c.json({ error: 'Forbidden' }, 403);
-  }
-  const { userId } = user;
-
-  const spaces = await agentAdapter.scanSpaces();
-  const before = listSpaces().length;
-  await reconcileFromSpaceList(spaces);
-  const after = listSpaces().length;
-  const registered = Math.max(0, after - before);
-
-  return c.json({
-    discovered: spaces.map(s => ({
-      id: s.id,
-      name: s.config?.name ?? s.path,
-      agent: s.agentId,
-      path: s.path,
-      config: s.config,
-    })),
-    registered,
-  });
 });
 
 export type SpacesRouter = typeof spacesRouter;

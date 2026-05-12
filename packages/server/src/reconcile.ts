@@ -1,10 +1,11 @@
 import * as crypto from 'crypto';
 import { type WorkspaceSpaceRecord } from '@ai-spaces/shared';
-import { listSpaces, deleteSpace, insertSpace } from './space-store.js';
+import { listSpaces, listSpacesByServerId, deleteSpace, insertSpace } from './space-store.js';
 import { config } from './config.js';
 import { db } from './db/connection.js';
 import { spaceMembers, users } from './db/index.js';
 import { eq } from 'drizzle-orm';
+import { DEFAULT_SERVER_ID } from './db/constants.js';
 
 /**
  * Migrate legacy collaborators (email-based) to space_members (userId-based).
@@ -23,12 +24,11 @@ export async function migrateCollaboratorsToMembers(): Promise<void> {
 
     if (!spaceConfig.collaborators || spaceConfig.collaborators.length === 0) continue;
 
-    // Check if any members already exist for this space
     const existingMembers = db.select().from(spaceMembers)
       .where(eq(spaceMembers.spaceId, space.id))
       .all();
 
-    if (existingMembers.length > 0) continue; // already migrated
+    if (existingMembers.length > 0) continue;
 
     for (const collaborator of spaceConfig.collaborators) {
       if (!collaborator.email) {
@@ -62,11 +62,14 @@ export async function migrateCollaboratorsToMembers(): Promise<void> {
   }
 }
 
-export async function reconcileFromSpaceList(spaces: WorkspaceSpaceRecord[]): Promise<void> {
+export async function reconcileFromSpaceList(
+  spaces: WorkspaceSpaceRecord[],
+  serverId: string = DEFAULT_SERVER_ID,
+): Promise<void> {
   await migrateCollaboratorsToMembers();
 
   const diskById = new Map(spaces.map(s => [s.id, s]));
-  const dbSpaces = listSpaces();
+  const dbSpaces = listSpacesByServerId(serverId);
   const dbById = new Map(dbSpaces.map(s => [s.id, s]));
 
   for (const [id, diskSpace] of diskById) {
@@ -82,6 +85,7 @@ export async function reconcileFromSpaceList(spaces: WorkspaceSpaceRecord[]): Pr
         config: diskSpace.config,
         createdAt: dbSpace?.createdAt ?? now,
         updatedAt: now,
+        serverId,
       });
       if (!dbSpace) console.info(`[reconcile] Registered missing space: ${id} at ${diskSpace.path}`);
       else console.info(`[reconcile] Updated path for space: ${id} ${dbSpace.path} → ${diskSpace.path}`);
@@ -95,4 +99,3 @@ export async function reconcileFromSpaceList(spaces: WorkspaceSpaceRecord[]): Pr
     }
   }
 }
-

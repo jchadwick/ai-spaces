@@ -6,9 +6,11 @@ import { computeSpaceId } from '@ai-spaces/shared';
 import { logAudit } from './audit.js';
 import { db, schema } from './db/connection.js';
 import { eq, and, sql } from 'drizzle-orm';
+import { DEFAULT_SERVER_ID } from './db/constants.js';
 
 export interface SpaceRecord {
   id: string;
+  serverId: string;
   agentId: string;
   agentType: string;
   path: string;
@@ -23,6 +25,7 @@ export interface CreateSpaceInput {
   agentType: string;
   path: string;
   config: SpaceConfig;
+  serverId?: string;
 }
 
 export type CreateSpaceResult = {
@@ -43,6 +46,7 @@ function rowToRecord(row: typeof schema.spaces.$inferSelect): SpaceRecord {
   }
   return {
     id: row.id,
+    serverId: row.serverId,
     agentId: row.agentId,
     agentType: row.agentType,
     path: row.path,
@@ -118,8 +122,10 @@ export function createSpace(input: CreateSpaceInput, userId: string = 'system'):
   const now = new Date().toISOString();
   const configPath = path.join(validation.absolutePath, '.space', 'spaces.json');
 
+  const serverId = input.serverId ?? DEFAULT_SERVER_ID;
   db.insert(schema.spaces).values({
     id,
+    serverId,
     agentId: input.agentId,
     agentType: input.agentType,
     path: validation.relativePath,
@@ -131,6 +137,7 @@ export function createSpace(input: CreateSpaceInput, userId: string = 'system'):
 
   const space: SpaceRecord = {
     id,
+    serverId,
     agentId: input.agentId,
     agentType: input.agentType,
     path: validation.relativePath,
@@ -154,9 +161,12 @@ export function insertSpace(data: {
   config: SpaceConfig;
   createdAt: string;
   updatedAt: string;
+  serverId?: string;
 }): SpaceRecord {
+  const serverId = data.serverId ?? DEFAULT_SERVER_ID;
   db.insert(schema.spaces).values({
     id: data.id,
+    serverId,
     agentId: data.agentId,
     agentType: data.agentType,
     path: data.path,
@@ -167,6 +177,7 @@ export function insertSpace(data: {
   }).onConflictDoUpdate({
     target: schema.spaces.id,
     set: {
+      serverId,
       path: data.path,
       configPath: data.configPath ?? null,
       config: JSON.stringify(data.config),
@@ -176,6 +187,7 @@ export function insertSpace(data: {
 
   return {
     id: data.id,
+    serverId,
     agentId: data.agentId,
     agentType: data.agentType,
     path: data.path,
@@ -210,6 +222,11 @@ export function listSpaces(agentId?: string): SpaceRecord[] {
     ? db.select().from(schema.spaces).where(eq(schema.spaces.agentId, agentId)).all()
     : db.select().from(schema.spaces).all();
 
+  return rows.map(rowToRecord);
+}
+
+export function listSpacesByServerId(serverId: string): SpaceRecord[] {
+  const rows = db.select().from(schema.spaces).where(eq(schema.spaces.serverId, serverId)).all();
   return rows.map(rowToRecord);
 }
 

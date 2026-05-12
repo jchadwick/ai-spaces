@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import type { SpaceConfigSchema, SpaceSchema, SessionContextSchema, UserRoleSchema, UserSchema, SessionSchema, AuthTokensSchema } from './schemas.js';
+import type { SpaceConfigSchema, SpaceSchema, SessionContextSchema, UserRoleSchema, UserSchema, SessionSchema, AuthTokensSchema, FileMetadataEntrySchema, SpaceMetadataSchema } from './schemas.js';
 import type { FileNodeType } from './schemas.js';
 
 export type SpaceConfig = z.infer<typeof SpaceConfigSchema>;
@@ -10,6 +10,8 @@ export type UserRoleType = z.infer<typeof UserRoleSchema>;
 export type UserType = z.infer<typeof UserSchema>;
 export type SessionType = z.infer<typeof SessionSchema>;
 export type AuthTokensType = z.infer<typeof AuthTokensSchema>;
+export type FileMetadataEntry = z.infer<typeof FileMetadataEntrySchema>;
+export type SpaceMetadata = z.infer<typeof SpaceMetadataSchema>;
 
 export interface AgentConfig {
   capabilities?: string[];

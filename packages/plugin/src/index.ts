@@ -5,7 +5,7 @@ import { setRuntime, tryGetRuntime } from './runtime.js';
 import { getSpace, listSpaces, initSpaceStore, resolveSpaceRoot } from './space-store.js';
 import { proxyRequest } from './routes/proxy.js';
 import { handleSpaceWebSocket, startSpacesServer } from './routes/space-ws.js';
-import { handleFileContent, handleFileTree, handleFileWrite } from './routes/space-files.js';
+import { handleFileContent, handleFileTree, handleFileWrite, handleGetMetadata, handlePatchMetadata } from './routes/space-files.js';
 import { validateSession } from './session-middleware.js';
 import type { SpaceRole } from '@ai-spaces/shared';
 import * as crypto from 'crypto';
@@ -128,6 +128,16 @@ export default defineChannelPluginEntry({
           }
         }
 
+        // OPTIONS preflight for metadata endpoint
+        if (req.method === 'OPTIONS') {
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Methods', 'GET, PATCH, PUT, POST, DELETE, OPTIONS');
+          res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+          res.writeHead(204);
+          res.end();
+          return true;
+        }
+
         // Intercept POST /api/spaces/scan — plugin owns space discovery
         if (req.method === 'POST' && url.pathname === '/api/spaces/scan') {
           const spaces = listSpaces();
@@ -150,7 +160,21 @@ export default defineChannelPluginEntry({
           }
         }
 
+        if (req.method === 'PATCH') {
+          const metaPatchMatch = url.pathname.match(/^\/api\/spaces\/([^/]+)\/metadata$/);
+          if (metaPatchMatch) {
+            const [, spaceId] = metaPatchMatch;
+            return handlePatchMetadata(req, res, spaceId);
+          }
+        }
+
         if (req.method === 'GET') {
+          const metaGetMatch = url.pathname.match(/^\/api\/spaces\/([^/]+)\/metadata$/);
+          if (metaGetMatch) {
+            const [, spaceId] = metaGetMatch;
+            return handleGetMetadata(req, res, spaceId);
+          }
+
           const fileContentMatch = url.pathname.match(/^\/api\/spaces\/([^/]+)\/files\/(.+)$/);
           if (fileContentMatch) {
             const [, spaceId, filePath] = fileContentMatch;

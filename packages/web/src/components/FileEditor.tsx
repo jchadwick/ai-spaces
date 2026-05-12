@@ -4,6 +4,9 @@ import { useToast } from './ui/toast'
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { getFileTypeHandler } from './editors/registry'
 import { useConnectionStatus } from '../contexts/ConnectionStatusContext'
+import { useFileMetadata } from '../contexts/FileMetadataContext'
+import { FilePropertiesPanel } from './FilePropertiesPanel'
+import { getContentTypeIcon } from '../lib/fileIcons'
 import type { SpaceRole } from '@ai-spaces/shared'
 import { hasPermission } from '@ai-spaces/shared'
 
@@ -14,16 +17,6 @@ interface FileEditorProps {
   externalRefreshKey?: number
   onFileModified?: () => void
   onFileRenamed?: (oldPath: string, newPath: string) => void
-}
-
-function getFileIcon(type: string): string {
-  switch (type) {
-    case 'markdown': return 'description'
-    case 'text': return 'article'
-    case 'image': return 'image'
-    case 'binary': return 'insert_drive_file'
-    default: return 'file_present'
-  }
 }
 
 
@@ -89,6 +82,7 @@ export default function FileEditor({
   const [showConcurrentWarning, setShowConcurrentWarning] = useState(false)
   const [renamingFile, setRenamingFile] = useState(false)
   const [renameValue, setRenameValue] = useState('')
+  const [showProperties, setShowProperties] = useState(false)
 
   const autoSaveRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const editContentRef = useRef(editContent)
@@ -96,6 +90,10 @@ export default function FileEditor({
   useEffect(() => { editContentRef.current = editContent }, [editContent])
 
   const canEdit = hasPermission(role, 'files:write')
+
+  const { getEntry } = useFileMetadata()
+  const meta = filePath ? (getEntry(filePath) ?? {}) : {}
+  const displayName = meta.displayName || fileInfo?.name || ''
 
   useEffect(() => {
     const handleFileModified = (event: CustomEvent<{ path: string; action: string; triggeredBy: string }>) => {
@@ -121,6 +119,7 @@ export default function FileEditor({
     setDraftData(null)
     setRenamingFile(false)
     setRenameValue('')
+    setShowProperties(false)
   }, [filePath])
 
   useEffect(() => {
@@ -347,9 +346,9 @@ export default function FileEditor({
         <header className="flex-shrink-0 px-6 py-4 bg-surface-container-lowest border-b border-outline-variant/20">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <span className="material-symbols-outlined text-primary text-xl">{getFileIcon(fileInfo.type)}</span>
+              <span className="material-symbols-outlined text-primary text-xl">{getContentTypeIcon(fileInfo.type)}</span>
               <div className="flex flex-col">
-                <h2 className="text-title-sm font-medium text-on-surface">{fileInfo.name}</h2>
+                <h2 className="text-title-sm font-medium text-on-surface">{displayName || fileInfo.name}</h2>
                 <span className="text-label-sm text-on-surface-variant uppercase tracking-wider">Editing</span>
               </div>
             </div>
@@ -394,7 +393,7 @@ export default function FileEditor({
       <header className="flex-shrink-0 px-6 py-4 bg-surface-container-lowest border-b border-outline-variant/20">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-primary text-xl">{getFileIcon(fileInfo.type)}</span>
+            <span className="material-symbols-outlined text-primary text-xl">{getContentTypeIcon(fileInfo.type)}</span>
             <div className="flex flex-col">
               {renamingFile ? (
                 <input
@@ -411,23 +410,48 @@ export default function FileEditor({
                   className={`text-title-sm font-medium text-on-surface ${canEdit ? 'cursor-pointer hover:underline' : ''}`}
                   onClick={canEdit ? handleStartRename : undefined}
                 >
-                  {fileInfo.name}
+                  {displayName}
                 </h2>
               )}
               <span className="text-label-sm text-on-surface-variant font-mono tracking-tight">
                 {filePath}
               </span>
+              {meta.summary && (
+                <span style={{ fontSize: 12, color: 'var(--t-inkMid)', marginTop: 2, display: 'block' }}>
+                  {meta.summary}
+                </span>
+              )}
             </div>
           </div>
-          {canEditThisFile && (
-            <button type="button" onClick={handleEnterEditMode}
-              className="px-4 py-2 bg-surface-container-high text-on-surface rounded-lg text-sm font-medium hover:bg-surface-container-highest transition-colors flex items-center gap-2">
-              <span className="material-symbols-outlined text-sm">edit</span>
-              Edit
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => setShowProperties(v => !v)}
+                title="File properties"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--t-inkDim)', padding: '4px 6px', borderRadius: 4 }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>tune</span>
+              </button>
+            )}
+            {canEditThisFile && (
+              <button type="button" onClick={handleEnterEditMode}
+                className="px-4 py-2 bg-surface-container-high text-on-surface rounded-lg text-sm font-medium hover:bg-surface-container-highest transition-colors flex items-center gap-2">
+                <span className="material-symbols-outlined text-sm">edit</span>
+                Edit
+              </button>
+            )}
+          </div>
         </div>
       </header>
+      {showProperties && spaceId && filePath && (
+        <FilePropertiesPanel
+          spaceId={spaceId}
+          filePath={filePath}
+          fileInfo={fileInfo}
+          onClose={() => setShowProperties(false)}
+        />
+      )}
       <div className="flex-1 overflow-y-auto custom-scrollbar">
         <Suspense fallback={<div className="flex-1 animate-pulse bg-surface-container" />}>
           {Viewer ? (

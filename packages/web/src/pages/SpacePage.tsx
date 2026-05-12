@@ -11,6 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import type { SpaceRole } from "@ai-spaces/shared";
 import { useAPI } from "@/hooks/useAPI";
 import { ConnectionStatusProvider, type FileChangedPayload } from "@/contexts/ConnectionStatusContext";
+import { FileMetadataProvider } from "@/contexts/FileMetadataContext";
 import {
   SIDEBAR_LEFT_DEFAULT,
   SIDEBAR_RIGHT_DEFAULT,
@@ -192,6 +193,7 @@ export default function SpacePage() {
         accessToken={accessToken}
         onFileChanged={handleFileChanged}
       >
+        <FileMetadataProvider spaceId={spaceId!}>
         <div className="bg-surface font-body text-on-surface overflow-hidden h-screen flex flex-col">
           <ErrorBoundary>
             <TopNavBar
@@ -270,6 +272,7 @@ export default function SpacePage() {
             </div>
           </main>
         </div>
+        </FileMetadataProvider>
       </ConnectionStatusProvider>
     </ToastProvider>
   );

@@ -92,3 +92,12 @@ export const AuthTokensSchema = z.object({
   refreshToken: z.string(),
   expiresIn: z.number(),
 });
+
+export const FileMetadataEntrySchema = z.object({
+  displayName: z.string().optional(),
+  summary: z.string().optional(),
+});
+
+export const SpaceMetadataSchema = z.object({
+  files: z.record(z.string(), FileMetadataEntrySchema),
+});

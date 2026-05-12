@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useFileTree } from "../hooks/useFileTree";
 import { useToast } from "./ui/toast";
+import { useFileMetadata } from "../contexts/FileMetadataContext";
+import { getFileNodeIcon } from "../lib/fileIcons";
 import {
   Dialog,
   DialogContent,
@@ -27,16 +29,6 @@ interface ContextMenuState {
   node: FileNode;
 }
 
-function getFileIcon(name: string, type: string): string {
-  if (type === "directory") return "folder";
-  const ext = name.split(".").pop()?.toLowerCase();
-  if (ext === "md" || ext === "markdown") return "description";
-  if (ext === "json") return "settings";
-  if (ext === "csv" || ext === "xlsx") return "table";
-  if (["png", "jpg", "jpeg", "gif", "svg", "webp"].includes(ext || ""))
-    return "image";
-  return "file_present";
-}
 
 function FileTreeNode({
   node,
@@ -56,6 +48,7 @@ function FileTreeNode({
   onFolderDragEnter,
   onFolderDragLeave,
   onFolderDrop,
+  getDisplayName,
 }: {
   node: FileNode;
   depth?: number;
@@ -74,6 +67,7 @@ function FileTreeNode({
   onFolderDragEnter: (path: string) => void;
   onFolderDragLeave: (path: string) => void;
   onFolderDrop: (e: React.DragEvent, path: string) => void;
+  getDisplayName: (path: string) => string | undefined;
 }) {
   const isDirectory = node.type === "directory";
   const isSelected = selectedFile === node.path;
@@ -98,7 +92,7 @@ function FileTreeNode({
     }
   };
 
-  const icon = getFileIcon(node.name, node.type);
+  const icon = getFileNodeIcon(node.name, node.type);
 
   const nodeStyle: React.CSSProperties = {
     paddingLeft: `${paddingLeft}px`,
@@ -169,7 +163,7 @@ function FileTreeNode({
           />
         ) : (
           <span style={{ fontWeight: isSelected ? 600 : 400, color: isSpaceFolder ? 'var(--t-inkDim)' : undefined }}>
-            {node.name}
+            {(!node.type || node.type === 'file') ? (getDisplayName(node.path) || node.name) : node.name}
           </span>
         )}
       </button>
@@ -207,6 +201,7 @@ function FileTreeNode({
                 onFolderDragEnter={onFolderDragEnter}
                 onFolderDragLeave={onFolderDragLeave}
                 onFolderDrop={onFolderDrop}
+                getDisplayName={getDisplayName}
               />
             ))}
           </div>
@@ -235,6 +230,12 @@ export default function FileExplorer({
     new Set(),
   );
   const { showToast } = useToast();
+  const { getEntry } = useFileMetadata();
+
+  const getDisplayName = useCallback(
+    (path: string) => getEntry(path)?.displayName,
+    [getEntry],
+  );
 
   // Modal states
   const [showFolderModal, setShowFolderModal] = useState(false);
@@ -762,6 +763,7 @@ export default function FileExplorer({
                   onFolderDragEnter={handleFolderDragEnter}
                   onFolderDragLeave={handleFolderDragLeave}
                   onFolderDrop={handleFolderDrop}
+                  getDisplayName={getDisplayName}
                 />
               ))}
             </div>

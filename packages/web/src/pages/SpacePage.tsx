@@ -267,6 +267,7 @@ export default function SpacePage() {
               <ErrorBoundary>
                 <AIChatPane
                   role={userRole}
+                  spaceId={spaceId}
                 />
               </ErrorBoundary>
             </div>

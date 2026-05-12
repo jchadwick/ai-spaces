@@ -137,14 +137,13 @@ membersRouter.post('/:spaceId/invites', zValidator('json', createInviteSchema), 
   const rawToken = crypto.randomBytes(32).toString('hex');
   const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
   const inviteId = crypto.randomUUID();
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  const expiresAt = new Date(Date.now() + config.INVITE_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
   db.insert(inviteTokens).values({
     id: inviteId,
     spaceId,
     tokenHash,
     role,
-    createdByUserId: user.userId,
     recipientUserId: recipientUserId ?? null,
     expiresAt,
     consumedAt: null,

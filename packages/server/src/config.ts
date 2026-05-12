@@ -25,6 +25,7 @@ export const config = {
   ALLOW_ORPHAN_COLLABORATORS: process.env.ALLOW_ORPHAN_COLLABORATORS === 'true',
   ALLOW_OPEN_REGISTRATION: process.env.ALLOW_OPEN_REGISTRATION === 'true',
   CONFIRMATION_NONCE_TTL_MS: parseInt(process.env.CONFIRMATION_NONCE_TTL_MS ?? '300000', 10),
+  INVITE_TOKEN_TTL_DAYS: parseInt(process.env.INVITE_TOKEN_TTL_DAYS ?? '5', 10),
 };
 
 export function assertProductionHttps(url: string, name: string): void {

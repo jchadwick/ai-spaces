@@ -316,6 +316,16 @@ export default defineChannelPluginEntry({
             const { removeSpace } = await import('./cli/remove.js');
             await removeSpace(spaceId, options);
           });
+
+        spaces
+          .command('invite <spaceId>')
+          .description('Create an invite for a space')
+          .option('--role <role>', 'Role for invite (viewer/editor/owner)', 'editor')
+          .option('--json', 'Output as JSON')
+          .action(async (spaceId: string, options: { json?: boolean; role?: string }) => {
+            const { createInvite } = await import('./cli/invite.js');
+            await createInvite(spaceId, options);
+          });
       },
       {
         commands: ['spaces'],

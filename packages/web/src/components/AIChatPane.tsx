@@ -4,9 +4,11 @@ import remarkGfm from "remark-gfm";
 import { useConnectionStatus, type ConnectionStatus } from "../contexts/ConnectionStatusContext";
 import type { ChatMessage, SpaceRole } from "@ai-spaces/shared";
 import { hasPermission } from "@ai-spaces/shared";
+import ShareSpaceDialog from "./ShareSpaceDialog";
 
 interface AIChatPaneProps {
   role?: SpaceRole;
+  spaceId?: string;
 }
 
 interface ConnectionStatusIndicatorProps {
@@ -196,14 +198,17 @@ function TypingIndicator() {
 
 export default function AIChatPane({
   role = "viewer",
+  spaceId,
 }: AIChatPaneProps) {
   const [inputValue, setInputValue] = useState("");
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const prevMessagesLengthRef = useRef(0);
 
   const { messages, sendMessage, isStreaming, status: connectionStatus, reconnectAttempt, reconnect } = useConnectionStatus();
 
   const isViewer = !hasPermission(role, 'files:write');
+  const isOwner = hasPermission(role, 'space:manage');
   const isDisconnected = connectionStatus !== "connected" && connectionStatus !== "connecting";
   const showTypingIndicator =
     isStreaming &&
@@ -235,12 +240,26 @@ export default function AIChatPane({
           <AgentGlyph size={14} color="var(--t-agent)" />
           <span style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 16, fontStyle: 'italic', letterSpacing: -0.2, color: 'var(--t-agent)' }}>agent</span>
         </div>
-        <div data-testid="chat-ws-status" data-status={connectionStatus}>
-          <ConnectionStatusIndicator
-            status={isStreaming ? "connecting" : connectionStatus}
-            reconnectAttempt={reconnectAttempt}
-            onRetry={reconnect}
-          />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {isOwner && spaceId && (
+            <button
+              type="button"
+              onClick={() => setShareDialogOpen(true)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: 'var(--t-bg)', border: '1px solid var(--t-hair)', borderRadius: 6, fontSize: 12, fontWeight: 500, color: 'var(--t-ink)', cursor: 'pointer', fontFamily: "'Inter Tight', sans-serif" }}
+            >
+              <svg width={12} height={12} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8M16 6l-4-4-4 4M12 2v13" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Share
+            </button>
+          )}
+          <div data-testid="chat-ws-status" data-status={connectionStatus}>
+            <ConnectionStatusIndicator
+              status={isStreaming ? "connecting" : connectionStatus}
+              reconnectAttempt={reconnectAttempt}
+              onRetry={reconnect}
+            />
+          </div>
         </div>
       </div>
 
@@ -316,6 +335,14 @@ export default function AIChatPane({
           agent sees only files in this space
         </div>
       </div>
+
+      {isOwner && spaceId && (
+        <ShareSpaceDialog
+          spaceId={spaceId}
+          open={shareDialogOpen}
+          onOpenChange={setShareDialogOpen}
+        />
+      )}
     </aside>
   );
 }

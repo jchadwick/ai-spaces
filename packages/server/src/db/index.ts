@@ -77,7 +77,6 @@ export const inviteTokens = sqliteTable('invite_tokens', {
   spaceId: text('space_id').notNull().references(() => spaces.id, { onDelete: 'cascade' }),
   tokenHash: text('token_hash').notNull().unique(),
   role: text('role').notNull(),
-  createdByUserId: text('created_by_user_id').notNull().references(() => users.id),
   recipientUserId: text('recipient_user_id').references(() => users.id),
   expiresAt: text('expires_at').notNull(),
   consumedAt: text('consumed_at'),

@@ -90,7 +90,6 @@ confirmRouter.post('/confirm/redeem', authMiddleware, zValidator('json', redeemN
           spaceId: p.spaceId,
           tokenHash,
           role: p.role,
-          createdByUserId: user.userId,
           recipientUserId: p.recipientUserId ?? null,
           expiresAt,
           consumedAt: null,

@@ -135,7 +135,10 @@ wss.on('upgrade', (request, socket, head) => {
   const url = new URL(request.url || '/', `http://${request.headers.host}`);
   const pathMatch = url.pathname.match(/^\/ws\/spaces\/([^/]+)$/);
 
+  console.log('[WS-UPGRADE] url:', request.url, 'headers:', JSON.stringify({ upgrade: request.headers.upgrade, authorization: request.headers.authorization ? 'present' : 'absent', tokenParam: url.searchParams.has('token') ? 'present' : 'absent' }));
+
   if (!pathMatch) {
+    console.log('[WS-UPGRADE] no path match, destroying');
     socket.destroy();
     return;
   }
@@ -144,6 +147,7 @@ wss.on('upgrade', (request, socket, head) => {
 
   const serverSpace = getSpaceById(spaceId);
   if (!serverSpace) {
+    console.log('[WS-UPGRADE] space not found:', spaceId);
     socket.destroy();
     return;
   }
@@ -164,6 +168,7 @@ wss.on('upgrade', (request, socket, head) => {
       : url.searchParams.get('token');
 
     if (!rawToken) {
+      console.log('[WS-UPGRADE] no token, closing 1008');
       wss.handleUpgrade(request, socket, head, (ws) => ws.close(1008, 'Authentication required'));
       return;
     }
@@ -173,7 +178,9 @@ wss.on('upgrade', (request, socket, head) => {
       if (!decoded.userId) throw new Error('Missing userId');
       userId = decoded.userId as string;
       userRole = (decoded.role as string) || 'viewer';
-    } catch {
+      console.log('[WS-UPGRADE] auth ok, userId:', userId, 'role:', userRole);
+    } catch (err) {
+      console.log('[WS-UPGRADE] invalid token:', (err as Error).message);
       wss.handleUpgrade(request, socket, head, (ws) => ws.close(1008, 'Invalid token'));
       return;
     }

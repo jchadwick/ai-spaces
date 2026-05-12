@@ -1,7 +1,7 @@
 import { db } from './db/connection.js';
-import { users } from './db/index.js';
+import { users, spaces, spaceMembers } from './db/index.js';
 import { hashPassword } from './password-utils.js';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import * as crypto from 'crypto';
 
 const ADMIN_EMAIL = 'admin@ai-spaces.test';
@@ -55,4 +55,59 @@ export async function seedAdmin(): Promise<void> {
   console.log(`  Email: ${ADMIN_EMAIL}`);
   console.log(`  Role: ${ADMIN_ROLE}`);
   console.log(`  ID: ${id}`);
+}
+
+const TEST_USER_EMAIL = 'test@ai-spaces.test';
+const TEST_USER_PASSWORD = 'ai-spaces';
+
+const TEST_USER_MEMBERSHIPS: { name: string; role: string }[] = [
+  { name: 'Home', role: 'owner' },
+  { name: 'Travel', role: 'editor' },
+];
+
+export async function seedTestUser(): Promise<void> {
+  let testUser = db.select().from(users).where(eq(users.email, TEST_USER_EMAIL)).limit(1).get();
+
+  if (!testUser) {
+    const passwordHash = await hashPassword(TEST_USER_PASSWORD);
+    const id = crypto.randomBytes(16).toString('hex');
+    const now = new Date().toISOString();
+    db.insert(users).values({
+      id,
+      email: TEST_USER_EMAIL,
+      passwordHash,
+      role: 'user',
+      displayName: 'Test User',
+      createdAt: now,
+      updatedAt: now,
+    }).run();
+    testUser = db.select().from(users).where(eq(users.email, TEST_USER_EMAIL)).limit(1).get()!;
+    console.log('Test user created:', TEST_USER_EMAIL);
+  }
+
+  for (const { name, role } of TEST_USER_MEMBERSHIPS) {
+    const space = db.select().from(spaces)
+      .where(sql`json_extract(${spaces.config}, '$.name') = ${name}`)
+      .get();
+
+    if (!space) {
+      console.log(`  Space "${name}" not found, skipping membership`);
+      continue;
+    }
+
+    const now = new Date().toISOString();
+    db.insert(spaceMembers).values({
+      id: crypto.randomUUID(),
+      spaceId: space.id,
+      userId: testUser.id,
+      role,
+      createdAt: now,
+      updatedAt: now,
+    }).onConflictDoUpdate({
+      target: [spaceMembers.spaceId, spaceMembers.userId],
+      set: { role, updatedAt: now },
+    }).run();
+
+    console.log(`  Test user configured as ${role} of "${name}"`);
+  }
 }

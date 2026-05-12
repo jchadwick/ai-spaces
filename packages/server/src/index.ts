@@ -12,7 +12,7 @@ import { membersRouter } from './routes/members.js';
 import { invitesRouter } from './routes/invites.js';
 import { identityRouter } from './routes/identity.js';
 import { confirmRouter } from './routes/confirm.js';
-import { seedAdmin } from './seed-admin.js';
+import { seedAdmin, seedTestUser } from './seed-admin.js';
 import { runMigrations } from './db/migrate.js';
 import { seedFromJsonIfNeeded } from './db/seed-from-json.js';
 import { reconcileFromSpaceList } from './reconcile.js';
@@ -112,6 +112,7 @@ app.get('/health', (c) => {
 runMigrations();
 seedFromJsonIfNeeded();
 await seedAdmin();
+await seedTestUser();
 
 try {
   const startupSpaces = await agentAdapter.scanSpaces();

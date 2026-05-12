@@ -177,7 +177,7 @@ wss.on('upgrade', (request, socket, head) => {
       const decoded = jwt.verify(rawToken, config.JWT_SECRET) as jwt.JwtPayload;
       if (!decoded.userId) throw new Error('Missing userId');
       userId = decoded.userId as string;
-      userRole = (decoded.role as string) || 'viewer';
+      userRole = (decoded.role as string) || (decoded.isAdmin ? 'admin' : 'viewer');
       console.log('[WS-UPGRADE] auth ok, userId:', userId, 'role:', userRole);
     } catch (err) {
       console.log('[WS-UPGRADE] invalid token:', (err as Error).message);
@@ -188,8 +188,8 @@ wss.on('upgrade', (request, socket, head) => {
 
   const pluginWsUrl = `${config.PLUGIN_SPACES_URL.replace(/^http/, 'ws')}/api/spaces/${spaceId}/ws`;
 
-  // If no rawToken (dev bypass), mint a short-lived JWT so the plugin WS can validate it
-  const forwardToken = rawToken ?? jwt.sign(
+  // Always mint a forwarding token with explicit role so the plugin gets the correct role
+  const forwardToken = jwt.sign(
     { userId, role: userRole },
     config.JWT_SECRET,
     { expiresIn: '1h' },

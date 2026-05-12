@@ -92,7 +92,7 @@ authRouter.post('/refresh', zValidator('json', refreshSchema), async (c) => {
 
 function generateTokens(user: User): { accessToken: string; refreshToken: string } {
   const accessToken = jwt.sign(
-    { userId: user.id, email: user.email, isAdmin: user.role === 'admin' },
+    { userId: user.id, email: user.email, role: user.role, isAdmin: user.role === 'admin' },
     config.JWT_SECRET,
     { expiresIn: '1h'}
   );

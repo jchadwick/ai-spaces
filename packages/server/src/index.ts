@@ -74,7 +74,7 @@ app.post('/api/internal/reconcile', internalMiddleware, async (c) => {
 
 if (fs.existsSync(config.WEB_DIST)) {
   app.use('*', async (c, next) => {
-    if (c.req.path.startsWith('/api/')) {
+    if (c.req.path.startsWith('/api/') || c.req.path.startsWith('/ws/')) {
       return next();
     }
     const filePath = path.join(config.WEB_DIST, c.req.path);

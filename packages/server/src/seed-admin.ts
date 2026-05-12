@@ -28,7 +28,12 @@ export async function seedAdmin(): Promise<void> {
   const existing = db.select().from(users).where(eq(users.email, ADMIN_EMAIL)).limit(1).get();
 
   if (existing) {
-    console.log('Admin user already exists');
+    if (existing.role !== ADMIN_ROLE) {
+      db.update(users).set({ role: ADMIN_ROLE, updatedAt: new Date().toISOString() }).where(eq(users.email, ADMIN_EMAIL)).run();
+      console.log('Admin user role corrected to admin');
+    } else {
+      console.log('Admin user already exists');
+    }
     return;
   }
 

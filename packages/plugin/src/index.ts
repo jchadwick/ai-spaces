@@ -7,7 +7,7 @@ import { proxyRequest } from './routes/proxy.js';
 import { handleSpaceWebSocket, startSpacesServer } from './routes/space-ws.js';
 import { handleFileContent, handleFileTree, handleFileWrite } from './routes/space-files.js';
 import { validateSession } from './session-middleware.js';
-import type { Role } from '@ai-spaces/shared';
+import type { SpaceRole } from '@ai-spaces/shared';
 import * as crypto from 'crypto';
 import * as path from 'path';
 import { config } from './config.js';
@@ -160,8 +160,8 @@ export default defineChannelPluginEntry({
           const fileTreeMatch = url.pathname.match(/^\/api\/spaces\/([^/]+)\/files$/);
           if (fileTreeMatch) {
             const [, spaceId] = fileTreeMatch;
-            const payload = validateSession(req);
-            const role: Role = (payload?.role as Role) ?? 'viewer';
+            const roleParam = url.searchParams.get('role') as SpaceRole | null;
+            const role: SpaceRole = roleParam ?? 'viewer';
             return handleFileTree(req, res, spaceId, role);
           }
         }

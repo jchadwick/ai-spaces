@@ -4,13 +4,18 @@ import * as fsPromises from 'fs/promises';
 import * as path from 'path';
 import { pipeline } from 'stream';
 import mime from 'mime-types';
-import type { FileNode, Role } from '@ai-spaces/shared';
+import type { FileNode, SpaceRole } from '@ai-spaces/shared';
+import { hasPermission } from '@ai-spaces/shared';
 import { validatePath, isPathContained } from '../validation.js';
 import { logPathEscapeAttempt, logFileAccess } from '../audit-logger.js';
 import { validateSession } from '../session-middleware.js';
 import { getSpace, resolveSpaceRoot, type SpaceRecord } from '../space-store.js';
 
 const DEFAULT_MAX_DEPTH = 10;
+
+const AGENT_INTERNAL_FILES = new Set([
+  'AGENTS.md', 'SOUL.md', 'IDENTITY.md', 'MEMORY.md', 'TOOLS.md', 'USER.md', 'HEARTBEAT.md',
+]);
 
 interface QueueItem {
   dir: string;
@@ -22,7 +27,7 @@ interface QueueItem {
 async function buildFileTree(
   dir: string,
   basePath: string,
-  hideSpaceFolder: boolean,
+  showInternalFiles: boolean,
   spaceRoot: string,
   maxDepth = DEFAULT_MAX_DEPTH,
 ): Promise<FileNode[]> {
@@ -52,7 +57,7 @@ async function buildFileTree(
     const nodes: FileNode[] = [];
 
     for (const entry of entries) {
-      if (hideSpaceFolder && entry.name === '.space') {
+      if (!showInternalFiles && (entry.name === '.space' || AGENT_INTERNAL_FILES.has(entry.name))) {
         continue;
       }
 
@@ -131,9 +136,9 @@ function getClientIp(req: IncomingMessage): string | undefined {
   return req.socket?.remoteAddress;
 }
 
-export async function handleFileTree(req: IncomingMessage, res: ServerResponse, spaceId: string, role: Role) {
+export async function handleFileTree(req: IncomingMessage, res: ServerResponse, spaceId: string, role: SpaceRole) {
   const space = getSpace(spaceId);
-  
+
   if (!space) {
     res.statusCode = 404;
     res.setHeader('Content-Type', 'application/json');
@@ -141,11 +146,11 @@ export async function handleFileTree(req: IncomingMessage, res: ServerResponse, 
     res.end(JSON.stringify({ error: 'Space not found' }));
     return true;
   }
-  
+
   const spaceRoot = resolveSpaceRoot(space);
-  const hideSpaceFolder = role !== 'admin';
-  
-  const files = await buildFileTree(spaceRoot, '', hideSpaceFolder, spaceRoot);
+  const showInternalFiles = hasPermission(role, 'files:read-internal');
+
+  const files = await buildFileTree(spaceRoot, '', showInternalFiles, spaceRoot);
   
   res.statusCode = 200;
   res.setHeader('Content-Type', 'application/json');

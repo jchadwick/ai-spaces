@@ -4,11 +4,13 @@ import { useToast } from './ui/toast'
 import { useState, useEffect, useCallback, useRef, Suspense } from 'react'
 import { getFileTypeHandler } from './editors/registry'
 import { useConnectionStatus } from '../contexts/ConnectionStatusContext'
+import type { SpaceRole } from '@ai-spaces/shared'
+import { hasPermission } from '@ai-spaces/shared'
 
 interface FileEditorProps {
   spaceId?: string
   filePath?: string
-  role?: 'viewer' | 'editor' | 'admin'
+  role?: SpaceRole
   externalRefreshKey?: number
   onFileModified?: () => void
   onFileRenamed?: (oldPath: string, newPath: string) => void
@@ -93,7 +95,7 @@ export default function FileEditor({
 
   useEffect(() => { editContentRef.current = editContent }, [editContent])
 
-  const canEdit = role === 'editor' || role === 'admin'
+  const canEdit = hasPermission(role, 'files:write')
 
   useEffect(() => {
     const handleFileModified = (event: CustomEvent<{ path: string; action: string; triggeredBy: string }>) => {

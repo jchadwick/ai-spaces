@@ -10,6 +10,8 @@ import {
 import { authMiddleware } from '../middleware/auth.js';
 import { agentAdapter } from '../agent-adapter-instance.js';
 import { reconcileFromSpaceList } from '../reconcile.js';
+import { toSpaceRole } from '@ai-spaces/shared';
+import type { SpaceRole } from '@ai-spaces/shared';
 
 export const spacesRouter = new Hono();
 spacesRouter.use('*', authMiddleware);
@@ -51,13 +53,14 @@ spacesRouter.get('/:id/files', async (c) => {
   const id = c.req.param('id');
   const dirPath = c.req.query('path') || '';
   const space = getSpace(id);
+  const role: SpaceRole = toSpaceRole(c.get('user').role);
 
   if (!space) {
     return c.json({ error: 'Space not found' }, 404);
   }
 
   try {
-    const files = await agentAdapter.listFiles(space, dirPath);
+    const files = await agentAdapter.listFiles(space, dirPath, role);
     return c.json({ files });
   } catch (err: any) {
     return c.json({ error: err.message ?? 'Failed to list files' }, 500);

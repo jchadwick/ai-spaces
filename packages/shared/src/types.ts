@@ -1,6 +1,7 @@
 import type { z } from 'zod';
 import type { SpaceConfigSchema, SpaceSchema, SessionContextSchema, UserRoleSchema, UserSchema, SessionSchema, AuthTokensSchema } from './schemas.js';
 import type { FileNodeType } from './schemas.js';
+import type { SpaceRole } from './permissions.js';
 
 export type SpaceConfig = z.infer<typeof SpaceConfigSchema>;
 export type Space = z.infer<typeof SpaceSchema>;
@@ -11,12 +12,10 @@ export type UserType = z.infer<typeof UserSchema>;
 export type SessionType = z.infer<typeof SessionSchema>;
 export type AuthTokensType = z.infer<typeof AuthTokensSchema>;
 
-export type Role = 'viewer' | 'editor' | 'admin';
-
 export interface CollaboratorConfig {
   email?: string;
   name?: string;
-  role: Role;
+  role: SpaceRole;
 }
 
 export interface AgentConfig {

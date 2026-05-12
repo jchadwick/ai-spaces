@@ -11,11 +11,12 @@ import {
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { useAPI } from "@/hooks/useAPI";
-import type { FileNode } from "@ai-spaces/shared";
+import type { FileNode, SpaceRole } from "@ai-spaces/shared";
+import { hasPermission } from "@ai-spaces/shared";
 
 interface FileExplorerProps {
   spaceId: string | undefined;
-  role: "viewer" | "editor" | "admin";
+  role: SpaceRole;
   selectedFile: string | null;
   onFileSelect: (filePath: string | null) => void;
 }
@@ -264,7 +265,8 @@ export default function FileExplorer({
   const dragCounter = useRef(0);
   const folderDragCounter = useRef<Record<string, number>>({});
 
-  const isViewer = role === "viewer";
+  const canWrite = hasPermission(role, 'files:write');
+  const isViewer = !canWrite;
 
   // Dismiss context menu on outside click or Escape
   useEffect(() => {

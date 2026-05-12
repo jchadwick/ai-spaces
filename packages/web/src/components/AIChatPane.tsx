@@ -2,10 +2,11 @@ import { useState, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useConnectionStatus, type ConnectionStatus } from "../contexts/ConnectionStatusContext";
-import type { ChatMessage } from "@ai-spaces/shared";
+import type { ChatMessage, SpaceRole } from "@ai-spaces/shared";
+import { hasPermission } from "@ai-spaces/shared";
 
 interface AIChatPaneProps {
-  role?: "viewer" | "editor" | "admin";
+  role?: SpaceRole;
 }
 
 interface ConnectionStatusIndicatorProps {
@@ -202,7 +203,7 @@ export default function AIChatPane({
 
   const { messages, sendMessage, isStreaming, status: connectionStatus, reconnectAttempt, reconnect } = useConnectionStatus();
 
-  const isViewer = role === "viewer";
+  const isViewer = !hasPermission(role, 'files:write');
   const isDisconnected = connectionStatus !== "connected" && connectionStatus !== "connecting";
   const showTypingIndicator =
     isStreaming &&

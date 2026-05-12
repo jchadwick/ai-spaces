@@ -1,5 +1,5 @@
 import type { SpaceRecord } from '../space-store.js';
-import type { WorkspaceSpaceRecord } from '@ai-spaces/shared';
+import type { WorkspaceSpaceRecord, SpaceRole } from '@ai-spaces/shared';
 
 export interface FileNode {
   name: string;
@@ -11,7 +11,7 @@ export interface FileNode {
 }
 
 export interface AgentAdapter {
-  listFiles(space: SpaceRecord, dirPath: string): Promise<FileNode[]>;
+  listFiles(space: SpaceRecord, dirPath: string, role: SpaceRole): Promise<FileNode[]>;
   readFile(space: SpaceRecord, filePath: string): Promise<{ content: string; contentType: string }>;
   writeFile(space: SpaceRecord, filePath: string, content: string, encoding?: 'utf-8' | 'base64'): Promise<void>;
   deleteFile(space: SpaceRecord, filePath: string): Promise<void>;

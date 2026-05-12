@@ -8,6 +8,7 @@ import ResizeHandle from "../components/ResizeHandle";
 import { ErrorBoundary } from "../components/errors";
 import { ToastProvider } from "../components/ui/toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { toSpaceRole } from "@ai-spaces/shared";
 import { useAPI } from "@/hooks/useAPI";
 import { ConnectionStatusProvider, type FileChangedPayload } from "@/contexts/ConnectionStatusContext";
 import {
@@ -180,8 +181,7 @@ export default function SpacePage() {
     );
   }
 
-  const role =
-    (user?.role as "viewer" | "editor" | "admin" | undefined) ?? "viewer";
+  const role = toSpaceRole(user?.role ?? 'viewer');
 
   return (
     <ToastProvider>
@@ -230,7 +230,13 @@ export default function SpacePage() {
                   role={role}
                   externalRefreshKey={editorRefreshKey}
                   onFileModified={() => {
-                    const event = new CustomEvent("fileModified");
+                    const event = new CustomEvent("fileModified", {
+                      detail: {
+                        path: selectedFile ?? "",
+                        action: "modified",
+                        triggeredBy: "user",
+                      },
+                    });
                     window.dispatchEvent(event);
                   }}
                   onFileRenamed={(_oldPath, newPath) => {

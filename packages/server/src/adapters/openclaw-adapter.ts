@@ -1,7 +1,7 @@
 import type { AgentAdapter, FileNode } from './agent-adapter.js';
 import type { SpaceRecord } from '../space-store.js';
 import { config } from '../config.js';
-import type { WorkspaceSpaceRecord } from '@ai-spaces/shared';
+import type { WorkspaceSpaceRecord, SpaceRole } from '@ai-spaces/shared';
 
 export class OpenClawAgentAdapter implements AgentAdapter {
   private filesBase(space: SpaceRecord): string {
@@ -14,10 +14,10 @@ export class OpenClawAgentAdapter implements AgentAdapter {
     }
   }
 
-  async listFiles(space: SpaceRecord, dirPath: string): Promise<FileNode[]> {
-    const url = dirPath
-      ? `${this.filesBase(space)}?path=${encodeURIComponent(dirPath)}`
-      : this.filesBase(space);
+  async listFiles(space: SpaceRecord, dirPath: string, role: SpaceRole): Promise<FileNode[]> {
+    const params = new URLSearchParams({ role });
+    if (dirPath) params.set('path', dirPath);
+    const url = `${this.filesBase(space)}?${params}`;
     const res = await fetch(url);
     await this.checkOk(res, 'listFiles');
     const data = await res.json() as { files: FileNode[] };

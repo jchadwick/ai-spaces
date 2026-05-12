@@ -10,7 +10,7 @@ import {
 import { authMiddleware, type AuthVariables } from '../middleware/auth.js';
 import { agentAdapter } from '../agent-adapter-instance.js';
 import { reconcileFromSpaceList } from '../reconcile.js';
-import type { SpaceRole } from '@ai-spaces/shared';
+import type { SpaceRole, FileMetadataEntry } from '@ai-spaces/shared';
 import { db } from '../db/connection.js';
 import { spaceMembers } from '../db/index.js';
 import { and, eq } from 'drizzle-orm';
@@ -121,6 +121,39 @@ spacesRouter.get('/:id', (c) => {
 
   const spaceRole = c.get('spaceRole');
   return c.json({ space, userRole: spaceRole });
+});
+
+spacesRouter.get('/:id/metadata', async (c) => {
+  const id = c.req.param('id');
+  const space = getSpace(id);
+  if (!space) return c.json({ error: 'Space not found' }, 404);
+  try {
+    const metadata = await agentAdapter.getMetadata(space);
+    return c.json(metadata);
+  } catch (err: any) {
+    return c.json({ files: {} });
+  }
+});
+
+const patchMetadataSchema = z.object({
+  files: z.record(z.string(), z.object({
+    displayName: z.string().optional(),
+    summary: z.string().optional(),
+  })),
+});
+
+// @ts-ignore -- tsgo TS2589
+spacesRouter.patch('/:id/metadata', zValidator('json', patchMetadataSchema), async (c) => {
+  const id = c.req.param('id');
+  const { files } = c.req.valid('json');
+  const space = getSpace(id);
+  if (!space) return c.json({ error: 'Space not found' }, 404);
+  try {
+    await agentAdapter.patchMetadata(space, files as Record<string, Partial<FileMetadataEntry>>);
+    return c.json({ success: true });
+  } catch (err: any) {
+    return c.json({ error: err.message ?? 'Failed to update metadata' }, 500);
+  }
 });
 
 spacesRouter.get('/:id/files', async (c) => {

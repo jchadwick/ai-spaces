@@ -6,7 +6,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { WebSocketServer, WebSocket as WsWebSocket } from 'ws';
 import { getSpace, resolveSpaceRoot, initSpaceStore, listSpaces, type SpaceRecord } from '../space-store.js';
-import { handleFileTree, handleFileContent, handleFileWrite as handleFileWriteHttp } from './space-files.js';
+import { handleFileTree, handleFileContent, handleFileWrite as handleFileWriteHttp, handleGetMetadata, handlePatchMetadata } from './space-files.js';
 import { validatePath } from '../validation.js';
 import { getOrCreateSession, addMessageToSession, getSessionMessages } from '../chat-history.js';
 import { logFileModification } from '../file-history.js';
@@ -932,6 +932,24 @@ export function startSpacesServer(port: number): void {
       if (fileWriteMatch) {
         const [, spaceId, filePath] = fileWriteMatch;
         await handleFileWriteHttp(req, res, spaceId, decodeURIComponent(filePath));
+        return;
+      }
+    }
+
+    if (req.method === 'PATCH') {
+      const metaPatchMatch = url.pathname.match(/^\/api\/spaces\/([^/]+)\/metadata$/);
+      if (metaPatchMatch) {
+        const [, spaceId] = metaPatchMatch;
+        await handlePatchMetadata(req, res, spaceId);
+        return;
+      }
+    }
+
+    if (req.method === 'GET') {
+      const metaGetMatch = url.pathname.match(/^\/api\/spaces\/([^/]+)\/metadata$/);
+      if (metaGetMatch) {
+        const [, spaceId] = metaGetMatch;
+        await handleGetMetadata(req, res, spaceId);
         return;
       }
     }

@@ -1,7 +1,8 @@
 import type { AgentAdapter, FileNode } from './agent-adapter.js';
 import type { SpaceRecord } from '../space-store.js';
 import { config } from '../config.js';
-import type { WorkspaceSpaceRecord, SpaceRole } from '@ai-spaces/shared';
+import type { WorkspaceSpaceRecord, SpaceRole, SpaceMetadata, FileMetadataEntry } from '@ai-spaces/shared';
+import { SpaceMetadataSchema } from '@ai-spaces/shared';
 
 export class OpenClawAgentAdapter implements AgentAdapter {
   private filesBase(space: SpaceRecord): string {
@@ -83,6 +84,25 @@ export class OpenClawAgentAdapter implements AgentAdapter {
       body: JSON.stringify({ newPath }),
     });
     await this.checkOk(res, 'renameDirectory');
+  }
+
+  async getMetadata(space: SpaceRecord): Promise<SpaceMetadata> {
+    const url = `${config.PLUGIN_SPACES_URL}/api/spaces/${space.id}/metadata`;
+    const res = await fetch(url);
+    if (!res.ok) return { files: {} };
+    const data = await res.json();
+    const parsed = SpaceMetadataSchema.safeParse(data);
+    return parsed.success ? parsed.data : { files: {} };
+  }
+
+  async patchMetadata(space: SpaceRecord, files: Record<string, Partial<FileMetadataEntry>>): Promise<void> {
+    const url = `${config.PLUGIN_SPACES_URL}/api/spaces/${space.id}/metadata`;
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ files }),
+    });
+    await this.checkOk(res, 'patchMetadata');
   }
 
   async scanSpaces(): Promise<WorkspaceSpaceRecord[]> {

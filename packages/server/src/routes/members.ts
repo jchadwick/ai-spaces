@@ -2,13 +2,14 @@ import { Hono } from 'hono';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import * as crypto from 'crypto';
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { db } from '../db/connection.js';
 import { spaceMembers, inviteTokens, notifications } from '../db/index.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { getSpace } from '../space-store.js';
 import { config } from '../config.js';
 import type { AuthVariables } from '../middleware/auth.js';
+import { getUserSpaceRole } from '../db/queries.js';
 
 export const membersRouter = new Hono<{ Variables: AuthVariables }>();
 
@@ -22,13 +23,7 @@ membersRouter.get('/:spaceId/members', async (c) => {
   const space = getSpace(spaceId);
   if (!space) return c.json({ error: 'Space not found' }, 404);
 
-  // Server admins have implicit access
-  if (!user.isAdmin) {
-    const membership = db.select().from(spaceMembers)
-      .where(and(eq(spaceMembers.spaceId, spaceId), eq(spaceMembers.userId, user.userId)))
-      .get();
-    if (!membership) return c.json({ error: 'Forbidden' }, 403);
-  }
+  if (!getUserSpaceRole(user.userId, spaceId)) return c.json({ error: 'Forbidden' }, 403);
 
   const members = db.select().from(spaceMembers)
     .where(eq(spaceMembers.spaceId, spaceId))
@@ -52,13 +47,7 @@ membersRouter.post('/:spaceId/members', zValidator('json', addMemberSchema), asy
   const space = getSpace(spaceId);
   if (!space) return c.json({ error: 'Space not found' }, 404);
 
-  // Server admins can manage all space members
-  if (!user.isAdmin) {
-    const membership = db.select().from(spaceMembers)
-      .where(and(eq(spaceMembers.spaceId, spaceId), eq(spaceMembers.userId, user.userId)))
-      .get();
-    if (!membership || membership.role !== 'owner') return c.json({ error: 'Forbidden' }, 403);
-  }
+  if (getUserSpaceRole(user.userId, spaceId) !== 'owner') return c.json({ error: 'Forbidden' }, 403);
 
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
@@ -93,13 +82,7 @@ membersRouter.patch('/:spaceId/members/:userId', zValidator('json', updateMember
   const space = getSpace(spaceId);
   if (!space) return c.json({ error: 'Space not found' }, 404);
 
-  // Server admins can manage all space members
-  if (!user.isAdmin) {
-    const membership = db.select().from(spaceMembers)
-      .where(and(eq(spaceMembers.spaceId, spaceId), eq(spaceMembers.userId, user.userId)))
-      .get();
-    if (!membership || membership.role !== 'owner') return c.json({ error: 'Forbidden' }, 403);
-  }
+  if (getUserSpaceRole(user.userId, spaceId) !== 'owner') return c.json({ error: 'Forbidden' }, 403);
 
   const result = db.run(
     sql`UPDATE space_members SET role = ${newRole}, updated_at = CURRENT_TIMESTAMP
@@ -121,13 +104,7 @@ membersRouter.delete('/:spaceId/members/:userId', async (c) => {
   const space = getSpace(spaceId);
   if (!space) return c.json({ error: 'Space not found' }, 404);
 
-  // Server admins can manage all space members
-  if (!user.isAdmin) {
-    const membership = db.select().from(spaceMembers)
-      .where(and(eq(spaceMembers.spaceId, spaceId), eq(spaceMembers.userId, user.userId)))
-      .get();
-    if (!membership || membership.role !== 'owner') return c.json({ error: 'Forbidden' }, 403);
-  }
+  if (getUserSpaceRole(user.userId, spaceId) !== 'owner') return c.json({ error: 'Forbidden' }, 403);
 
   const result = db.run(
     sql`DELETE FROM space_members
@@ -155,13 +132,7 @@ membersRouter.post('/:spaceId/invites', zValidator('json', createInviteSchema), 
   const space = getSpace(spaceId);
   if (!space) return c.json({ error: 'Space not found' }, 404);
 
-  // Server admins can manage all space members
-  if (!user.isAdmin) {
-    const membership = db.select().from(spaceMembers)
-      .where(and(eq(spaceMembers.spaceId, spaceId), eq(spaceMembers.userId, user.userId)))
-      .get();
-    if (!membership || membership.role !== 'owner') return c.json({ error: 'Forbidden' }, 403);
-  }
+  if (getUserSpaceRole(user.userId, spaceId) !== 'owner') return c.json({ error: 'Forbidden' }, 403);
 
   const rawToken = crypto.randomBytes(32).toString('hex');
   const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');

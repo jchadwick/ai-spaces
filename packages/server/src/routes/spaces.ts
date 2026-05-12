@@ -11,9 +11,7 @@ import { authMiddleware, type AuthVariables } from '../middleware/auth.js';
 import { agentAdapter } from '../agent-adapter-instance.js';
 import { reconcileFromSpaceList } from '../reconcile.js';
 import type { SpaceRole, FileMetadataEntry } from '@ai-spaces/shared';
-import { db } from '../db/connection.js';
-import { spaceMembers } from '../db/index.js';
-import { and, eq } from 'drizzle-orm';
+import { getUserSpaceRole, getUserSpaceRoles, isServerAdmin } from '../db/queries.js';
 
 export interface SpaceVariables extends AuthVariables {
   spaceRole: SpaceRole;
@@ -28,71 +26,28 @@ export function getSpaceById(id: string): SpaceRecord | null {
 
 // Space access middleware — resolves spaceRole for /:id and all sub-routes
 spacesRouter.use('/:id', async (c, next) => {
-  const user = c.get('user');
+  const { userId } = c.get('user');
   const spaceId = c.req.param('id');
-
-  if (user.isAdmin) {
-    c.set('spaceRole', 'owner');
-    return next();
-  }
-
-  const membership = db.select().from(spaceMembers)
-    .where(and(eq(spaceMembers.spaceId, spaceId), eq(spaceMembers.userId, user.userId)))
-    .get();
-
-  if (!membership) {
-    return c.json({ error: 'Forbidden' }, 403);
-  }
-
-  c.set('spaceRole', membership.role as SpaceRole);
+  const role = getUserSpaceRole(userId, spaceId);
+  if (!role) return c.json({ error: 'Forbidden' }, 403);
+  c.set('spaceRole', role);
   return next();
 });
 
 spacesRouter.use('/:id/*', async (c, next) => {
-  const user = c.get('user');
+  const { userId } = c.get('user');
   const spaceId = c.req.param('id');
-
-  if (user.isAdmin) {
-    c.set('spaceRole', 'owner');
-    return next();
-  }
-
-  const membership = db.select().from(spaceMembers)
-    .where(and(eq(spaceMembers.spaceId, spaceId), eq(spaceMembers.userId, user.userId)))
-    .get();
-
-  if (!membership) {
-    return c.json({ error: 'Forbidden' }, 403);
-  }
-
-  c.set('spaceRole', membership.role as SpaceRole);
+  const role = getUserSpaceRole(userId, spaceId);
+  if (!role) return c.json({ error: 'Forbidden' }, 403);
+  c.set('spaceRole', role);
   return next();
 });
 
 spacesRouter.get('/', (c) => {
-  const user = c.get('user');
+  const { userId } = c.get('user');
   const allSpaces = listSpaces();
-
-  let accessibleSpaces: SpaceRecord[];
-  let membershipMap: Map<string, SpaceRole> = new Map();
-
-  if (user.isAdmin) {
-    accessibleSpaces = allSpaces;
-    // admins are implicitly owner everywhere
-    for (const s of allSpaces) {
-      membershipMap.set(s.id, 'owner');
-    }
-  } else {
-    const memberships = db.select().from(spaceMembers)
-      .where(eq(spaceMembers.userId, user.userId))
-      .all();
-
-    const memberSpaceIds = new Set(memberships.map(m => m.spaceId));
-    for (const m of memberships) {
-      membershipMap.set(m.spaceId, m.role as SpaceRole);
-    }
-    accessibleSpaces = allSpaces.filter(s => memberSpaceIds.has(s.id));
-  }
+  const membershipMap = getUserSpaceRoles(userId, allSpaces.map(s => s.id));
+  const accessibleSpaces = allSpaces.filter(s => membershipMap.has(s.id));
 
   const spaces = accessibleSpaces.map(s => {
     const parent = accessibleSpaces
@@ -331,8 +286,8 @@ spacesRouter.delete('/:id', (c) => {
 });
 
 spacesRouter.post('/scan', async (c) => {
-  const user = c.get('user');
-  if (!user.isAdmin) {
+  const { userId } = c.get('user');
+  if (!isServerAdmin(userId)) {
     return c.json({ error: 'Forbidden' }, 403);
   }
 

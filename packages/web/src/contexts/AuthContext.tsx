@@ -3,7 +3,6 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from '
 export interface User {
   id: string
   email: string
-  isAdmin: boolean
   name?: string
 }
 

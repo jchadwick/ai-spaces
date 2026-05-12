@@ -920,8 +920,7 @@ export function startSpacesServer(port: number): void {
       if (fileTreeMatch) {
         const [, spaceId] = fileTreeMatch;
         const payload = validateSession(req);
-        const isAdmin = (payload?.isAdmin as boolean) ?? false;
-        const role: SpaceRole = isAdmin ? 'owner' : 'viewer';
+        const role: SpaceRole = (payload?.role as SpaceRole) || 'viewer';
         await handleFileTree(req, res, spaceId, role);
         return;
       }

@@ -17,6 +17,7 @@ import { runMigrations } from './db/migrate.js';
 import { seedFromJsonIfNeeded } from './db/seed-from-json.js';
 import { reconcileFromSpaceList } from './reconcile.js';
 import { agentAdapter } from './agent-adapter-instance.js';
+import { getUserSpaceRole } from './db/queries.js';
 import { createInternalMiddleware } from './middleware/ip-allowlist.js';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
@@ -153,13 +154,11 @@ wss.on('upgrade', (request, socket, head) => {
   }
 
   let userId: string;
-  let userRole: string;
   let rawToken: string | null = null;
 
   // In non-production dev mode with DEV_VIRTUAL_USER, bypass JWT validation
   if (process.env.NODE_ENV !== 'production' && process.env.DEV_VIRTUAL_USER === 'true') {
     userId = 'dev-user-00000000-0000-0000-0000-000000000000';
-    userRole = 'admin';
   } else {
     // Require JWT — check Authorization header first, then ?token= query param
     const authHeader = request.headers.authorization;
@@ -177,8 +176,7 @@ wss.on('upgrade', (request, socket, head) => {
       const decoded = jwt.verify(rawToken, config.JWT_SECRET) as jwt.JwtPayload;
       if (!decoded.userId) throw new Error('Missing userId');
       userId = decoded.userId as string;
-      userRole = (decoded.role as string) || (decoded.isAdmin ? 'admin' : 'viewer');
-      console.log('[WS-UPGRADE] auth ok, userId:', userId, 'role:', userRole);
+      console.log('[WS-UPGRADE] auth ok, userId:', userId);
     } catch (err) {
       console.log('[WS-UPGRADE] invalid token:', (err as Error).message);
       wss.handleUpgrade(request, socket, head, (ws) => ws.close(1008, 'Invalid token'));
@@ -186,11 +184,19 @@ wss.on('upgrade', (request, socket, head) => {
     }
   }
 
+  // Resolve the user's actual SpaceRole from the DB (admin → 'owner' handled here)
+  const spaceRole = getUserSpaceRole(userId, spaceId);
+  if (!spaceRole) {
+    console.log('[WS-UPGRADE] no space access, userId:', userId, 'spaceId:', spaceId);
+    wss.handleUpgrade(request, socket, head, (ws) => ws.close(1008, 'Forbidden'));
+    return;
+  }
+
   const pluginWsUrl = `${config.PLUGIN_SPACES_URL.replace(/^http/, 'ws')}/api/spaces/${spaceId}/ws`;
 
-  // Always mint a forwarding token with explicit role so the plugin gets the correct role
+  // Mint a forwarding token with the resolved SpaceRole so the plugin gets the correct role
   const forwardToken = jwt.sign(
-    { userId, role: userRole },
+    { userId, role: spaceRole },
     config.JWT_SECRET,
     { expiresIn: '1h' },
   );

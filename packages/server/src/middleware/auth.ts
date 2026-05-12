@@ -6,7 +6,7 @@ export interface AuthVariables {
   user: {
     userId: string;
     email: string;
-    role: string;
+    isAdmin: boolean;
   };
 }
 
@@ -15,7 +15,7 @@ export const authMiddleware = createMiddleware<{ Variables: AuthVariables }>(asy
     c.set('user', {
       userId: 'dev-user-00000000-0000-0000-0000-000000000000',
       email: 'dev@local',
-      role: 'admin',
+      isAdmin: true,
     });
     return next();
   }
@@ -46,7 +46,7 @@ export const authMiddleware = createMiddleware<{ Variables: AuthVariables }>(asy
     c.set('user', {
       userId: decoded.userId,
       email: decoded.email || '',
-      role: decoded.role || 'user',
+      isAdmin: decoded.isAdmin === true,
     });
 
     await next();

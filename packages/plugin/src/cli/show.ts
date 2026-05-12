@@ -48,11 +48,6 @@ export async function showSpace(spaceId: string, options: { json?: boolean } = {
       }
     }
 
-    if (space.config.collaborators && space.config.collaborators.length > 0) {
-      console.log('');
-      console.log(`  Collaborators: ${space.config.collaborators.join(', ')}`);
-    }
-
     console.log('');
   }
 }

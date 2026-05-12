@@ -22,10 +22,13 @@ membersRouter.get('/:spaceId/members', async (c) => {
   const space = getSpace(spaceId);
   if (!space) return c.json({ error: 'Space not found' }, 404);
 
-  const membership = db.select().from(spaceMembers)
-    .where(and(eq(spaceMembers.spaceId, spaceId), eq(spaceMembers.userId, user.userId)))
-    .get();
-  if (!membership) return c.json({ error: 'Forbidden' }, 403);
+  // Server admins have implicit access
+  if (!user.isAdmin) {
+    const membership = db.select().from(spaceMembers)
+      .where(and(eq(spaceMembers.spaceId, spaceId), eq(spaceMembers.userId, user.userId)))
+      .get();
+    if (!membership) return c.json({ error: 'Forbidden' }, 403);
+  }
 
   const members = db.select().from(spaceMembers)
     .where(eq(spaceMembers.spaceId, spaceId))
@@ -36,10 +39,10 @@ membersRouter.get('/:spaceId/members', async (c) => {
 
 const addMemberSchema = z.object({
   userId: z.string().min(1),
-  role: z.enum(['viewer', 'editor', 'admin']),
+  role: z.enum(['owner', 'editor', 'viewer']),
 });
 
-// POST /api/spaces/:spaceId/members — add member (admin only)
+// POST /api/spaces/:spaceId/members — add member (owner only)
 // @ts-ignore -- tsgo TS2589: type instantiation depth limit on Hono+zValidator chains
 membersRouter.post('/:spaceId/members', zValidator('json', addMemberSchema), async (c) => {
   const user = c.get('user');
@@ -49,10 +52,13 @@ membersRouter.post('/:spaceId/members', zValidator('json', addMemberSchema), asy
   const space = getSpace(spaceId);
   if (!space) return c.json({ error: 'Space not found' }, 404);
 
-  const membership = db.select().from(spaceMembers)
-    .where(and(eq(spaceMembers.spaceId, spaceId), eq(spaceMembers.userId, user.userId)))
-    .get();
-  if (!membership || membership.role !== 'admin') return c.json({ error: 'Forbidden' }, 403);
+  // Server admins can manage all space members
+  if (!user.isAdmin) {
+    const membership = db.select().from(spaceMembers)
+      .where(and(eq(spaceMembers.spaceId, spaceId), eq(spaceMembers.userId, user.userId)))
+      .get();
+    if (!membership || membership.role !== 'owner') return c.json({ error: 'Forbidden' }, 403);
+  }
 
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
@@ -73,10 +79,10 @@ membersRouter.post('/:spaceId/members', zValidator('json', addMemberSchema), asy
 });
 
 const updateMemberSchema = z.object({
-  role: z.enum(['viewer', 'editor', 'admin']),
+  role: z.enum(['owner', 'editor', 'viewer']),
 });
 
-// PATCH /api/spaces/:spaceId/members/:userId — change role (admin only, last-admin guard)
+// PATCH /api/spaces/:spaceId/members/:userId — change role (owner only, last-owner guard)
 // @ts-ignore -- tsgo TS2589: type instantiation depth limit on Hono+zValidator chains
 membersRouter.patch('/:spaceId/members/:userId', zValidator('json', updateMemberSchema), async (c) => {
   const user = c.get('user');
@@ -87,23 +93,26 @@ membersRouter.patch('/:spaceId/members/:userId', zValidator('json', updateMember
   const space = getSpace(spaceId);
   if (!space) return c.json({ error: 'Space not found' }, 404);
 
-  const membership = db.select().from(spaceMembers)
-    .where(and(eq(spaceMembers.spaceId, spaceId), eq(spaceMembers.userId, user.userId)))
-    .get();
-  if (!membership || membership.role !== 'admin') return c.json({ error: 'Forbidden' }, 403);
+  // Server admins can manage all space members
+  if (!user.isAdmin) {
+    const membership = db.select().from(spaceMembers)
+      .where(and(eq(spaceMembers.spaceId, spaceId), eq(spaceMembers.userId, user.userId)))
+      .get();
+    if (!membership || membership.role !== 'owner') return c.json({ error: 'Forbidden' }, 403);
+  }
 
   const result = db.run(
     sql`UPDATE space_members SET role = ${newRole}, updated_at = CURRENT_TIMESTAMP
         WHERE space_id = ${spaceId} AND user_id = ${userId}
-        AND (${newRole} = 'admin'
-          OR (SELECT COUNT(*) FROM space_members WHERE space_id = ${spaceId} AND role = 'admin' AND user_id != ${userId}) >= 1)`
+        AND (${newRole} = 'owner'
+          OR (SELECT COUNT(*) FROM space_members WHERE space_id = ${spaceId} AND role = 'owner' AND user_id != ${userId}) >= 1)`
   );
-  if ((result as { changes: number }).changes === 0) return c.json({ error: 'Cannot demote the last admin' }, 409);
+  if ((result as { changes: number }).changes === 0) return c.json({ error: 'Cannot demote the last owner' }, 409);
 
   return c.json({ success: true });
 });
 
-// DELETE /api/spaces/:spaceId/members/:userId — remove member (admin only, last-admin guard)
+// DELETE /api/spaces/:spaceId/members/:userId — remove member (owner only, last-owner guard)
 membersRouter.delete('/:spaceId/members/:userId', async (c) => {
   const user = c.get('user');
   const spaceId = c.req.param('spaceId');
@@ -112,28 +121,31 @@ membersRouter.delete('/:spaceId/members/:userId', async (c) => {
   const space = getSpace(spaceId);
   if (!space) return c.json({ error: 'Space not found' }, 404);
 
-  const membership = db.select().from(spaceMembers)
-    .where(and(eq(spaceMembers.spaceId, spaceId), eq(spaceMembers.userId, user.userId)))
-    .get();
-  if (!membership || membership.role !== 'admin') return c.json({ error: 'Forbidden' }, 403);
+  // Server admins can manage all space members
+  if (!user.isAdmin) {
+    const membership = db.select().from(spaceMembers)
+      .where(and(eq(spaceMembers.spaceId, spaceId), eq(spaceMembers.userId, user.userId)))
+      .get();
+    if (!membership || membership.role !== 'owner') return c.json({ error: 'Forbidden' }, 403);
+  }
 
   const result = db.run(
     sql`DELETE FROM space_members
         WHERE space_id = ${spaceId} AND user_id = ${userId}
-        AND ((SELECT role FROM space_members WHERE space_id = ${spaceId} AND user_id = ${userId}) != 'admin'
-          OR (SELECT COUNT(*) FROM space_members WHERE space_id = ${spaceId} AND role = 'admin') > 1)`
+        AND ((SELECT role FROM space_members WHERE space_id = ${spaceId} AND user_id = ${userId}) != 'owner'
+          OR (SELECT COUNT(*) FROM space_members WHERE space_id = ${spaceId} AND role = 'owner') > 1)`
   );
-  if ((result as { changes: number }).changes === 0) return c.json({ error: 'Cannot remove the last admin' }, 409);
+  if ((result as { changes: number }).changes === 0) return c.json({ error: 'Cannot remove the last owner' }, 409);
 
   return c.json({ success: true });
 });
 
 const createInviteSchema = z.object({
-  role: z.enum(['viewer', 'editor', 'admin']),
+  role: z.enum(['owner', 'editor', 'viewer']),
   recipientUserId: z.string().optional(),
 });
 
-// POST /api/spaces/:spaceId/invites — create invite token (admin only)
+// POST /api/spaces/:spaceId/invites — create invite token (owner only)
 // @ts-ignore -- tsgo TS2589: type instantiation depth limit on Hono+zValidator chains
 membersRouter.post('/:spaceId/invites', zValidator('json', createInviteSchema), async (c) => {
   const user = c.get('user');
@@ -143,10 +155,13 @@ membersRouter.post('/:spaceId/invites', zValidator('json', createInviteSchema), 
   const space = getSpace(spaceId);
   if (!space) return c.json({ error: 'Space not found' }, 404);
 
-  const membership = db.select().from(spaceMembers)
-    .where(and(eq(spaceMembers.spaceId, spaceId), eq(spaceMembers.userId, user.userId)))
-    .get();
-  if (!membership || membership.role !== 'admin') return c.json({ error: 'Forbidden' }, 403);
+  // Server admins can manage all space members
+  if (!user.isAdmin) {
+    const membership = db.select().from(spaceMembers)
+      .where(and(eq(spaceMembers.spaceId, spaceId), eq(spaceMembers.userId, user.userId)))
+      .get();
+    if (!membership || membership.role !== 'owner') return c.json({ error: 'Forbidden' }, 403);
+  }
 
   const rawToken = crypto.randomBytes(32).toString('hex');
   const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');

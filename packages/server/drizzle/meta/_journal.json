@@ -15,6 +15,13 @@
       "when": 1778184590910,
       "tag": "0001_same_george_stacy",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1778553330540,
+      "tag": "0002_young_tyrannus",
+      "breakpoints": true
     }
   ]
 }

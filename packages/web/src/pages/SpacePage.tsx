@@ -8,7 +8,7 @@ import ResizeHandle from "../components/ResizeHandle";
 import { ErrorBoundary } from "../components/errors";
 import { ToastProvider } from "../components/ui/toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { toSpaceRole } from "@ai-spaces/shared";
+import type { SpaceRole } from "@ai-spaces/shared";
 import { useAPI } from "@/hooks/useAPI";
 import { ConnectionStatusProvider, type FileChangedPayload } from "@/contexts/ConnectionStatusContext";
 import {
@@ -32,12 +32,13 @@ interface Space {
 export default function SpacePage() {
   const { spaceId, '*': fileSplat } = useParams();
   const navigate = useNavigate();
-  const { user, accessToken } = useAuth();
+  const { accessToken } = useAuth();
   const apiFetch = useAPI();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [space, setSpace] = useState<Space | null>(null);
+  const [userRole, setUserRole] = useState<SpaceRole>('viewer');
 
   const selectedFile = fileSplat || null;
   const setSelectedFile = useCallback((filePath: string | null) => {
@@ -92,9 +93,12 @@ export default function SpacePage() {
         }
         return res.json();
       })
-      .then((data: { space?: Space } & Partial<Space>) => {
+      .then((data: { space?: Space; userRole?: SpaceRole } & Partial<Space>) => {
         if (!mounted) return;
         setSpace(data.space ?? (data as Space));
+        if (data.userRole) {
+          setUserRole(data.userRole);
+        }
         setLoading(false);
       })
       .catch((err) => {
@@ -181,8 +185,6 @@ export default function SpacePage() {
     );
   }
 
-  const role = toSpaceRole(user?.role ?? 'viewer');
-
   return (
     <ToastProvider>
       <ConnectionStatusProvider
@@ -206,7 +208,7 @@ export default function SpacePage() {
               <ErrorBoundary>
                 <FileExplorer
                   spaceId={spaceId}
-                  role={role}
+                  role={userRole}
                   selectedFile={selectedFile}
                   onFileSelect={setSelectedFile}
                 />
@@ -227,7 +229,7 @@ export default function SpacePage() {
                 <FileEditor
                   spaceId={spaceId}
                   filePath={selectedFile ?? undefined}
-                  role={role}
+                  role={userRole}
                   externalRefreshKey={editorRefreshKey}
                   onFileModified={() => {
                     const event = new CustomEvent("fileModified", {
@@ -262,7 +264,7 @@ export default function SpacePage() {
             >
               <ErrorBoundary>
                 <AIChatPane
-                  role={role}
+                  role={userRole}
                 />
               </ErrorBoundary>
             </div>

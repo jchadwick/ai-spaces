@@ -8,7 +8,7 @@ export type AppContext = Context<{
 export interface UserPayload {
   userId: string;
   email: string;
-  role: string;
+  isAdmin: boolean;
 }
 
 declare module 'hono' {
@@ -29,7 +29,7 @@ export function getUserEmail(c: AppContext): string {
   return user?.email || '';
 }
 
-export function getUserRole(c: AppContext): string {
+export function getUserIsAdmin(c: AppContext): boolean {
   const user = c.get('user');
-  return user?.role || 'viewer';
+  return user?.isAdmin ?? false;
 }

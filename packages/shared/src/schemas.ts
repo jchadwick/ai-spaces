@@ -4,15 +4,6 @@ export const SpaceConfigSchema = z.object({
   id: z.string().min(1).max(100).optional(),
   name: z.string().min(1).max(100),
   description: z.string().max(500).optional(),
-  collaborators: z.array(z.object({
-    email: z.string().email().optional(),
-    name: z.string().optional(),
-    role: z.enum(['viewer', 'editor', 'admin']),
-  })).optional(),
-  members: z.array(z.object({
-    userId: z.string(),
-    role: z.enum(['viewer', 'editor', 'admin']),
-  })).optional(),
   agent: z.object({
     capabilities: z.array(z.string()).optional(),
     denied: z.array(z.string()).optional(),
@@ -32,7 +23,7 @@ export const SessionContextSchema = z.object({
   spacePath: z.string(),
   agentId: z.string(),
   userId: z.string(),
-  role: z.enum(['viewer', 'editor', 'admin']),
+  role: z.enum(['owner', 'editor', 'viewer']),
   sessionKey: z.string(),
   
   deniedTools: z.array(z.string()),
@@ -76,7 +67,7 @@ export const FileContentResponseSchema = z.object({
   modified: z.string().optional(),
 });
 
-export const UserRoleSchema = z.enum(['admin', 'owner', 'viewer', 'editor']);
+export const UserRoleSchema = z.enum(['admin', 'user']);
 
 export const UserSchema = z.object({
   id: z.string(),

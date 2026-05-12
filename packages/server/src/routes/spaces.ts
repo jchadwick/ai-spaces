@@ -7,23 +7,95 @@ import {
   deleteSpace,
   type SpaceRecord,
 } from '../space-store.js';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, type AuthVariables } from '../middleware/auth.js';
 import { agentAdapter } from '../agent-adapter-instance.js';
 import { reconcileFromSpaceList } from '../reconcile.js';
-import { toSpaceRole } from '@ai-spaces/shared';
 import type { SpaceRole } from '@ai-spaces/shared';
+import { db } from '../db/connection.js';
+import { spaceMembers } from '../db/index.js';
+import { and, eq } from 'drizzle-orm';
 
-export const spacesRouter = new Hono();
+export interface SpaceVariables extends AuthVariables {
+  spaceRole: SpaceRole;
+}
+
+export const spacesRouter = new Hono<{ Variables: SpaceVariables }>();
 spacesRouter.use('*', authMiddleware);
 
 export function getSpaceById(id: string): SpaceRecord | null {
   return getSpace(id);
 }
 
+// Space access middleware — resolves spaceRole for /:id and all sub-routes
+spacesRouter.use('/:id', async (c, next) => {
+  const user = c.get('user');
+  const spaceId = c.req.param('id');
+
+  if (user.isAdmin) {
+    c.set('spaceRole', 'owner');
+    return next();
+  }
+
+  const membership = db.select().from(spaceMembers)
+    .where(and(eq(spaceMembers.spaceId, spaceId), eq(spaceMembers.userId, user.userId)))
+    .get();
+
+  if (!membership) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  c.set('spaceRole', membership.role as SpaceRole);
+  return next();
+});
+
+spacesRouter.use('/:id/*', async (c, next) => {
+  const user = c.get('user');
+  const spaceId = c.req.param('id');
+
+  if (user.isAdmin) {
+    c.set('spaceRole', 'owner');
+    return next();
+  }
+
+  const membership = db.select().from(spaceMembers)
+    .where(and(eq(spaceMembers.spaceId, spaceId), eq(spaceMembers.userId, user.userId)))
+    .get();
+
+  if (!membership) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
+  c.set('spaceRole', membership.role as SpaceRole);
+  return next();
+});
+
 spacesRouter.get('/', (c) => {
+  const user = c.get('user');
   const allSpaces = listSpaces();
-  const spaces = allSpaces.map(s => {
-    const parent = allSpaces
+
+  let accessibleSpaces: SpaceRecord[];
+  let membershipMap: Map<string, SpaceRole> = new Map();
+
+  if (user.isAdmin) {
+    accessibleSpaces = allSpaces;
+    // admins are implicitly owner everywhere
+    for (const s of allSpaces) {
+      membershipMap.set(s.id, 'owner');
+    }
+  } else {
+    const memberships = db.select().from(spaceMembers)
+      .where(eq(spaceMembers.userId, user.userId))
+      .all();
+
+    const memberSpaceIds = new Set(memberships.map(m => m.spaceId));
+    for (const m of memberships) {
+      membershipMap.set(m.spaceId, m.role as SpaceRole);
+    }
+    accessibleSpaces = allSpaces.filter(s => memberSpaceIds.has(s.id));
+  }
+
+  const spaces = accessibleSpaces.map(s => {
+    const parent = accessibleSpaces
       .filter(other => other.id !== s.id && s.path.startsWith(other.path + '/'))
       .sort((a, b) => b.path.length - a.path.length)[0];
     return {
@@ -33,6 +105,7 @@ spacesRouter.get('/', (c) => {
       createdAt: s.createdAt,
       updatedAt: s.updatedAt,
       parentSpaceId: parent?.id ?? null,
+      userRole: membershipMap.get(s.id) ?? 'viewer',
     };
   });
   return c.json({ spaces });
@@ -46,14 +119,15 @@ spacesRouter.get('/:id', (c) => {
     return c.json({ error: 'Space not found' }, 404);
   }
 
-  return c.json({ space });
+  const spaceRole = c.get('spaceRole');
+  return c.json({ space, userRole: spaceRole });
 });
 
 spacesRouter.get('/:id/files', async (c) => {
   const id = c.req.param('id');
   const dirPath = c.req.query('path') || '';
   const space = getSpace(id);
-  const role: SpaceRole = toSpaceRole(c.get('user').role);
+  const role = c.get('spaceRole');
 
   if (!space) {
     return c.json({ error: 'Space not found' }, 404);
@@ -224,6 +298,11 @@ spacesRouter.delete('/:id', (c) => {
 });
 
 spacesRouter.post('/scan', async (c) => {
+  const user = c.get('user');
+  if (!user.isAdmin) {
+    return c.json({ error: 'Forbidden' }, 403);
+  }
+
   const spaces = await agentAdapter.scanSpaces();
   const before = listSpaces().length;
   await reconcileFromSpaceList(spaces);

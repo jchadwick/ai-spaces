@@ -45,7 +45,7 @@ authRouter.post('/login', zValidator('json', loginSchema), async (c) => {
     user: {
       id: user.id,
       email: user.email,
-      role: user.role as string,
+      isAdmin: user.role === 'admin',
       displayName: user.displayName
     }
   });
@@ -84,7 +84,7 @@ authRouter.post('/refresh', zValidator('json', refreshSchema), async (c) => {
     user: {
       id: user.id,
       email: user.email,
-      role: user.role as string,
+      isAdmin: user.role === 'admin',
       displayName: user.displayName
     }
   });
@@ -92,7 +92,7 @@ authRouter.post('/refresh', zValidator('json', refreshSchema), async (c) => {
 
 function generateTokens(user: User): { accessToken: string; refreshToken: string } {
   const accessToken = jwt.sign(
-    { userId: user.id, email: user.email, role: user.role },
+    { userId: user.id, email: user.email, isAdmin: user.role === 'admin' },
     config.JWT_SECRET,
     { expiresIn: '1h'}
   );

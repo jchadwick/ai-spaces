@@ -14,7 +14,6 @@ import { config } from '../config.js';
 import { validateSession } from '../session-middleware.js';
 import { fileWatcher, type FileChangedEvent } from '../file-watcher.js';
 import type { WebSocketMessage, SpaceConfig, ChatMessage, SpaceRole } from '@ai-spaces/shared';
-import { toSpaceRole } from '@ai-spaces/shared';
 
 interface WebSocketClient {
   ws: WsWebSocket;
@@ -921,7 +920,8 @@ export function startSpacesServer(port: number): void {
       if (fileTreeMatch) {
         const [, spaceId] = fileTreeMatch;
         const payload = validateSession(req);
-        const role: SpaceRole = toSpaceRole((payload?.role as string) ?? 'viewer');
+        const isAdmin = (payload?.isAdmin as boolean) ?? false;
+        const role: SpaceRole = isAdmin ? 'owner' : 'viewer';
         await handleFileTree(req, res, spaceId, role);
         return;
       }

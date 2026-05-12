@@ -46,6 +46,10 @@ docker build -t ai-spaces .          # build prod image
 docker cp $(docker create ai-spaces):/plugin ./plugin-dist   # extract compiled plugin
 ```
 
+## Dev vs Production
+
+Never add production code paths, guards, or abstractions whose sole purpose is to support local dev or testing workflows. Dev/test setup belongs in dev/test tooling — not in production code. If something is dev-only, keep it in entrypoints, seed scripts, docker-compose, or test helpers, not in production modules.
+
 ## Code Style
 
 ### TypeScript

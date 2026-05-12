@@ -44,6 +44,19 @@ if [ -z "$(ls -A "$OPENCLAW_HOME/workspace" 2>/dev/null)" ]; then
   fi
 fi
 
+# Init named workspaces from templates (only if directory doesn't exist yet)
+if [ -d /tpl/workspaces ]; then
+  mkdir -p "$OPENCLAW_HOME/workspaces"
+  for src in /tpl/workspaces/*/; do
+    name="$(basename "$src")"
+    dest="$OPENCLAW_HOME/workspaces/$name"
+    if [ ! -d "$dest" ]; then
+      cp -r "$src" "$dest"
+      echo "[entrypoint] Workspace '$name' initialized from template"
+    fi
+  done
+fi
+
 # Install plugin via CLI so openclaw writes the installs section it needs at startup
 echo "[entrypoint] Installing ai-spaces plugin..."
 openclaw plugins install --link "$PLUGIN_DIST" 2>&1 || \

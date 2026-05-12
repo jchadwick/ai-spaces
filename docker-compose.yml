@@ -41,6 +41,7 @@ services:
       - ./packages/plugin/dist:/plugins/ai-spaces:ro
       - ./sandbox/templates/.openclaw/openclaw.json.tpl:/tpl/openclaw.json.tpl:ro
       - ./sandbox/templates/workspace:/tpl/workspace:ro
+      - ./sandbox/templates/workspaces:/tpl/workspaces:ro
       - ${HOME}/.local/share/opencode/auth.json:/tpl/opencode-auth.json:ro
     networks:
       - ai-spaces

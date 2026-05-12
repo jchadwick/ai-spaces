@@ -26,6 +26,7 @@ export const config = {
   WEB_DIST:           process.env.WEB_DIST           ?? path.join(HOME, 'ai-spaces', 'packages', 'web', 'dist'),
   INVITE_BASE_URL:    process.env.INVITE_BASE_URL    ?? 'http://localhost:5173',
   ALLOW_ORPHAN_COLLABORATORS: process.env.ALLOW_ORPHAN_COLLABORATORS === 'true',
+  ALLOW_OPEN_REGISTRATION: process.env.ALLOW_OPEN_REGISTRATION === 'true',
   CONFIRMATION_NONCE_TTL_MS: parseInt(process.env.CONFIRMATION_NONCE_TTL_MS ?? '300000', 10),
 };
 

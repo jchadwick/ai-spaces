@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
 import ThemePicker from "./ThemePicker";
+import { useAuth } from "@/contexts/AuthContext";
 
 const AgentGlyph = ({ size = 14, color = 'currentColor' }: { size?: number; color?: string }) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, display: 'inline-block', verticalAlign: 'middle' }}>
@@ -101,6 +102,7 @@ function ProfileMenu() {
 }
 
 export default function TopNavBar({ spaceName }: TopNavBarProps) {
+  const { user } = useAuth();
   return (
     <header style={{
       height: 52,
@@ -138,6 +140,24 @@ export default function TopNavBar({ spaceName }: TopNavBarProps) {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {user?.serverRole === 'admin' && (
+          <Link
+            to="/admin"
+            style={{
+              fontSize: 13,
+              color: 'var(--t-inkMid)',
+              textDecoration: 'none',
+              padding: '4px 10px',
+              borderRadius: 6,
+              border: '1px solid var(--t-hair)',
+              fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif",
+            }}
+            onMouseEnter={e => (e.currentTarget.style.color = 'var(--t-ink)')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'var(--t-inkMid)')}
+          >
+            Admin
+          </Link>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--t-inkDim)', fontFamily: "'JetBrains Mono', ui-monospace, monospace", textTransform: 'uppercase', letterSpacing: 1 }}>
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--t-agent)', display: 'inline-block' }} />
           live

@@ -72,6 +72,7 @@ services:
       DEV_VIRTUAL_USER: "true"
       AI_SPACES_DATA: /data
       AI_SPACES_DB: /data/ai-spaces.db
+      ALLOW_OPEN_REGISTRATION: "true"
       # Vite uses this to proxy /api and /ws to the server within the container
       AI_SPACES_URL: http://127.0.0.1:3001
     volumes:

@@ -12,6 +12,7 @@ import { membersRouter } from './routes/members.js';
 import { invitesRouter } from './routes/invites.js';
 import { identityRouter } from './routes/identity.js';
 import { confirmRouter } from './routes/confirm.js';
+import { adminRouter } from './routes/admin.js';
 import { runMigrations } from './db/migrate.js';
 import { reconcileFromSpaceList } from './reconcile.js';
 import { agentAdapter } from './agent-adapter-instance.js';
@@ -47,8 +48,13 @@ app.use('/login*', async (c, next) => {
   await next();
   c.res.headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'");
 });
+app.use('/register*', async (c, next) => {
+  await next();
+  c.res.headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'");
+});
 
 app.route('/api/auth', authRouter);
+app.route('/api/admin', adminRouter);
 app.route('/api/spaces', spacesRouter);
 app.route('/api/spaces', membersRouter);
 app.route('/api/spaces', identityRouter);

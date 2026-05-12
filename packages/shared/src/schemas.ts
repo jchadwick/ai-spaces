@@ -69,11 +69,11 @@ export const FileContentResponseSchema = z.object({
 
 export const UserRoleSchema = z.enum(['admin', 'user']);
 
+export const ServerRoleSchema = z.enum(['admin', 'user']);
+
 export const UserSchema = z.object({
   id: z.string(),
   email: z.string().email(),
-  passwordHash: z.string(),
-  role: UserRoleSchema,
   displayName: z.string().optional(),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),

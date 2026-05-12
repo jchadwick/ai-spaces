@@ -37,12 +37,11 @@ export interface WebSocketMessage {
 }
 
 export type UserRole = 'admin' | 'user';
+export type ServerRole = 'admin' | 'user';
 
 export interface User {
   id: string;
   email: string;
-  passwordHash: string;
-  role: UserRole;
   displayName?: string;
   createdAt: string;
   updatedAt: string;

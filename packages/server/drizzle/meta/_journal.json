@@ -22,6 +22,13 @@
       "when": 1778553330540,
       "tag": "0002_young_tyrannus",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1747094400000,
+      "tag": "0003_multi_table_auth",
+      "breakpoints": true
     }
   ]
 }

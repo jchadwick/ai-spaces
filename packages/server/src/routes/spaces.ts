@@ -11,7 +11,7 @@ import { authMiddleware, type AuthVariables } from '../middleware/auth.js';
 import { agentAdapter } from '../agent-adapter-instance.js';
 import { reconcileFromSpaceList } from '../reconcile.js';
 import type { SpaceRole, FileMetadataEntry } from '@ai-spaces/shared';
-import { getUserSpaceRole, getUserSpaceRoles, isServerAdmin } from '../db/queries.js';
+import { getUserSpaceRole, getUserSpaceRoles } from '../db/queries.js';
 
 export interface SpaceVariables extends AuthVariables {
   spaceRole: SpaceRole;
@@ -286,10 +286,11 @@ spacesRouter.delete('/:id', (c) => {
 });
 
 spacesRouter.post('/scan', async (c) => {
-  const { userId } = c.get('user');
-  if (!isServerAdmin(userId)) {
+  const user = c.get('user');
+  if (user.serverRole !== 'admin') {
     return c.json({ error: 'Forbidden' }, 403);
   }
+  const { userId } = user;
 
   const spaces = await agentAdapter.scanSpaces();
   const before = listSpaces().length;

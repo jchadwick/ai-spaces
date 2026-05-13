@@ -1,4 +1,5 @@
-export type SpaceRole = 'owner' | 'editor' | 'viewer';
+export const SpaceRoles = ['owner', 'editor', 'viewer'] as const;
+export type SpaceRole = (typeof SpaceRoles)[number];
 
 export type Permission =
   | 'files:read'
@@ -15,4 +16,11 @@ const ROLE_PERMISSIONS: Record<SpaceRole, readonly Permission[]> = {
 
 export function hasPermission(role: SpaceRole, permission: Permission): boolean {
   return (ROLE_PERMISSIONS[role] as readonly string[]).includes(permission);
+}
+
+export function toSpaceRole(x: unknown): SpaceRole {
+  if (typeof x === 'string' && SpaceRoles.includes(x as SpaceRole)) {
+    return x as SpaceRole;
+  }
+  return 'viewer';
 }

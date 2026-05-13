@@ -8,6 +8,7 @@ import { handleSpaceWebSocket, startSpacesServer } from './routes/space-ws.js';
 import { handleFileContent, handleFileTree, handleFileWrite, handleGetMetadata, handlePatchMetadata } from './routes/space-files.js';
 import { validateSession } from './session-middleware.js';
 import type { SpaceRole } from '@ai-spaces/shared';
+import { toSpaceRole } from '@ai-spaces/shared';
 import * as crypto from 'crypto';
 import * as path from 'path';
 import { config } from './config.js';
@@ -180,8 +181,8 @@ export default defineChannelPluginEntry({
           const fileTreeMatch = url.pathname.match(/^\/api\/spaces\/([^/]+)\/files$/);
           if (fileTreeMatch) {
             const [, spaceId] = fileTreeMatch;
-            const roleParam = url.searchParams.get('role') as SpaceRole | null;
-            const role: SpaceRole = roleParam ?? 'viewer';
+            const roleParam = url.searchParams.get('role');
+            const role: SpaceRole = toSpaceRole(roleParam);
             return handleFileTree(req, res, spaceId, role);
           }
         }

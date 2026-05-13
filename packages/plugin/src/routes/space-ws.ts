@@ -15,6 +15,7 @@ import { loadRegistrationState, registerWithServer } from '../registration.js';
 import { validateSession } from '../session-middleware.js';
 import { fileWatcher, type FileChangedEvent } from '../file-watcher.js';
 import type { WebSocketMessage, SpaceConfig, ChatMessage, SpaceRole } from '@ai-spaces/shared';
+import { toSpaceRole } from '@ai-spaces/shared';
 
 interface WebSocketClient {
   ws: WsWebSocket;
@@ -921,9 +922,9 @@ export function startSpacesServer(port: number): void {
       const fileTreeMatch = url.pathname.match(/^\/api\/spaces\/([^/]+)\/files$/);
       if (fileTreeMatch) {
         const [, spaceId] = fileTreeMatch;
-        const roleParam = url.searchParams.get('role') as SpaceRole | null;
+        const roleParam = url.searchParams.get('role');
         const payload = validateSession(req);
-        const role: SpaceRole = roleParam ?? (payload?.role as SpaceRole) ?? 'viewer';
+        const role: SpaceRole = toSpaceRole(roleParam ?? payload?.role);
         await handleFileTree(req, res, spaceId, role);
         return;
       }
@@ -991,7 +992,7 @@ export function startSpacesServer(port: number): void {
       return;
     }
     const userId = (session.userId as string) || 'anonymous';
-    const userRole = (session.role as string) || 'viewer';
+    const userRole: SpaceRole = toSpaceRole(session.role);
 
     wsServer.handleUpgrade(req, socket, head, (ws) => {
       setupWebSocketClient(ws, spaceId, space, userId, userRole);
@@ -1042,7 +1043,7 @@ export async function handleSpaceWebSocket(req: IncomingMessage, res: ServerResp
     return true;
   }
   const userId = (session.userId as string) || 'anonymous';
-  const userRole = (session.role as string) || 'viewer';
+  const userRole: SpaceRole = toSpaceRole(session.role);
 
   console.log('[ai-spaces] Upgrading WebSocket for space:', spaceId);
 

@@ -66,6 +66,19 @@ openclaw plugins install --link "$PLUGIN_DIST" 2>&1 || \
 # The gateway plugin loading is unreliable across openclaw versions; running the
 # WS server directly ensures chat is always available regardless of gateway state.
 echo "[entrypoint] Starting AI Spaces server on port ${AI_SPACES_WS_PORT:-3002}..."
+
+# Wait for the AI Spaces server to be ready before starting
+AI_SPACES_URL="${AI_SPACES_URL:-http://dev:3001}"
+echo "[entrypoint] Waiting for AI Spaces server at $AI_SPACES_URL..."
+for i in 1 2 3 4 5 6 7 8 9 10; do
+  if curl -s "$AI_SPACES_URL/api/health" > /dev/null 2>&1; then
+    echo "[entrypoint] AI Spaces server is ready"
+    break
+  fi
+  echo "[entrypoint] Waiting for AI Spaces server... ($i/10)"
+  sleep 2
+done
+
 node --input-type=module -e "
 import { registerAndStartSpacesServer } from '/plugins/ai-spaces/routes/space-ws.js';
 await registerAndStartSpacesServer(parseInt(process.env.AI_SPACES_WS_PORT ?? '3002', 10));

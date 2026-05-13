@@ -33,6 +33,7 @@ services:
       OPENCLAW_DISABLE_BONJOUR: "1"
       AI_SPACES_URL: http://dev:3001
       AI_SPACES_WS_PORT: "3002"
+      PLUGIN_URL: http://openclaw:3002
       GATEWAY_URL: http://openclaw:19000
       GATEWAY_TOKEN: secret
       AI_SPACES_ROOT: /home/openclaw/workspace

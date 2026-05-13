@@ -921,8 +921,9 @@ export function startSpacesServer(port: number): void {
       const fileTreeMatch = url.pathname.match(/^\/api\/spaces\/([^/]+)\/files$/);
       if (fileTreeMatch) {
         const [, spaceId] = fileTreeMatch;
+        const roleParam = url.searchParams.get('role') as SpaceRole | null;
         const payload = validateSession(req);
-        const role: SpaceRole = (payload?.role as SpaceRole) || 'viewer';
+        const role: SpaceRole = roleParam ?? (payload?.role as SpaceRole) ?? 'viewer';
         await handleFileTree(req, res, spaceId, role);
         return;
       }

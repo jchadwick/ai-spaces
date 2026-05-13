@@ -42,7 +42,7 @@ export async function registerWithServer(): Promise<RegistrationState> {
   }
 
   console.log('[ai-spaces] Registering with server at:', config.AI_SPACES_URL);
-  const pluginUrl = `http://127.0.0.1:${config.AI_SPACES_WS_PORT}`;
+  const pluginUrl = config.PLUGIN_URL ?? `http://127.0.0.1:${config.AI_SPACES_WS_PORT}`;
   const gatewayUrl = process.env.GATEWAY_URL ?? 'http://127.0.0.1:19000';
 
   const res = await fetch(`${config.AI_SPACES_URL}/api/internal/register`, {

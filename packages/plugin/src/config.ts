@@ -14,6 +14,7 @@ export const config = {
   AI_SPACES_PLUGIN_STATE_FILE: process.env.AI_SPACES_PLUGIN_STATE_FILE
     ?? path.join(process.env.OPENCLAW_HOME ?? path.join(HOME, '.openclaw'), 'ai-spaces-registration.json'),
   GATEWAY_TOKEN: process.env.GATEWAY_TOKEN ?? 'secret',
+  PLUGIN_URL: process.env.PLUGIN_URL,
   DEFAULT_DENIED_TOOLS: parseList(process.env.AI_SPACES_DENIED_TOOLS, ['exec', 'messaging', 'spawn_agents', 'browser', 'credentials']),
   DEFAULT_ALLOWED_TOOLS: parseList(process.env.AI_SPACES_ALLOWED_TOOLS, ['read', 'write', 'edit', 'glob']),
   MAX_FILE_SIZE_MB: parseFloat(process.env.MAX_FILE_SIZE_MB ?? '10'),

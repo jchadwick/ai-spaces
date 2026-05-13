@@ -50,15 +50,26 @@ export function getUserSpaceRoles(userId: string, spaceIds: string[]): Map<strin
     .all();
   const serverIdBySpace = new Map(spaceRows.map(r => [r.id, r.serverId]));
 
-  const adminRows = db.select({ serverId: serverRoles.serverId })
+  const isGodAdmin = db.select({ role: serverRoles.role })
     .from(serverRoles)
-    .where(and(eq(serverRoles.userId, userId), eq(serverRoles.role, 'admin')))
-    .all();
-  const adminServerSet = new Set(adminRows.map(r => r.serverId));
+    .where(and(eq(serverRoles.userId, userId), eq(serverRoles.serverId, DEFAULT_SERVER_ID), eq(serverRoles.role, 'admin')))
+    .get()?.role === 'admin';
 
-  for (const id of spaceIds) {
-    const sid = serverIdBySpace.get(id) ?? DEFAULT_SERVER_ID;
-    if (adminServerSet.has(sid)) map.set(id, 'owner');
+  if (isGodAdmin) {
+    for (const id of spaceIds) {
+      map.set(id, 'owner');
+    }
+  } else {
+    const adminRows = db.select({ serverId: serverRoles.serverId })
+      .from(serverRoles)
+      .where(and(eq(serverRoles.userId, userId), eq(serverRoles.role, 'admin')))
+      .all();
+    const adminServerSet = new Set(adminRows.map(r => r.serverId));
+
+    for (const id of spaceIds) {
+      const sid = serverIdBySpace.get(id) ?? DEFAULT_SERVER_ID;
+      if (adminServerSet.has(sid)) map.set(id, 'owner');
+    }
   }
 
   const memberships = db.select({ spaceId: spaceMembers.spaceId, role: spaceMembers.role })

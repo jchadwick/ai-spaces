@@ -90,9 +90,12 @@ internalRouter.post('/invites', zValidator('json', CreateInviteBodySchema), asyn
 
   // Authenticate the server by callbackToken
   const serverRow = getServerById(serverId);
-  if (!serverRow?.callbackToken) return c.json({ error: 'Unknown server' }, 401);
-  if (!timingSafeTokenEqual(callbackToken, serverRow.callbackToken)) {
-    return c.json({ error: 'Unauthorized' }, 401);
+  if (!serverRow?.callbackToken) {
+    return c.json({ error: 'Unknown server', debug: { serverId, hasServerRow: !!serverRow } }, 401);
+  }
+  const tokenMatch = timingSafeTokenEqual(callbackToken, serverRow.callbackToken);
+  if (!tokenMatch) {
+    return c.json({ error: 'Unauthorized', debug: { serverId, dbTokenLength: serverRow.callbackToken.length, inputTokenLength: callbackToken.length } }, 401);
   }
 
   // Verify space exists on this server

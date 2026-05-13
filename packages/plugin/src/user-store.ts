@@ -4,8 +4,13 @@ import * as crypto from 'crypto';
 import type { User, UserRole } from '@ai-spaces/shared';
 import { config } from './config.js';
 
+interface StoredUser extends User {
+  passwordHash: string;
+  role: UserRole;
+}
+
 interface UserStore {
-  users: Record<string, User>;
+  users: Record<string, StoredUser>;
   byEmail: Record<string, string>;
 }
 
@@ -58,18 +63,18 @@ export interface CreateUserOptions {
   displayName?: string;
 }
 
-export function createUser(email: string, passwordHash: string, role: UserRole, displayName?: string): User {
+export function createUser(email: string, passwordHash: string, role: UserRole, displayName?: string): StoredUser {
   const store = loadStore();
-  
+
   if (store.byEmail[email]) {
     const existingId = store.byEmail[email];
     return store.users[existingId];
   }
-  
+
   const id = generateUserId();
   const now = new Date().toISOString();
-  
-  const user: User = {
+
+  const user: StoredUser = {
     id,
     email,
     passwordHash,
@@ -78,53 +83,53 @@ export function createUser(email: string, passwordHash: string, role: UserRole, 
     createdAt: now,
     updatedAt: now,
   };
-  
+
   store.users[id] = user;
   store.byEmail[email] = id;
-  
+
   saveStore(store);
-  
+
   return user;
 }
 
-export function getUserByEmail(email: string): User | null {
+export function getUserByEmail(email: string): StoredUser | null {
   const store = loadStore();
   const id = store.byEmail[email];
-  
+
   if (!id) {
     return null;
   }
-  
+
   return store.users[id] || null;
 }
 
-export function getUserById(id: string): User | null {
+export function getUserById(id: string): StoredUser | null {
   const store = loadStore();
   return store.users[id] || null;
 }
 
-export function listUsers(): User[] {
+export function listUsers(): StoredUser[] {
   const store = loadStore();
   return Object.values(store.users);
 }
 
-export function updateUser(id: string, updates: Partial<Omit<User, 'id' | 'createdAt'>>): User | null {
+export function updateUser(id: string, updates: Partial<Omit<StoredUser, 'id' | 'createdAt'>>): StoredUser | null {
   const store = loadStore();
   const user = store.users[id];
-  
+
   if (!user) {
     return null;
   }
-  
+
   if (updates.email && updates.email !== user.email) {
     delete store.byEmail[user.email];
     store.byEmail[updates.email] = id;
   }
-  
+
   Object.assign(user, updates, { updatedAt: new Date().toISOString() });
-  
+
   saveStore(store);
-  
+
   return user;
 }
 

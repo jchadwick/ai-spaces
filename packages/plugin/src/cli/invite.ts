@@ -50,6 +50,7 @@ export async function createInvite(spaceId: string, options: InviteOptions = {})
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.GATEWAY_TOKEN}`,
       },
       body: JSON.stringify({
         spaceId,

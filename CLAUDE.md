@@ -22,22 +22,29 @@ The initial implementation will be exclusively for OpenClaw, however no architec
 
 ### Dev Environment (Docker)
 
-```bash
-docker compose up --build     # start all services (rebuilds images)
-docker compose down           # stop and remove all containers
+**Always start Docker in background/daemon mode — NEVER block waiting for containers.**
 
-docker compose restart <service>           # restart one service (openclaw | sidecar)
-docker compose logs -f <service>           # stream logs for a service
+```bash
+docker compose up --build -d     # start all services detached (rebuilds images)
+docker compose down               # stop and remove all containers
+
+docker compose restart <service>  # restart one service (openclaw | dev)
+docker compose logs -f <service> # stream logs for a service
 docker compose logs --tail=100 <service>   # read recent log output
 
 docker compose --profile studio up drizzle-studio   # open Drizzle Studio at http://localhost:4983
 ```
 
-Services: `openclaw`, `sidecar`
+**Log checking workflow:**
+1. Start containers detached: `docker compose up --build -d`
+2. Check logs: `docker compose logs --tail=100 <service>`
+3. If issues, stream logs: `docker compose logs -f <service>`
+4. When done: `docker compose down`
 
-- **sidecar**: runs `tsx watch` inside the container; source files are mounted from host for hot reload
+Services: `openclaw`, `dev`
+
+- **dev**: runs `tsx watch` for the server and Vite for the web; source files are mounted from host for hot reload; also runs `sandbox/seed-dev-data.ts` on startup to create test users
 - **openclaw**: mount `packages/plugin/dist` — rebuild plugin on host with `npm run dev:plugin`, then `docker compose restart openclaw`
-- **web**: run separately on host with `npm run dev:web`
 
 ### Production Build (Docker only)
 
@@ -45,6 +52,15 @@ Services: `openclaw`, `sidecar`
 docker build -t ai-spaces .          # build prod image
 docker cp $(docker create ai-spaces):/plugin ./plugin-dist   # extract compiled plugin
 ```
+
+### Local Dev Test Users
+
+When running locally, these users are seeded automatically:
+
+| Email | Password | Role |
+|-------|----------|------|
+| admin@ai-spaces.test | ai-spaces | admin |
+| user@ai-spaces.test | ai-spaces | user |
 
 ## Dev vs Production
 

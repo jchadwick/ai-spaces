@@ -62,6 +62,7 @@ services:
         COPY tsconfig.base.json ./
     command: >
       sh -c "npm run build:shared &&
+             npx tsx sandbox/seed-dev-data.ts &&
              npx tsx watch packages/server/src/index.ts &
              node_modules/.bin/vite packages/web --port 80 &
              wait"
@@ -69,7 +70,6 @@ services:
       GATEWAY_URL: http://openclaw:19000
       GATEWAY_TOKEN: secret
       PLUGIN_SPACES_URL: http://openclaw:3002
-      DEV_VIRTUAL_USER: "true"
       AI_SPACES_DATA: /data
       AI_SPACES_DB: /data/ai-spaces.db
       ALLOW_OPEN_REGISTRATION: "true"
@@ -90,6 +90,7 @@ services:
       - ./packages/web/index.html:/build/packages/web/index.html:ro
       - ./packages/web/vite.config.ts:/build/packages/web/vite.config.ts:ro
       - ./tsconfig.base.json:/build/tsconfig.base.json:ro
+      - ./sandbox:/build/sandbox:ro
     depends_on:
       - openclaw
     networks:

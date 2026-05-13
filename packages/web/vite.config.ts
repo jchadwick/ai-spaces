@@ -13,6 +13,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@ai-spaces/shared': path.resolve(__dirname, '../shared/dist'),
     },
   },
   server: {

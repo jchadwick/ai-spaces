@@ -6,6 +6,7 @@ import { config } from './config.js';
 export type AuditAction = 
   | 'space.create'
   | 'space.update'
+  | 'space.config.update'
   | 'space.delete'
   | 'space.access'
   | 'space.scan';

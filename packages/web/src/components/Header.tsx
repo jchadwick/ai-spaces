@@ -1,36 +1,31 @@
-import { useState, useRef, useEffect } from "react";
-import { Link } from "react-router-dom";
-import ThemePicker from "./ThemePicker";
-import { useAuth } from "@/contexts/AuthContext";
-
-const AgentGlyph = ({ size = 14, color = 'currentColor' }: { size?: number; color?: string }) => (
-  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, display: 'inline-block', verticalAlign: 'middle' }}>
-    <circle cx="8" cy="3" r="1.4" fill={color} opacity="0.9" />
-    <circle cx="3" cy="9" r="1" fill={color} opacity="0.7" />
-    <circle cx="13" cy="9" r="1" fill={color} opacity="0.7" />
-    <circle cx="8" cy="13" r="0.8" fill={color} opacity="0.5" />
-    <path d="M8 3 L3 9 L8 13 L13 9 Z" stroke={color} strokeWidth="0.5" opacity="0.3" />
-  </svg>
-);
-
-interface TopNavBarProps {
-  spaceName?: string;
-  selectedFile?: string | null;
-  role?: "viewer" | "editor" | "admin";
-}
+import { useState, useRef, useEffect } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import ThemePicker from './ThemePicker'
+import AgentGlyph from './AgentGlyph'
+import { useAuth } from '@/contexts/AuthContext'
+import { useHeader } from '@/contexts/HeaderContext'
+import { HEADER_HEIGHT } from '@/constants/layout'
 
 function ProfileMenu() {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const { logout } = useAuth()
+  const navigate = useNavigate()
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) return
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const handleSignOut = async () => {
+    setOpen(false)
+    await logout()
+    navigate('/login')
+  }
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
@@ -78,7 +73,7 @@ function ProfileMenu() {
           </button>
           <div style={{ height: 1, background: 'var(--t-hair)', margin: '4px 0' }} />
           <button
-            onClick={() => setOpen(false)}
+            onClick={handleSignOut}
             style={{
               display: 'flex', alignItems: 'center', gap: 8,
               width: '100%', padding: '8px 14px',
@@ -98,14 +93,16 @@ function ProfileMenu() {
         </div>
       )}
     </div>
-  );
+  )
 }
 
-export default function TopNavBar({ spaceName }: TopNavBarProps) {
-  const { user } = useAuth();
+export default function Header() {
+  const { user } = useAuth()
+  const { headerContent } = useHeader()
+
   return (
     <header style={{
-      height: 52,
+      height: HEADER_HEIGHT,
       borderBottom: '1px solid var(--t-hair)',
       display: 'flex',
       alignItems: 'center',
@@ -116,6 +113,7 @@ export default function TopNavBar({ spaceName }: TopNavBarProps) {
       flexShrink: 0,
       fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif",
     }}>
+      {/* Left: Logo */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
         <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
           <div style={{ width: 22, height: 22, borderRadius: 6, background: 'var(--t-ink)', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
@@ -123,22 +121,16 @@ export default function TopNavBar({ spaceName }: TopNavBarProps) {
           </div>
           <span style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 21, fontWeight: 400, letterSpacing: -0.3, fontStyle: 'italic', color: 'var(--t-ink)', lineHeight: 1 }}>Spaces</span>
         </Link>
-
-        {spaceName && (
-          <>
-            <div style={{ width: 1, height: 18, background: 'var(--t-hair)' }} />
-            <nav style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 15, color: 'var(--t-inkMid)' }}>
-              <Link to="/" style={{ color: 'var(--t-inkMid)', textDecoration: 'none' }}
-                onMouseEnter={e => (e.currentTarget.style.color = 'var(--t-ink)')}
-                onMouseLeave={e => (e.currentTarget.style.color = 'var(--t-inkMid)')}
-              >My Spaces</Link>
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="var(--t-inkFaint)" strokeWidth="1.5" strokeLinecap="round"><path d="m6 4 4 4-4 4" /></svg>
-              <span style={{ color: 'var(--t-ink)', fontWeight: 500 }}>{spaceName}</span>
-            </nav>
-          </>
-        )}
       </div>
 
+      {/* Middle: Page-specific content via portal */}
+      {headerContent && (
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 0 }}>
+          {headerContent}
+        </div>
+      )}
+
+      {/* Right: User actions */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         {user?.serverRole === 'admin' && (
           <Link
@@ -166,5 +158,5 @@ export default function TopNavBar({ spaceName }: TopNavBarProps) {
         <ProfileMenu />
       </div>
     </header>
-  );
+  )
 }

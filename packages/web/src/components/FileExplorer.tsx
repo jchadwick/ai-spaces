@@ -444,16 +444,27 @@ export default function FileExplorer({
 
       if (!event.detail?.path) return;
 
-      const fileName = event.detail.path.split("/").pop() || event.detail.path;
-      const triggeredBy =
-        event.detail.triggeredBy === "agent" ? "Agent" : "User";
+      // Only show toast notifications for agent-triggered changes
+      if (event.detail.triggeredBy !== "agent") return;
+
+      const filePath = event.detail.path;
+      const fileName = filePath.split("/").pop() || filePath;
+
+      const fileLink = (
+        <span
+          className="underline cursor-pointer hover:text-white/90"
+          onClick={() => onFileSelect(filePath)}
+        >
+          {fileName}
+        </span>
+      );
 
       if (event.detail.action === "created") {
-        showToast(`${fileName} created by ${triggeredBy}`, "success", 3000);
+        showToast(<>{fileLink} created by Agent</>, "success", 3000);
       } else if (event.detail.action === "deleted") {
-        showToast(`${fileName} deleted by ${triggeredBy}`, "info", 3000);
+        showToast(<>{fileLink} deleted by Agent</>, "info", 3000);
       } else {
-        showToast(`${fileName} updated by ${triggeredBy}`, "info", 3000);
+        showToast(<>{fileLink} updated by Agent</>, "info", 3000);
       }
     };
 
@@ -467,7 +478,7 @@ export default function FileExplorer({
         handleFileModified as EventListener,
       );
     };
-  }, [refresh, loadChildren, showToast]);
+  }, [refresh, loadChildren, showToast, onFileSelect]);
 
   const toggleFolder = (path: string) => {
     setExpandedFolders((prev) => {

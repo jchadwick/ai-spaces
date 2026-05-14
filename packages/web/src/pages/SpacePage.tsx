@@ -1,13 +1,14 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { useState, useEffect, useCallback, useRef } from "react";
-import TopNavBar from "../components/TopNavBar";
 import FileExplorer from "../components/FileExplorer";
 import FileEditor from "../components/FileEditor";
 import AIChatPane from "../components/AIChatPane";
 import ResizeHandle from "../components/ResizeHandle";
+import SpaceSettingsDialog from "../components/SpaceSettingsDialog";
 import { ErrorBoundary } from "../components/errors";
 import { ToastProvider } from "../components/ui/toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { useHeaderContent } from "@/contexts/HeaderContext";
 import type { SpaceRole } from "@ai-spaces/shared";
 import { useAPI } from "@/hooks/useAPI";
 import { ConnectionStatusProvider, type FileChangedPayload } from "@/contexts/ConnectionStatusContext";
@@ -27,7 +28,32 @@ interface Space {
   config: {
     name: string;
     description?: string;
+    notificationIgnorePatterns?: string[];
   };
+}
+
+function SpaceBreadcrumb({ spaceName, onSettings }: { spaceName?: string; onSettings?: () => void }) {
+  return (
+    <nav style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 15, color: 'var(--t-inkMid)' }}>
+      <Link to="/" style={{ color: 'var(--t-inkMid)', textDecoration: 'none' }}
+        onMouseEnter={e => (e.currentTarget.style.color = 'var(--t-ink)')}
+        onMouseLeave={e => (e.currentTarget.style.color = 'var(--t-inkMid)')}
+      >My Spaces</Link>
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="var(--t-inkFaint)" strokeWidth="1.5" strokeLinecap="round"><path d="m6 4 4 4-4 4" /></svg>
+      <span style={{ color: 'var(--t-ink)', fontWeight: 500 }}>{spaceName || '…'}</span>
+      {onSettings && (
+        <button
+          type="button"
+          onClick={onSettings}
+          title="Notification settings"
+          className="ml-1 p-0.5 rounded hover:bg-t-bgWell transition-colors"
+          style={{ display: 'flex', alignItems: 'center', color: 'var(--t-inkFaint)' }}
+        >
+          <span className="material-symbols-outlined" style={{ fontSize: 16 }}>notifications_off</span>
+        </button>
+      )}
+    </nav>
+  )
 }
 
 export default function SpacePage() {
@@ -50,8 +76,13 @@ export default function SpacePage() {
   const [rightWidth, setRightWidth] = useState(SIDEBAR_RIGHT_DEFAULT);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [notificationIgnorePatterns, setNotificationIgnorePatterns] = useState<string[]>([]);
   const leftRef = useRef<HTMLDivElement>(null);
   const rightRef = useRef<HTMLDivElement>(null);
+
+  // Inject breadcrumb into universal header
+  useHeaderContent(<SpaceBreadcrumb spaceName={space?.config?.name} onSettings={() => setSettingsOpen(true)} />)
 
   const handleFileChanged = useCallback(
     (event: FileChangedPayload) => {
@@ -96,7 +127,9 @@ export default function SpacePage() {
       })
       .then((data: { space?: Space; userRole?: SpaceRole } & Partial<Space>) => {
         if (!mounted) return;
-        setSpace(data.space ?? (data as Space));
+        const spaceData = data.space ?? (data as Space);
+        setSpace(spaceData);
+        setNotificationIgnorePatterns(spaceData.config?.notificationIgnorePatterns ?? []);
         if (data.userRole) {
           setUserRole(data.userRole);
         }
@@ -121,7 +154,7 @@ export default function SpacePage() {
 
   if (loading) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center bg-surface">
+      <div className="flex items-center justify-center flex-1 bg-t-bg">
         <div className="animate-spin rounded-full w-8 h-8 border-2 border-primary border-t-transparent mb-md"></div>
         <p className="text-body-sm text-on-surface-variant">Loading space...</p>
       </div>
@@ -130,7 +163,7 @@ export default function SpacePage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-surface font-ui text-on-surface flex items-center justify-center p-lg">
+      <div className="flex items-center justify-center flex-1 p-lg bg-t-bg">
         <div className="max-w-md w-full">
           <div className="text-center mb-lg">
             <div className="w-16 h-16 mx-auto mb-md rounded-full bg-error-container flex items-center justify-center">
@@ -158,7 +191,7 @@ export default function SpacePage() {
 
   if (!space) {
     return (
-      <div className="min-h-screen bg-surface font-ui text-on-surface flex items-center justify-center p-lg">
+      <div className="flex items-center justify-center flex-1 p-lg bg-t-bg">
         <div className="max-w-md w-full">
           <div className="text-center mb-lg">
             <div className="w-16 h-16 mx-auto mb-md rounded-full bg-error-container flex items-center justify-center">
@@ -194,14 +227,7 @@ export default function SpacePage() {
         onFileChanged={handleFileChanged}
       >
         <FileMetadataProvider spaceId={spaceId!}>
-        <div className="bg-surface font-body text-on-surface overflow-hidden h-screen flex flex-col">
-          <ErrorBoundary>
-            <TopNavBar
-              spaceName={space?.config?.name}
-            />
-          </ErrorBoundary>
-
-          <main className="flex flex-1 overflow-hidden">
+        <main className="flex flex-1 overflow-hidden">
             <div
               ref={leftRef}
               className="flex-shrink-0 min-w-0 overflow-hidden transition-[width] duration-200"
@@ -272,10 +298,15 @@ export default function SpacePage() {
               </ErrorBoundary>
             </div>
           </main>
-        </div>
         </FileMetadataProvider>
       </ConnectionStatusProvider>
+      <SpaceSettingsDialog
+        spaceId={spaceId!}
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        initialPatterns={notificationIgnorePatterns}
+        onPatternsUpdated={setNotificationIgnorePatterns}
+      />
     </ToastProvider>
   );
 }
-

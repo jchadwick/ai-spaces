@@ -2,13 +2,13 @@ import { useState, createContext, useContext, useCallback, type ReactNode } from
 
 interface Toast {
   id: string;
-  message: string;
+  message: ReactNode;
   type: 'info' | 'success' | 'warning' | 'error';
   duration?: number;
 }
 
 interface ToastContextType {
-  showToast: (message: string, type?: Toast['type'], duration?: number) => void;
+  showToast: (message: ReactNode, type?: Toast['type'], duration?: number) => void;
 }
 
 const ToastContext = createContext<ToastContextType | null>(null);
@@ -24,7 +24,7 @@ export function useToast(): ToastContextType {
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const showToast = useCallback((message: string, type: Toast['type'] = 'info', duration: number = 3000) => {
+  const showToast = useCallback((message: ReactNode, type: Toast['type'] = 'info', duration: number = 3000) => {
     const id = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
     const toast: Toast = { id, message, type, duration };
     

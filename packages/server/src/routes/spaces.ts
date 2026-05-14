@@ -5,11 +5,13 @@ import {
   getSpace,
   listSpaces,
   deleteSpace,
+  updateSpaceConfig,
   type SpaceRecord,
 } from '../space-store.js';
 import { authMiddleware, type AuthVariables } from '../middleware/auth.js';
 import { agentAdapter } from '../agent-adapter-instance.js';
 import type { SpaceRole, FileMetadataEntry } from '@ai-spaces/shared';
+import { SpaceConfigSchema } from '@ai-spaces/shared';
 import { getUserSpaceRole, getUserSpaceRoles } from '../db/queries.js';
 
 export interface SpaceVariables extends AuthVariables {
@@ -272,6 +274,41 @@ spacesRouter.patch('/:id/directories/:dirPath{.*}', zValidator('json', renameDir
   }
 });
 
+const patchConfigSchema = z.object({
+  notificationIgnorePatterns: z.array(z.string()).optional(),
+});
+
+// @ts-ignore -- tsgo TS2589: type instantiation depth limit on Hono+zValidator chains
+spacesRouter.patch('/:id/config', zValidator('json', patchConfigSchema), async (c) => {
+  const id = c.req.param('id');
+  const space = getSpace(id);
+  if (!space) return c.json({ error: 'Space not found' }, 404);
+
+  const patch = c.req.valid('json');
+  const updatedConfig = { ...space.config, ...patch };
+  const validated = SpaceConfigSchema.safeParse(updatedConfig);
+  if (!validated.success) {
+    return c.json({ error: 'Invalid config', details: validated.error.issues.map(i => `${i.path.join('.')}: ${i.message}`) }, 400);
+  }
+
+  try {
+    const updated = updateSpaceConfig(id, validated.data, c.get('user').userId);
+    if (!updated) return c.json({ error: 'Space not found' }, 404);
+
+    // Also write updated config to the space's spaces.json file
+    try {
+      const configPath = '.space/spaces.json';
+      await agentAdapter.writeFile(space, configPath, JSON.stringify(validated.data, null, 2));
+    } catch (writeErr: any) {
+      console.error('[spaces] Failed to write config file to space:', writeErr.message);
+      // Config DB updated even if file write fails — space watcher will re-sync on next scan
+    }
+
+    return c.json({ space: updated });
+  } catch (err: any) {
+    return c.json({ error: err.message ?? 'Failed to update config' }, 500);
+  }
+});
 
 spacesRouter.delete('/:id', (c) => {
   const id = c.req.param('id');

@@ -241,3 +241,25 @@ export function deleteSpace(id: string, userId: string = 'system'): boolean {
 
   return true;
 }
+
+export function updateSpaceConfig(id: string, config: SpaceConfig, userId: string = 'system'): SpaceRecord | null {
+  const row = db.select().from(schema.spaces).where(eq(schema.spaces.id, id)).get();
+  if (!row) return null;
+
+  const validated = SpaceConfigSchema.safeParse(config);
+  if (!validated.success) {
+    throw new Error(`Invalid config: ${validated.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
+  }
+
+  db.update(schema.spaces)
+    .set({
+      config: JSON.stringify(validated.data),
+      updatedAt: sql`CURRENT_TIMESTAMP`,
+    })
+    .where(eq(schema.spaces.id, id))
+    .run();
+
+  logAudit('space.config.update', userId, { spaceId: id });
+
+  return rowToRecord(db.select().from(schema.spaces).where(eq(schema.spaces.id, id)).get()!);
+}

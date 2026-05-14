@@ -1,10 +1,11 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Outlet, Navigate } from 'react-router-dom'
 import { ErrorBoundary } from './components/errors'
-import { AuthProvider } from './contexts/AuthContext'
+import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { HeaderProvider } from './contexts/HeaderContext'
 import { ToastProvider } from './components/ui/toast'
 import { ThemeProvider } from './contexts/ThemeContext'
-import ProtectedRoute from './components/ProtectedRoute'
 import AdminRoute from './components/AdminRoute'
+import Header from './components/Header'
 import HomePage from './pages/HomePage'
 import SpacePage from './pages/SpacePage'
 import LoginPage from './pages/LoginPage'
@@ -12,60 +13,52 @@ import RegisterPage from './pages/RegisterPage'
 import InvitePage from './pages/InvitePage'
 import AdminPage from './pages/AdminPage'
 
+function AuthenticatedLayout() {
+  const { isAuthenticated, isLoading } = useAuth()
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-surface flex items-center justify-center">
+        <div className="animate-spin rounded-full w-8 h-8 border-2 border-primary border-t-transparent" />
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />
+  }
+
+  return (
+    <div className="h-screen flex flex-col bg-t-bg">
+      <Header />
+      <Outlet />
+    </div>
+  )
+}
+
 function App() {
   return (
     <ThemeProvider>
     <ErrorBoundary>
       <AuthProvider>
-        <ToastProvider>
-          <BrowserRouter>
-            <Routes>
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/register" element={<RegisterPage />} />
-              <Route path="/invite" element={<InvitePage />} />
-              <Route
-                path="/"
-                element={
-                  <ProtectedRoute>
-                    <HomePage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/spaces"
-                element={
-                  <ProtectedRoute>
-                    <HomePage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/space/:spaceId"
-                element={
-                  <ProtectedRoute>
-                    <SpacePage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/space/:spaceId/*"
-                element={
-                  <ProtectedRoute>
-                    <SpacePage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin"
-                element={
-                  <AdminRoute>
-                    <AdminPage />
-                  </AdminRoute>
-                }
-              />
-            </Routes>
-          </BrowserRouter>
-        </ToastProvider>
+        <HeaderProvider>
+          <ToastProvider>
+            <BrowserRouter>
+              <Routes>
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/register" element={<RegisterPage />} />
+                <Route path="/invite" element={<InvitePage />} />
+                <Route element={<AuthenticatedLayout />}>
+                  <Route path="/" element={<HomePage />} />
+                  <Route path="/spaces" element={<HomePage />} />
+                  <Route path="/space/:spaceId" element={<SpacePage />} />
+                  <Route path="/space/:spaceId/*" element={<SpacePage />} />
+                  <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
+                </Route>
+              </Routes>
+            </BrowserRouter>
+          </ToastProvider>
+        </HeaderProvider>
       </AuthProvider>
     </ErrorBoundary>
     </ThemeProvider>

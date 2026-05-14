@@ -49,12 +49,48 @@ const spaceClientCount: Map<string, number> = new Map();
 // Paths recently written via handleFileWrite — suppress watcher double-fire
 const recentlyWritten: Set<string> = new Set();
 
+/**
+ * Check if a file path matches any of the notification ignore patterns.
+ * Patterns support:
+ *  - Exact path match (e.g. "src/index.ts")
+ *  - Prefix match ending with "/" (e.g. ".space/")
+ *  - Glob-style wildcard "*" matching any sequence within a segment (e.g. "*.log")
+ */
+function matchesIgnorePattern(filePath: string, patterns: string[]): boolean {
+  for (const pattern of patterns) {
+    if (pattern.endsWith('/')) {
+      if (filePath.startsWith(pattern)) return true;
+    } else if (pattern.includes('*')) {
+      const regex = new RegExp('^' + pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^/]*') + '$');
+      if (regex.test(filePath)) return true;
+    } else {
+      if (filePath === pattern) return true;
+    }
+  }
+  return false;
+}
+
+/** Default patterns for internal files that should not generate user-visible notifications. */
+const DEFAULT_NOTIFICATION_IGNORE_PATTERNS = [
+  '.space/chat-history.json',
+  '.space/history.json',
+  '.space/spaces.json',
+];
+
+function getIgnorePatterns(config: SpaceConfig): string[] {
+  const userPatterns = config.notificationIgnorePatterns ?? [];
+  return [...DEFAULT_NOTIFICATION_IGNORE_PATTERNS, ...userPatterns];
+}
+
 fileWatcher.on('file:changed', (event: FileChangedEvent) => {
   const suppressKey = `${event.spaceId}:${event.path}`;
   if (recentlyWritten.has(suppressKey)) return;
 
   for (const client of connectedClients.values()) {
     if (client.spaceId === event.spaceId) {
+      const ignorePatterns = getIgnorePatterns(client.config);
+      if (matchesIgnorePattern(event.path, ignorePatterns)) continue;
+
       sendWebSocketMessage(client, {
         type: 'event',
         event: 'file_modified',
@@ -295,6 +331,9 @@ async function handleFileWrite(
 
     for (const [id, otherClient] of connectedClients) {
       if (id !== clientId) {
+const recipientIgnorePatterns = getIgnorePatterns(otherClient.config);
+        if (matchesIgnorePattern(relativePath, recipientIgnorePatterns)) continue;
+
         sendWebSocketMessage(otherClient, {
           type: 'event',
           event: 'file_modified',
@@ -469,6 +508,9 @@ async function handleFileWriteEnd(
 
   for (const [id, otherClient] of connectedClients) {
     if (id !== clientId) {
+      const recipientIgnorePatterns = getIgnorePatterns(otherClient.config);
+      if (matchesIgnorePattern(relativePath, recipientIgnorePatterns)) continue;
+
       sendWebSocketMessage(otherClient, {
         type: 'event',
         event: 'file_modified',

@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { useToast } from '@/components/ui/toast'
 import { useAPI } from '@/hooks/useAPI'
+import { useHeaderContent } from '@/contexts/HeaderContext'
+import AgentGlyph from '@/components/AgentGlyph'
 
 interface Space {
   id: string
@@ -11,18 +13,32 @@ interface Space {
   config: {
     name: string
     description?: string
+    notificationIgnorePatterns?: string[]
   }
 }
 
-const AgentGlyph = ({ size = 14, color = 'currentColor' }: { size?: number; color?: string }) => (
-  <svg width={size} height={size} viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, display: 'inline-block', verticalAlign: 'middle' }}>
-    <circle cx="8" cy="3" r="1.4" fill={color} opacity="0.9" />
-    <circle cx="3" cy="9" r="1" fill={color} opacity="0.7" />
-    <circle cx="13" cy="9" r="1" fill={color} opacity="0.7" />
-    <circle cx="8" cy="13" r="0.8" fill={color} opacity="0.5" />
-    <path d="M8 3 L3 9 L8 13 L13 9 Z" stroke={color} strokeWidth="0.5" opacity="0.3" />
-  </svg>
-)
+function HomeHeaderActions({ scanning, onScan }: { scanning: boolean; onScan: () => void }) {
+  return (
+    <button
+      onClick={onScan}
+      disabled={scanning}
+      style={{
+        fontSize: 13,
+        color: scanning ? 'var(--t-inkFaint)' : 'var(--t-inkDim)',
+        fontFamily: "'JetBrains Mono', monospace",
+        background: 'transparent',
+        border: 'none',
+        cursor: scanning ? 'not-allowed' : 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 6,
+      }}
+    >
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--t-agent)', display: 'inline-block' }} />
+      {scanning ? 'scanning…' : 'scan'}
+    </button>
+  )
+}
 
 function HomePage() {
   const apiFetch = useAPI()
@@ -31,6 +47,23 @@ function HomePage() {
   const [error, setError] = useState<string | null>(null)
   const [scanning, setScanning] = useState(false)
   const { showToast } = useToast()
+
+  const handleScan = useCallback(async () => {
+    setScanning(true)
+    try {
+      const res = await apiFetch('/api/spaces/scan', { method: 'POST' })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error || 'Scan failed')
+      }
+      showToast('Scan complete', 'success', 3000)
+      fetchSpaces()
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Scan failed', 'error', 5000)
+    } finally {
+      setScanning(false)
+    }
+  }, [apiFetch]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchSpaces = useCallback(() => {
     apiFetch(`/api/spaces`)
@@ -52,44 +85,11 @@ function HomePage() {
     fetchSpaces()
   }, [fetchSpaces])
 
-  const handleScan = async () => {
-    setScanning(true)
-    try {
-      const res = await apiFetch('/api/spaces/scan', { method: 'POST' })
-      if (!res.ok) {
-        const data = await res.json()
-        throw new Error(data.error || 'Scan failed')
-      }
-      showToast('Scan complete', 'success', 3000)
-      fetchSpaces()
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Scan failed', 'error', 5000)
-    } finally {
-      setScanning(false)
-    }
-  }
+  useHeaderContent(<HomeHeaderActions scanning={scanning} onScan={handleScan} />)
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--t-bg)', color: 'var(--t-ink)', fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif" }}>
-      {/* Header */}
-      <header style={{ height: 56, borderBottom: '1px solid var(--t-hair)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 32px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div style={{ width: 24, height: 24, borderRadius: 6, background: 'var(--t-ink)', display: 'grid', placeItems: 'center' }}>
-            <AgentGlyph size={13} color="var(--t-bg)" />
-          </div>
-          <span style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 24, fontStyle: 'italic', letterSpacing: -0.4, color: 'var(--t-ink)' }}>Spaces</span>
-        </div>
-        <button
-          onClick={handleScan}
-          disabled={scanning}
-          style={{ fontSize: 13, color: 'var(--t-inkDim)', fontFamily: "'JetBrains Mono', monospace", background: 'transparent', border: 'none', cursor: scanning ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: scanning ? 0.6 : 1 }}
-        >
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--t-agent)', display: 'inline-block' }} />
-          {scanning ? 'scanning…' : 'scan'}
-        </button>
-      </header>
-
-      <main style={{ padding: '48px', maxWidth: 1100, margin: '0 auto' }}>
+    <main style={{ flex: 1, overflow: 'auto', background: 'var(--t-bg)', color: 'var(--t-ink)', fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif" }}>
+      <div style={{ padding: '48px 32px', maxWidth: 1100, margin: '0 auto' }}>
         {/* Editorial title */}
         <div style={{ marginBottom: 40 }}>
           <div style={{ fontSize: 12, color: 'var(--t-inkDim)', fontFamily: "'JetBrains Mono', monospace", textTransform: 'uppercase', letterSpacing: 2, marginBottom: 10 }}>AI Spaces</div>
@@ -103,7 +103,7 @@ function HomePage() {
 
         {loading && (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '64px 0' }}>
-            <div className="animate-spin rounded-full" style={{ width: 28, height: 28, border: '2px solid var(--t-hair)', borderTopColor: 'var(--t-accent)', borderRadius: '50%' }}></div>
+            <div className="animate-spin rounded-full" style={{ width: 28, height: 28, border: '2px solid var(--t-hair)', borderTopColor: 'var(--t-accent)', borderRadius: '50%' }} />
           </div>
         )}
 
@@ -147,8 +147,8 @@ function HomePage() {
             </p>
           </div>
         )}
-      </main>
-    </div>
+      </div>
+    </main>
   )
 }
 

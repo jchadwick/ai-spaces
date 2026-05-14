@@ -8,6 +8,7 @@ export const SpaceConfigSchema = z.object({
     capabilities: z.array(z.string()).optional(),
     denied: z.array(z.string()).optional(),
   }).optional(),
+  notificationIgnorePatterns: z.array(z.string()).optional(),
 });
 
 export const SpaceSchema = z.object({

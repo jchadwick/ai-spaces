@@ -4,11 +4,7 @@ import type { IncomingMessage, ServerResponse } from 'http';
 import { setRuntime, tryGetRuntime } from './runtime.js';
 import { getSpace, listSpaces, initSpaceStore, resolveSpaceRoot } from './space-store.js';
 import { proxyRequest } from './routes/proxy.js';
-import { handleSpaceWebSocket, startSpacesServer } from './routes/space-ws.js';
-import { handleFileContent, handleFileTree, handleFileWrite, handleGetMetadata, handlePatchMetadata } from './routes/space-files.js';
-import { validateSession } from './session-middleware.js';
-import type { SpaceRole } from '@ai-spaces/shared';
-import { toSpaceRole } from '@ai-spaces/shared';
+import { startSpacesServer } from './routes/space-ws.js';
 import * as crypto from 'crypto';
 import * as path from 'path';
 import { config } from './config.js';
@@ -106,10 +102,6 @@ export default defineChannelPluginEntry({
       }
     }
 
-    function isReadOnly(): boolean {
-      return connectionState === 'degraded';
-    }
-
     // Periodic reconciliation loop: re-sync every 60s regardless of file events
     const reconcileTimer = setInterval(() => { void triggerReconcile(); }, 60_000);
 
@@ -173,33 +165,7 @@ export default defineChannelPluginEntry({
       auth: 'plugin',
       handler: async (req: IncomingMessage, res: ServerResponse) => {
         const url = new URL(req.url || '/', `http://${req.headers.host}`);
-        const isWebSocketUpgrade = req.headers.upgrade?.toLowerCase() === 'websocket';
-        const isWsPath = url.pathname.match(/\/api\/spaces\/[^\/]+\/ws$/);
-        
-        if (isWebSocketUpgrade && isWsPath) {
-          log.info({ pathname: url.pathname }, 'WebSocket upgrade request');
-          return handleSpaceWebSocket(req, res);
-        }
-        
         return proxyRequest(req, res, `${config.AI_SPACES_URL}${url.pathname}`);
-      },
-    });
-
-    api.registerHttpRoute({
-      path: '/spaces-ws/:spaceId',
-      auth: 'plugin',
-      handler: async (req: IncomingMessage, res: ServerResponse) => {
-        const url = new URL(req.url || '/', `http://${req.headers.host}`);
-        const isWebSocketUpgrade = req.headers.upgrade?.toLowerCase() === 'websocket';
-        
-        if (isWebSocketUpgrade) {
-          return handleSpaceWebSocket(req, res);
-        }
-        
-        res.statusCode = 404;
-        res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({ error: 'Not found' }));
-        return true;
       },
     });
 
@@ -210,13 +176,7 @@ export default defineChannelPluginEntry({
       handler: async (req: IncomingMessage, res: ServerResponse) => {
         const url = new URL(req.url || '/', `http://${req.headers.host}`);
 
-        if (req.headers.upgrade?.toLowerCase() === 'websocket') {
-          if (url.pathname.match(/\/api\/spaces\/[^\/]+\/ws$/)) {
-            return handleSpaceWebSocket(req, res);
-          }
-        }
-
-        // OPTIONS preflight for metadata endpoint
+        // OPTIONS preflight
         if (req.method === 'OPTIONS') {
           res.setHeader('Access-Control-Allow-Origin', '*');
           res.setHeader('Access-Control-Allow-Methods', 'GET, PATCH, PUT, POST, DELETE, OPTIONS');
@@ -224,54 +184,6 @@ export default defineChannelPluginEntry({
           res.writeHead(204);
           res.end();
           return true;
-        }
-
-        // File content: plugin owns all file I/O
-        if (req.method === 'PUT' || req.method === 'PATCH' || req.method === 'DELETE') {
-          if (isReadOnly()) {
-            res.statusCode = 503;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: 'Service Degraded', mode: 'read-only', message: 'Server connection lost — writes are disabled until reconnected' }));
-            return true;
-          }
-        }
-
-        if (req.method === 'PUT') {
-          const fileWriteMatch = url.pathname.match(/^\/api\/spaces\/([^/]+)\/files\/(.+)$/);
-          if (fileWriteMatch) {
-            const [, spaceId, filePath] = fileWriteMatch;
-            return handleFileWrite(req, res, spaceId, decodeURIComponent(filePath));
-          }
-        }
-
-        if (req.method === 'PATCH') {
-          const metaPatchMatch = url.pathname.match(/^\/api\/spaces\/([^/]+)\/metadata$/);
-          if (metaPatchMatch) {
-            const [, spaceId] = metaPatchMatch;
-            return handlePatchMetadata(req, res, spaceId);
-          }
-        }
-
-        if (req.method === 'GET') {
-          const metaGetMatch = url.pathname.match(/^\/api\/spaces\/([^/]+)\/metadata$/);
-          if (metaGetMatch) {
-            const [, spaceId] = metaGetMatch;
-            return handleGetMetadata(req, res, spaceId);
-          }
-
-          const fileContentMatch = url.pathname.match(/^\/api\/spaces\/([^/]+)\/files\/(.+)$/);
-          if (fileContentMatch) {
-            const [, spaceId, filePath] = fileContentMatch;
-            return handleFileContent(req, res, spaceId, decodeURIComponent(filePath));
-          }
-
-          const fileTreeMatch = url.pathname.match(/^\/api\/spaces\/([^/]+)\/files$/);
-          if (fileTreeMatch) {
-            const [, spaceId] = fileTreeMatch;
-            const roleParam = url.searchParams.get('role');
-            const role: SpaceRole = toSpaceRole(roleParam);
-            return handleFileTree(req, res, spaceId, role);
-          }
         }
 
         return proxyRequest(req, res, `${config.AI_SPACES_URL}${url.pathname}${url.search}`);

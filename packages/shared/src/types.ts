@@ -25,16 +25,6 @@ export interface ChatMessage {
   timestamp: string;
 }
 
-export interface WebSocketMessage {
-  type: 'req' | 'res' | 'event';
-  id?: string;
-  method?: string;
-  params?: Record<string, unknown>;
-  result?: unknown;
-  error?: { code: number; message: string };
-  event?: string;
-  payload?: unknown;
-}
 
 export type UserRole = 'admin' | 'user';
 export type ServerRole = 'admin' | 'user';

@@ -20,6 +20,10 @@ export default defineConfig({
     host: '0.0.0.0',
     allowedHosts: true,
     proxy: {
+      '/agent-setup': {
+        target: serverHost,
+        changeOrigin: true,
+      },
       '/api': {
         target: serverHost,
         changeOrigin: true,

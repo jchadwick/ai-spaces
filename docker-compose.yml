@@ -98,6 +98,9 @@ services:
       - ./packages/web/vite.config.ts:/build/packages/web/vite.config.ts:ro
       - ./tsconfig.base.json:/build/tsconfig.base.json:ro
       - ./sandbox:/build/sandbox:ro
+    ports:
+      - "3000:80"
+      - "3001:3001"
     restart: on-failure
     deploy:
       restart_policy:

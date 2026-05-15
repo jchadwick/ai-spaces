@@ -282,13 +282,16 @@ export async function handleFileWrite(req: IncomingMessage, res: ServerResponse,
 
     const { content, encoding } = JSON.parse(body) as { content: string; encoding?: 'utf-8' | 'base64' };
 
-    await fsPromises.mkdir(path.dirname(fullPath), { recursive: true });
+    const dir = path.dirname(fullPath);
+    await fsPromises.mkdir(dir, { recursive: true });
+    const tmpPath = path.join(dir, '.' + path.basename(fullPath) + '.tmp');
 
     if (encoding === 'base64') {
-      await fsPromises.writeFile(fullPath, Buffer.from(content, 'base64'));
+      await fsPromises.writeFile(tmpPath, Buffer.from(content, 'base64'));
     } else {
-      await fsPromises.writeFile(fullPath, content, 'utf8');
+      await fsPromises.writeFile(tmpPath, content, 'utf8');
     }
+    await fsPromises.rename(tmpPath, fullPath);
 
     const stats = await fsPromises.stat(fullPath);
 

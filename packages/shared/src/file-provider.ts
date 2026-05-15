@@ -42,7 +42,9 @@ export class LocalFileProvider implements FileProvider {
       fs.mkdirSync(dir, { recursive: true });
     }
 
-    fs.writeFileSync(fullPath, content, 'utf-8');
+    const tmpPath = path.join(dir, '.' + path.basename(fullPath) + '.tmp');
+    fs.writeFileSync(tmpPath, content, 'utf-8');
+    fs.renameSync(tmpPath, fullPath);
   }
 
   async list(dirPath: string): Promise<FileEntry[]> {

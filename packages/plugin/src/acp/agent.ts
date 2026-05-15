@@ -77,9 +77,8 @@ export class AISpacesAgent implements Agent {
     // Resolve space from cwd — find a space whose root matches
     const spaceId = this.resolveSpaceIdFromCwd(params.cwd ?? '') ?? '';
     const userId = (params as unknown as Record<string, string>).userId ?? 'unknown';
-    const role = toSpaceRole((params as unknown as Record<string, string>).role);
 
-    this.sessions.set(sessionId, { sessionId, spaceId, userId, role, abort: null });
+    this.sessions.set(sessionId, { sessionId, spaceId, userId, role: this.role, abort: null });
 
     // Ensure an ACP session exists in OpenClaw for this space
     if (spaceId) {
@@ -100,10 +99,9 @@ export class AISpacesAgent implements Agent {
     const sessionId = params.sessionId;
     const spaceId = this.resolveSpaceIdFromSession(sessionId) ?? '';
     const userId = (params as unknown as Record<string, string>).userId ?? 'unknown';
-    const role = toSpaceRole((params as unknown as Record<string, string>).role);
 
     // Re-register the session state
-    this.sessions.set(sessionId, { sessionId, spaceId, userId, role, abort: null });
+    this.sessions.set(sessionId, { sessionId, spaceId, userId, role: this.role, abort: null });
 
     // Replay chat history — OpenClaw does not do this itself
     if (spaceId) {

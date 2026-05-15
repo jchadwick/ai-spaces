@@ -16,6 +16,7 @@ import { SpaceWatcher } from './space-watcher.js';
 import { registerWithServer, clearRegistrationState, loadRegistrationState } from './registration.js';
 import { logger as rootLogger } from './logger.js';
 import { cleanOrphanedFiles } from './cleanup.js';
+import { runPluginPreflightChecks } from './preflight.js';
 
 const log = rootLogger.child({ component: 'plugin' });
 
@@ -32,14 +33,15 @@ export default defineChannelPluginEntry({
 
     startSpacesServer(config.AI_SPACES_WS_PORT);
 
-    const registration = await registerWithServer();
-    const { serverId, callbackToken } = registration;
-
-    // Build agent→workspace mapping from gateway config (authoritative source)
     const agentList = api.config.agents?.list ?? [];
     const agentWorkspaces = agentList
       .filter((a): a is typeof a & { workspace: string } => typeof a.workspace === 'string')
       .map(a => ({ agentId: a.id, workspaceRoot: a.workspace }));
+
+    await runPluginPreflightChecks(agentWorkspaces);
+
+    const registration = await registerWithServer();
+    const { serverId, callbackToken } = registration;
 
     initSpaceStore(agentWorkspaces);
 

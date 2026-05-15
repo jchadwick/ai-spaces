@@ -15,6 +15,7 @@ import { confirmRouter } from './routes/confirm.js';
 import { adminRouter } from './routes/admin.js';
 import { internalRouter } from './routes/internal.js';
 import { runMigrations } from './db/migrate.js';
+import { runPreflightChecks } from './preflight.js';
 import { getUserSpaceRole, getServerBySpaceId } from './db/queries.js';
 import { createInternalMiddleware } from './middleware/ip-allowlist.js';
 import { db } from './db/connection.js';
@@ -145,6 +146,7 @@ function getContentType(filePath: string): string {
   return types[ext] || 'text/plain';
 }
 
+await runPreflightChecks();
 runMigrations();
 
 db.insert(servers).values({

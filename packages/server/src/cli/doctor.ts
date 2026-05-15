@@ -17,6 +17,8 @@ const config = {
 };
 
 const asJson = process.argv.includes('--json');
+const doFix = process.argv.includes('--fix');
+const autoYes = process.argv.includes('--yes') || process.argv.includes('-y');
 
 type CheckResult = { name: string; status: 'PASS' | 'FAIL' | 'WARN'; detail?: string };
 const results: CheckResult[] = [];
@@ -106,6 +108,59 @@ async function checkPluginConnectivity(): Promise<CheckResult | null> {
   }
 }
 
+function findOrphanFiles(dir: string, depth: number, maxDepth: number): string[] {
+  if (depth > maxDepth) return [];
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  const found: string[] = [];
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      found.push(...findOrphanFiles(fullPath, depth + 1, maxDepth));
+    } else if (entry.isFile() && (entry.name.endsWith('.tmp') || entry.name.endsWith('.lock'))) {
+      found.push(fullPath);
+    }
+  }
+  return found;
+}
+
+async function runFixes(): Promise<void> {
+  const dbDir = path.dirname(config.AI_SPACES_DB);
+
+  // Clear stale orphan files under the DB dir
+  const orphans = findOrphanFiles(dbDir, 0, 5);
+  if (orphans.length > 0) {
+    process.stdout.write(`\nFound ${orphans.length} orphaned .tmp/.lock file(s):\n`);
+    for (const f of orphans) process.stdout.write(`  ${f}\n`);
+    const proceed = autoYes || await confirm('Remove these files?');
+    if (proceed) {
+      let removed = 0;
+      for (const f of orphans) {
+        try { fs.unlinkSync(f); removed++; } catch { /* ignore */ }
+      }
+      process.stdout.write(`Removed ${removed} file(s).\n`);
+    }
+  } else {
+    process.stdout.write('\nNo orphaned files found.\n');
+  }
+}
+
+async function confirm(question: string): Promise<boolean> {
+  process.stdout.write(`${question} [y/N] `);
+  return new Promise(resolve => {
+    process.stdin.setEncoding('utf8');
+    process.stdin.resume();
+    process.stdin.once('data', (data: string) => {
+      process.stdin.pause();
+      resolve(data.trim().toLowerCase() === 'y');
+    });
+  });
+}
+
 async function main(): Promise<void> {
   results.push(checkNodeVersion());
   results.push(...checkEnvVars());
@@ -124,6 +179,10 @@ async function main(): Promise<void> {
       process.stdout.write(`  ${icon} ${r.name}${detail}\n`);
     }
     process.stdout.write('\n');
+  }
+
+  if (doFix) {
+    await runFixes();
   }
 
   const hasFail = results.some(r => r.status === 'FAIL');

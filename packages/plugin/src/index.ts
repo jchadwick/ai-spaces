@@ -13,7 +13,7 @@ import * as crypto from 'crypto';
 import * as path from 'path';
 import { config } from './config.js';
 import { SpaceWatcher } from './space-watcher.js';
-import { registerWithServer, clearRegistrationState } from './registration.js';
+import { registerWithServer, clearRegistrationState, loadRegistrationState } from './registration.js';
 
 export default defineChannelPluginEntry({
   id: 'ai-spaces',
@@ -95,6 +95,51 @@ export default defineChannelPluginEntry({
     process.once('SIGINT', stopWatchers);
 
     void triggerReconcile();
+
+    api.registerHttpRoute({
+      path: '/health',
+      auth: 'plugin',
+      handler: async (_req: IncomingMessage, res: ServerResponse) => {
+        // Check filesystem
+        let filesystemStatus: 'ok' | 'error' = 'ok';
+        for (const { workspaceRoot } of agentWorkspaces) {
+          try {
+            const { accessSync, constants: fsConstants } = await import('fs');
+            accessSync(workspaceRoot, fsConstants.R_OK);
+          } catch {
+            filesystemStatus = 'error';
+            break;
+          }
+        }
+
+        // Check server reachability
+        let serverStatus: 'ok' | 'unreachable' = 'ok';
+        try {
+          const serverRes = await fetch(`${config.AI_SPACES_URL}/health`, {
+            signal: AbortSignal.timeout(2000),
+          });
+          serverStatus = serverRes.ok ? 'ok' : 'unreachable';
+        } catch {
+          serverStatus = 'unreachable';
+        }
+
+        const registration = loadRegistrationState();
+        const degraded = filesystemStatus !== 'ok' || serverStatus === 'unreachable';
+
+        const body = JSON.stringify({
+          status: degraded ? 'degraded' : 'ok',
+          filesystem: filesystemStatus,
+          server: serverStatus,
+          registration: registration ? 'registered' : 'unregistered',
+          uptime: Math.floor(process.uptime()),
+        });
+
+        res.statusCode = degraded ? 503 : 200;
+        res.setHeader('Content-Type', 'application/json');
+        res.end(body);
+        return true;
+      },
+    });
 
     api.registerHttpRoute({
       path: '/api/spaces',

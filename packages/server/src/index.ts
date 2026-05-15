@@ -20,6 +20,7 @@ import { createInternalMiddleware } from './middleware/ip-allowlist.js';
 import { db } from './db/connection.js';
 import { servers } from './db/index.js';
 import { DEFAULT_SERVER_ID } from './db/constants.js';
+import { agentAdapter } from './agent-adapter-instance.js';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
@@ -59,8 +60,44 @@ const internalMiddleware = createInternalMiddleware(config.GATEWAY_TOKEN);
 app.use('/api/internal/*', internalMiddleware);
 app.route('/api/internal', internalRouter);
 
-app.get('/health', (c) => {
-  return c.json({ status: 'ok' });
+app.get('/health', async (c) => {
+  const startedAt = Date.now();
+
+  // Check DB
+  let dbStatus: 'ok' | 'error' = 'ok';
+  try {
+    db.run('SELECT 1');
+  } catch {
+    dbStatus = 'error';
+  }
+
+  // Check plugin reachability
+  let pluginStatus: 'ok' | 'unreachable' | 'unknown' = 'unknown';
+  try {
+    const registeredServer = db.select().from(servers).get();
+    if (registeredServer?.pluginUrl) {
+      const res = await fetch(`${registeredServer.pluginUrl}/health`, {
+        signal: AbortSignal.timeout(2000),
+      });
+      pluginStatus = res.ok ? 'ok' : 'unreachable';
+    }
+  } catch {
+    pluginStatus = 'unreachable';
+  }
+
+  const circuitBreaker = agentAdapter.getCircuitStatus().toLowerCase() as 'closed' | 'open' | 'half_open';
+  const degraded = dbStatus !== 'ok' || pluginStatus === 'unreachable' || circuitBreaker === 'open';
+
+  return c.json(
+    {
+      status: degraded ? 'degraded' : 'ok',
+      db: dbStatus,
+      plugin: pluginStatus,
+      circuitBreaker,
+      uptime: Math.floor(process.uptime()),
+    },
+    degraded ? 503 : 200,
+  );
 });
 
 app.route('/api/auth', authRouter);

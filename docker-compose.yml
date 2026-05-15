@@ -37,6 +37,12 @@ services:
       GATEWAY_URL: http://openclaw:19000
       GATEWAY_TOKEN: secret
       AI_SPACES_ROOT: /home/openclaw/workspace
+    restart: on-failure
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 10
     volumes:
       - openclaw-home:/home/openclaw
       - ./packages/plugin/dist:/plugins/ai-spaces:ro
@@ -92,6 +98,12 @@ services:
       - ./packages/web/vite.config.ts:/build/packages/web/vite.config.ts:ro
       - ./tsconfig.base.json:/build/tsconfig.base.json:ro
       - ./sandbox:/build/sandbox:ro
+    restart: on-failure
+    deploy:
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 10
     depends_on:
       - openclaw
     networks:

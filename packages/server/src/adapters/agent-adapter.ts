@@ -1,14 +1,7 @@
 import type { SpaceRecord } from '../space-store.js';
-import type { SpaceRole, SpaceMetadata, FileMetadataEntry } from '@ai-spaces/shared';
+import type { SpaceRole, SpaceMetadata, FileMetadataEntry, FileNodeType } from '@ai-spaces/shared';
 
-export interface FileNode {
-  name: string;
-  type: 'file' | 'directory' | 'space';
-  path: string;
-  spaceId?: string;
-  size?: number;
-  modified: string;
-}
+export type FileNode = FileNodeType;
 
 export interface AgentAdapter {
   listFiles(space: SpaceRecord, dirPath: string, role: SpaceRole): Promise<FileNode[]>;

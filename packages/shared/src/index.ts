@@ -4,3 +4,4 @@ export * from './file-provider.js';
 export * from './permissions.js';
 export * from './utils/path.js';
 export * from './utils/workspace.js';
+export * from './acp/index.js';

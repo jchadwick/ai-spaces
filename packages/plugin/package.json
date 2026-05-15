@@ -36,6 +36,7 @@
   },
   "homepage": "https://github.com/jchadwick/ai-spaces#readme",
   "dependencies": {
+    "@agentclientprotocol/sdk": "^0.17.0",
     "@ai-spaces/shared": "*",
     "@types/jsonwebtoken": "^9.0.10",
     "bcrypt": "^6.0.0",

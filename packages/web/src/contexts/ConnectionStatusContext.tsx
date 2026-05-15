@@ -8,8 +8,12 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { ChatMessage, WebSocketMessage } from '@ai-spaces/shared';
-import { writeSpaceFileHttp } from '../api/spaceFiles';
+import { ClientSideConnection, ndJsonStream, PROTOCOL_VERSION } from '@agentclientprotocol/sdk';
+import type { RequestPermissionRequest, RequestPermissionResponse, SessionNotification } from '@agentclientprotocol/sdk';
+import type { ChatMessage } from '@ai-spaces/shared';
+import { wsToAcpStream } from '../lib/ws-transport.js';
+import { PermissionDialog } from '../components/PermissionDialog.js';
+import { writeSpaceFileHttp } from '../api/spaceFiles.js';
 
 export type ConnectionStatus =
   | 'connecting'
@@ -23,11 +27,6 @@ export type FileChangedAction = 'created' | 'modified' | 'deleted';
 export interface FileChangedPayload {
   path: string;
   action: FileChangedAction;
-}
-
-interface PendingRequest {
-  resolve: (value: unknown) => void;
-  reject: (error: Error) => void;
 }
 
 interface ConnectionStatusContextValue {
@@ -49,9 +48,7 @@ const ConnectionStatusContext = createContext<ConnectionStatusContextValue | nul
 // eslint-disable-next-line react-refresh/only-export-components
 export function useConnectionStatus(): ConnectionStatusContextValue {
   const ctx = useContext(ConnectionStatusContext);
-  if (!ctx) {
-    throw new Error('useConnectionStatus must be used within a ConnectionStatusProvider');
-  }
+  if (!ctx) throw new Error('useConnectionStatus must be used within a ConnectionStatusProvider');
   return ctx;
 }
 
@@ -59,19 +56,22 @@ const generateId = () =>
   crypto.randomUUID?.() ??
   `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 
-function websocketHostForPage(): string {
+function buildSpaceWebSocketUrl(spaceId: string, accessToken?: string | null): string {
   let { hostname } = window.location;
-  if (hostname === '0.0.0.0' || hostname === '[::]' || hostname === '::') {
-    hostname = '127.0.0.1';
-  }
-  const { port } = window.location;
-  return port ? `${hostname}:${port}` : hostname;
+  if (hostname === '0.0.0.0' || hostname === '[::]' || hostname === '::') hostname = '127.0.0.1';
+  const { port, protocol } = window.location;
+  const host = port ? `${hostname}:${port}` : hostname;
+  const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
+  const base = `${wsProtocol}//${host}/ws/spaces/${spaceId}`;
+  return accessToken ? `${base}?token=${encodeURIComponent(accessToken)}` : base;
 }
 
-function buildSpaceWebSocketUrl(spaceId: string, accessToken?: string | null): string {
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const base = `${protocol}//${websocketHostForPage()}/ws/spaces/${spaceId}`;
-  return accessToken ? `${base}?token=${encodeURIComponent(accessToken)}` : base;
+function getStoredSessionId(spaceId: string): string | null {
+  try { return sessionStorage.getItem(`acp-session:${spaceId}`); } catch { return null; }
+}
+
+function storeSessionId(spaceId: string, sessionId: string): void {
+  try { sessionStorage.setItem(`acp-session:${spaceId}`, sessionId); } catch { /* ignore */ }
 }
 
 interface ConnectionStatusProviderProps {
@@ -92,20 +92,25 @@ export function ConnectionStatusProvider({
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
   const [isStreaming, setIsStreaming] = useState(false);
   const [wasReconnected, setWasReconnected] = useState(false);
+  const [pendingPermission, setPendingPermission] = useState<{
+    request: RequestPermissionRequest;
+    resolve: (response: RequestPermissionResponse) => void;
+  } | null>(null);
 
+  // connectKey is the effect trigger — only incremented after the backoff delay elapses
+  const [connectKey, setConnectKey] = useState(0);
+  const reconnectAttemptRef = useRef(0); // for delay calc, does NOT trigger effect
+
+  const connectionRef = useRef<ClientSideConnection | null>(null);
+  const sessionIdRef = useRef<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
-  const pendingMessageIdRef = useRef<string | null>(null);
-  const currentStreamContentRef = useRef<string>('');
+  const streamMessageIdRef = useRef<string | null>(null);
   const onFileChangedRef = useRef(onFileChanged);
-  const pendingRequestsRef = useRef<Map<string, PendingRequest>>(new Map());
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const intentionalDisconnectRef = useRef(false);
   const wasReconnectingRef = useRef(false);
-  const heartbeatTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    onFileChangedRef.current = onFileChanged;
-  }, [onFileChanged]);
+  useEffect(() => { onFileChangedRef.current = onFileChanged; }, [onFileChanged]);
 
   const clearReconnectTimeout = useCallback(() => {
     if (reconnectTimeoutRef.current) {
@@ -114,41 +119,17 @@ export function ConnectionStatusProvider({
     }
   }, []);
 
-  const clearHeartbeatTimeout = useCallback(() => {
-    if (heartbeatTimeoutRef.current) {
-      clearTimeout(heartbeatTimeoutRef.current);
-      heartbeatTimeoutRef.current = null;
-    }
-  }, []);
-
-  const clearReconnected = useCallback(() => {
-    setWasReconnected(false);
-  }, []);
+  const clearReconnected = useCallback(() => setWasReconnected(false), []);
 
   useEffect(() => {
     if (accessToken === null) return;
 
     intentionalDisconnectRef.current = false;
-
-    const wsUrl = buildSpaceWebSocketUrl(spaceId, accessToken);
     let cancelled = false;
 
+    const wsUrl = buildSpaceWebSocketUrl(spaceId, accessToken);
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
-
-    ws.onopen = () => {
-      if (cancelled) {
-        ws.close(1000, 'effect cleanup');
-        return;
-      }
-      const connectMessage: WebSocketMessage = {
-        type: 'req',
-        id: 'connect',
-        method: 'connect',
-        params: {},
-      };
-      ws.send(JSON.stringify(connectMessage));
-    };
 
     ws.onerror = () => {
       if (wsRef.current !== ws) return;
@@ -157,149 +138,147 @@ export function ConnectionStatusProvider({
 
     ws.onclose = () => {
       if (wsRef.current !== ws) return;
+      connectionRef.current = null;
+      sessionIdRef.current = null;
+      streamMessageIdRef.current = null;
+      setIsStreaming(false);
       if (!intentionalDisconnectRef.current) {
         setStatus('reconnecting');
         wasReconnectingRef.current = true;
-        const delay = Math.min(1000 * 2 ** reconnectAttempt, 30000);
+        reconnectAttemptRef.current += 1;
+        const delay = Math.min(1000 * 2 ** reconnectAttemptRef.current, 30000);
         reconnectTimeoutRef.current = setTimeout(() => {
           if (!intentionalDisconnectRef.current) {
-            setReconnectAttempt((n) => n + 1);
+            setReconnectAttempt(reconnectAttemptRef.current);
+            setConnectKey((k) => k + 1);
           }
         }, delay);
       }
     };
 
-    // Reset the heartbeat timeout — called on every received message.
-    // If no message arrives within 60s, assume a ghost connection and reconnect.
-    const resetHeartbeat = () => {
-      clearHeartbeatTimeout();
-      heartbeatTimeoutRef.current = setTimeout(() => {
-        if (intentionalDisconnectRef.current) return;
-        const currentWs = wsRef.current;
-        if (currentWs && currentWs.readyState === WebSocket.OPEN) {
-          currentWs.close(4000, 'heartbeat timeout');
-        }
-      }, 60_000);
-    };
-
-    ws.onmessage = (event) => {
-
-      // Any message from the server resets the dead-connection timer
-      resetHeartbeat();
+    ws.onopen = async () => {
+      if (cancelled || wsRef.current !== ws) {
+        ws.close(1000, 'effect cleanup');
+        return;
+      }
 
       try {
-        const raw = JSON.parse(event.data);
+        const { output, input } = wsToAcpStream(ws);
+        const stream = ndJsonStream(output, input);
 
-        // Respond to server ping with a pong
-        if (raw.type === 'ping') {
-          if (ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'pong' }));
-          }
-          return;
-        }
+        const connection = new ClientSideConnection(
+          () => ({
+            sessionUpdate: async (params: SessionNotification) => {
+              const update = params.update;
+              const updateType = update.sessionUpdate;
 
-        if (raw.type === 'file:changed') {
-          const payload = raw as { type: 'file:changed'; spaceId: string; path: string; action: FileChangedAction };
-          onFileChangedRef.current?.({ path: payload.path, action: payload.action });
-          return;
-        }
+              if (updateType === 'agent_message_chunk' || updateType === 'user_message_chunk') {
+                const block = update.content;
+                const text = block.type === 'text' ? block.text : '';
 
-        const message: WebSocketMessage = raw;
+                if (updateType === 'agent_message_chunk') {
+                  if (streamMessageIdRef.current) {
+                    // Active stream: append to current message
+                    setMessages((prev) =>
+                      prev.map((msg) =>
+                        msg.id === streamMessageIdRef.current
+                          ? { ...msg, content: msg.content + text }
+                          : msg,
+                      ),
+                    );
+                  } else {
+                    // History replay: create a complete message
+                    setMessages((prev) => [
+                      ...prev,
+                      {
+                        id: generateId(),
+                        role: 'assistant' as const,
+                        content: text,
+                        timestamp: new Date().toISOString(),
+                      },
+                    ]);
+                  }
+                } else {
+                  setMessages((prev) => [
+                    ...prev,
+                    {
+                      id: generateId(),
+                      role: 'user' as const,
+                      content: text,
+                      timestamp: new Date().toISOString(),
+                    },
+                  ]);
+                }
+              }
+            },
 
-        if (message.type === 'event' && message.event === 'connected') {
-          setStatus('connected');
-          setReconnectAttempt(0);
+            requestPermission: (params: RequestPermissionRequest) =>
+              new Promise<RequestPermissionResponse>((resolve) => {
+                setPendingPermission({ request: params, resolve });
+              }),
 
-          if (wasReconnectingRef.current) {
-            setWasReconnected(true);
-            wasReconnectingRef.current = false;
-          }
-
-          intentionalDisconnectRef.current = false;
-          return;
-        }
-
-        if (message.type === 'res' && message.id) {
-          const pending = pendingRequestsRef.current.get(message.id);
-          if (pending) {
-            pendingRequestsRef.current.delete(message.id);
-            if (message.error) {
-              pending.reject(new Error(message.error.message));
-            } else {
-              pending.resolve(message.result);
-            }
-          }
-          return;
-        }
-
-        if (message.type === 'event') {
-          switch (message.event) {
-            case 'history_message': {
-              const msgPayload = message.payload as ChatMessage;
-              setMessages((prev) => {
-                const exists = prev.some((m) => m.id === msgPayload.id);
-                if (exists) return prev;
-                return [...prev, msgPayload];
-              });
-              break;
-            }
-
-            case 'file_modified': {
-              const payload = message.payload as { path: string; action: string; triggeredBy?: string };
-              window.dispatchEvent(
-                new CustomEvent('fileModified', {
-                  detail: {
-                    path: payload.path,
-                    action: payload.action,
-                    triggeredBy: payload.triggeredBy || 'user',
-                  },
-                }),
-              );
-              break;
-            }
-
-            case 'stream_start': {
-              const payload = message.payload as { messageId: string };
-              pendingMessageIdRef.current = payload.messageId;
-              currentStreamContentRef.current = '';
-              setIsStreaming(true);
-
-              const assistantMessage: ChatMessage = {
-                id: payload.messageId,
-                role: 'assistant',
-                content: '',
-                timestamp: new Date().toISOString(),
-              };
-              setMessages((prev) => [...prev, assistantMessage]);
-              break;
-            }
-
-            case 'stream_chunk': {
-              const payload = message.payload as { text: string };
-              currentStreamContentRef.current += payload.text;
-
-              if (pendingMessageIdRef.current) {
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === pendingMessageIdRef.current
-                      ? { ...msg, content: currentStreamContentRef.current }
-                      : msg,
-                  ),
+            extNotification: async (method: string, params: Record<string, unknown>) => {
+              if (method === 'workspace/file_changed') {
+                const { path, action, triggeredBy } = params as {
+                  path: string;
+                  action: FileChangedAction;
+                  triggeredBy?: string;
+                };
+                onFileChangedRef.current?.({ path, action });
+                window.dispatchEvent(
+                  new CustomEvent('fileModified', {
+                    detail: { path, action, triggeredBy: triggeredBy ?? 'agent' },
+                  }),
                 );
               }
-              break;
-            }
+            },
+          }),
+          stream,
+        );
 
-            case 'stream_end': {
-              setIsStreaming(false);
-              pendingMessageIdRef.current = null;
-              currentStreamContentRef.current = '';
-              break;
-            }
+        await connection.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} });
+        if (cancelled || wsRef.current !== ws) return;
+
+        // Try to resume existing session, fall back to new session
+        const storedSessionId = getStoredSessionId(spaceId);
+        let sessionId: string;
+
+        setMessages([]); // clear before history replay
+
+        if (storedSessionId) {
+          try {
+            await connection.loadSession({ sessionId: storedSessionId, cwd: '', mcpServers: [] });
+            if (cancelled || wsRef.current !== ws) return;
+            sessionId = storedSessionId;
+          } catch {
+            if (cancelled || wsRef.current !== ws) return;
+            const result = await connection.newSession({ cwd: '', mcpServers: [] });
+            if (cancelled || wsRef.current !== ws) return;
+            sessionId = result.sessionId;
           }
+        } else {
+          const result = await connection.newSession({ cwd: '', mcpServers: [] });
+          if (cancelled || wsRef.current !== ws) return;
+          sessionId = result.sessionId;
         }
+
+        storeSessionId(spaceId, sessionId);
+        connectionRef.current = connection;
+        sessionIdRef.current = sessionId;
+
+        if (cancelled || wsRef.current !== ws) return;
+
+        setStatus('connected');
+        setReconnectAttempt(0);
+        if (wasReconnectingRef.current) {
+          setWasReconnected(true);
+          wasReconnectingRef.current = false;
+        }
+        intentionalDisconnectRef.current = false;
       } catch {
-        // Ignore malformed messages
+        if (!cancelled && wsRef.current === ws) {
+          setStatus('error');
+        }
       }
     };
 
@@ -307,102 +286,97 @@ export function ConnectionStatusProvider({
       cancelled = true;
       intentionalDisconnectRef.current = true;
       clearReconnectTimeout();
-      clearHeartbeatTimeout();
       wsRef.current = null;
-      if (ws.readyState === WebSocket.OPEN) {
+      connectionRef.current = null;
+      sessionIdRef.current = null;
+      streamMessageIdRef.current = null;
+      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
         ws.close(1000, 'effect cleanup');
       }
     };
-  }, [spaceId, accessToken, reconnectAttempt, clearReconnectTimeout, clearHeartbeatTimeout]);
+  }, [spaceId, accessToken, connectKey, clearReconnectTimeout]);
 
   const reconnect = useCallback(() => {
     clearReconnectTimeout();
-    intentionalDisconnectRef.current = true;
+    intentionalDisconnectRef.current = true; // stays true; new effect resets it
     wasReconnectingRef.current = false;
-
-    if (wsRef.current) {
-      wsRef.current.close();
-    }
-
-    intentionalDisconnectRef.current = false;
+    reconnectAttemptRef.current = 0;
+    if (wsRef.current) wsRef.current.close();
     setStatus('connecting');
-    setReconnectAttempt((n) => n + 1);
+    setReconnectAttempt(0);
+    setConnectKey((k) => k + 1);
   }, [clearReconnectTimeout]);
 
   const disconnect = useCallback(() => {
     intentionalDisconnectRef.current = true;
     clearReconnectTimeout();
-
-    if (wsRef.current) {
-      wsRef.current.close();
-    }
-
+    if (wsRef.current) wsRef.current.close();
     setStatus('disconnected');
   }, [clearReconnectTimeout]);
 
   const sendMessage = useCallback(
     (content: string) => {
-      if (!wsRef.current || status !== 'connected') return;
+      const connection = connectionRef.current;
+      const sessionId = sessionIdRef.current;
+      if (!connection || !sessionId || status !== 'connected' || streamMessageIdRef.current) return;
 
-      const userMessage: ChatMessage = {
-        id: generateId(),
-        role: 'user',
-        content,
-        timestamp: new Date().toISOString(),
-      };
+      const userMsgId = generateId();
+      setMessages((prev) => [
+        ...prev,
+        { id: userMsgId, role: 'user', content, timestamp: new Date().toISOString() },
+      ]);
 
-      setMessages((prev) => [...prev, userMessage]);
+      const assistantMsgId = generateId();
+      streamMessageIdRef.current = assistantMsgId;
+      setMessages((prev) => [
+        ...prev,
+        { id: assistantMsgId, role: 'assistant', content: '', timestamp: new Date().toISOString() },
+      ]);
+      setIsStreaming(true);
 
-      const requestId = generateId();
-      const message: WebSocketMessage = {
-        type: 'req',
-        id: requestId,
-        method: 'chat.send',
-        params: { content },
-      };
-
-      wsRef.current.send(JSON.stringify(message));
+      connection
+        .prompt({ sessionId, prompt: [{ type: 'text', text: content }] })
+        .catch(() => {
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === assistantMsgId
+                ? { ...msg, content: msg.content + '\n[Connection error]' }
+                : msg,
+            ),
+          );
+        })
+        .finally(() => {
+          setIsStreaming(false);
+          streamMessageIdRef.current = null;
+        });
     },
     [status],
-  );
-
-  const writeFileHttp = useCallback(
-    (sid: string, filePath: string, content: string) => writeSpaceFileHttp(sid, filePath, content),
-    [],
   );
 
   const writeFile = useCallback(
-    (path: string, content: string): Promise<{ success: boolean; path?: string; modified?: string; error?: string }> => {
-      return new Promise((resolve, reject) => {
-        if (!wsRef.current || status !== 'connected') {
-          reject(new Error('WebSocket not connected'));
-          return;
-        }
-
-        const requestId = generateId();
-        const message: WebSocketMessage = {
-          type: 'req',
-          id: requestId,
-          method: 'file.write',
-          params: { path, content },
-        };
-
-        pendingRequestsRef.current.set(requestId, {
-          resolve: (result) => resolve(result as { success: boolean; path?: string; modified?: string }),
-          reject,
+    async (path: string, content: string): Promise<{ success: boolean; path?: string; modified?: string; error?: string }> => {
+      const connection = connectionRef.current;
+      if (!connection || status !== 'connected') {
+        return { success: false, error: 'Not connected' };
+      }
+      try {
+        await connection.extMethod('workspace/write_file', {
+          spaceId,
+          path,
+          content,
+          encoding: 'utf-8',
         });
-
-        wsRef.current.send(JSON.stringify(message));
-
-        setTimeout(() => {
-          if (pendingRequestsRef.current.has(requestId)) {
-            pendingRequestsRef.current.delete(requestId);
-            reject(new Error('Request timeout'));
-          }
-        }, 30000);
-      });
+        return { success: true, path };
+      } catch (err) {
+        return { success: false, error: (err as Error).message };
+      }
     },
-    [status],
+    [spaceId, status],
+  );
+
+  const writeFileHttp = useCallback(
+    (sid: string, filePath: string, fileContent: string) => writeSpaceFileHttp(sid, filePath, fileContent),
+    [],
   );
 
   const value = useMemo<ConnectionStatusContextValue>(
@@ -437,6 +411,15 @@ export function ConnectionStatusProvider({
   return (
     <ConnectionStatusContext.Provider value={value}>
       {children}
+      {pendingPermission && (
+        <PermissionDialog
+          request={pendingPermission.request}
+          onRespond={(response) => {
+            pendingPermission.resolve(response);
+            setPendingPermission(null);
+          }}
+        />
+      )}
     </ConnectionStatusContext.Provider>
   );
 }

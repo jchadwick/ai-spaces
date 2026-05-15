@@ -1,5 +1,8 @@
 import * as crypto from 'crypto';
 import { type WorkspaceSpaceRecord } from '@ai-spaces/shared';
+import { logger as rootLogger } from './logger.js';
+
+const log = rootLogger.child({ component: 'reconcile' });
 import { listSpaces, listSpacesByServerId, deleteSpace, insertSpace } from './space-store.js';
 import { config } from './config.js';
 import { db } from './db/connection.js';
@@ -33,7 +36,7 @@ export async function migrateCollaboratorsToMembers(): Promise<void> {
     for (const collaborator of spaceConfig.collaborators) {
       if (!collaborator.email) {
         if (config.ALLOW_ORPHAN_COLLABORATORS) {
-          console.warn(`[reconcile] Collaborator without email in space ${space.id} — skipping`);
+          log.warn({ spaceId: space.id }, 'Collaborator without email — skipping');
         }
         continue;
       }
@@ -42,7 +45,7 @@ export async function migrateCollaboratorsToMembers(): Promise<void> {
 
       if (!user) {
         if (config.ALLOW_ORPHAN_COLLABORATORS) {
-          console.warn(`[reconcile] No user found for collaborator email ${collaborator.email} in space ${space.id}`);
+          log.warn({ email: collaborator.email, spaceId: space.id }, 'No user found for collaborator email');
         }
         continue;
       }
@@ -57,7 +60,7 @@ export async function migrateCollaboratorsToMembers(): Promise<void> {
         updatedAt: now,
       }).onConflictDoNothing().run();
 
-      console.info(`[reconcile] Migrated collaborator ${collaborator.email} to space_members for space ${space.id}`);
+      log.info({ email: collaborator.email, spaceId: space.id }, 'Migrated collaborator to space_members');
     }
   }
 }
@@ -87,15 +90,15 @@ export async function reconcileFromSpaceList(
         updatedAt: now,
         serverId,
       });
-      if (!dbSpace) console.info(`[reconcile] Registered missing space: ${id} at ${diskSpace.path}`);
-      else console.info(`[reconcile] Updated path for space: ${id} ${dbSpace.path} → ${diskSpace.path}`);
+      if (!dbSpace) log.info({ id, path: diskSpace.path }, 'Registered missing space');
+      else log.info({ id, from: dbSpace.path, to: diskSpace.path }, 'Updated path for space');
     }
   }
 
   for (const [id, dbSpace] of dbById) {
     if (!diskById.has(id)) {
       deleteSpace(id, 'system');
-      console.info(`[reconcile] Removed zombie space: ${id} (path: ${dbSpace.path})`);
+      log.info({ id, path: dbSpace.path }, 'Removed zombie space');
     }
   }
 }

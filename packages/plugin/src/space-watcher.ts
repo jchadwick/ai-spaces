@@ -3,6 +3,9 @@ import { EventEmitter } from 'events';
 import * as fs from 'fs';
 import * as path from 'path';
 import { SpaceConfigSchema, computeSpaceId } from '@ai-spaces/shared';
+import { logger as rootLogger } from './logger.js';
+
+const log = rootLogger.child({ component: 'space-watcher' });
 import type { SpaceRecord } from './space-store.js';
 
 export interface SpaceAddedEvent {
@@ -58,10 +61,7 @@ function readSpaceRecord(
     const raw = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
     const result = SpaceConfigSchema.safeParse(raw);
     if (!result.success) {
-      console.warn(
-        `[space-watcher] Invalid config at ${filePath}:`,
-        result.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join(', ')
-      );
+      log.warn({ filePath, issues: result.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join(', ') }, 'Invalid space config');
       return null;
     }
 
@@ -74,7 +74,7 @@ function readSpaceRecord(
       config: result.data,
     };
   } catch (err) {
-    console.error(`[space-watcher] Failed to read config at ${filePath}:`, err instanceof Error ? err.message : String(err));
+    log.error({ filePath, err: err instanceof Error ? err.message : String(err) }, 'Failed to read config');
     return null;
   }
 }
@@ -103,7 +103,7 @@ export class SpaceWatcher extends EventEmitter {
       if (!fs.existsSync(configPath)) continue;
       const space = readSpaceRecord(configPath, this.watchRoot, this.agentId);
       if (!space) continue;
-      console.log(`[space-watcher] Space discovered at startup: ${space.id}`);
+      log.info({ spaceId: space.id }, 'Space discovered at startup');
       this.emit('space:added', { space } satisfies SpaceAddedEvent);
     }
   }
@@ -112,11 +112,11 @@ export class SpaceWatcher extends EventEmitter {
     if (this.watcher) return;
 
     if (!fs.existsSync(this.watchRoot)) {
-      console.warn(`[space-watcher] Watch root does not exist, skipping: ${this.watchRoot}`);
+      log.warn({ watchRoot: this.watchRoot }, 'Watch root does not exist, skipping');
       return;
     }
 
-    console.log(`[space-watcher] Starting workspace watcher at ${this.watchRoot} (agent: ${this.agentId})`);
+    log.info({ watchRoot: this.watchRoot, agentId: this.agentId }, 'Starting workspace watcher');
 
     this.watcher = chokidar.watch(this.watchRoot, {
       depth: 3,
@@ -130,7 +130,7 @@ export class SpaceWatcher extends EventEmitter {
       const space = readSpaceRecord(filePath, this.watchRoot, this.agentId);
       if (!space) return;
 
-      console.log(`[space-watcher] Space added: ${space.id}`);
+      log.info({ spaceId: space.id }, 'Space added');
       this.emit('space:added', { space } satisfies SpaceAddedEvent);
     });
 
@@ -141,13 +141,12 @@ export class SpaceWatcher extends EventEmitter {
       if (!parsed) return;
 
       const spaceId = computeSpaceId(this.agentId, parsed.relativePath);
-      console.log(`[space-watcher] Space removed: ${spaceId}`);
+      log.info({ spaceId }, 'Space removed');
       this.emit('space:removed', { spaceId, spacePath: parsed.relativePath } satisfies SpaceRemovedEvent);
     });
 
     this.watcher.on('error', (err: unknown) => {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(`[space-watcher] Watcher error:`, message);
+      log.error({ err: err instanceof Error ? err.message : String(err) }, 'Watcher error');
     });
 
     this.scan();
@@ -157,11 +156,10 @@ export class SpaceWatcher extends EventEmitter {
     if (!this.watcher) return;
 
     this.watcher.close().catch((err: unknown) => {
-      const message = err instanceof Error ? err.message : String(err);
-      console.error(`[space-watcher] Error closing watcher:`, message);
+      log.error({ err: err instanceof Error ? err.message : String(err) }, 'Error closing watcher');
     });
 
     this.watcher = null;
-    console.log(`[space-watcher] Stopped watching ${this.watchRoot}`);
+    log.info({ watchRoot: this.watchRoot }, 'Stopped watching');
   }
 }

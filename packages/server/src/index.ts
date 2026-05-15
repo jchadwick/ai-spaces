@@ -23,7 +23,10 @@ import { DEFAULT_SERVER_ID } from './db/constants.js';
 import { agentAdapter } from './agent-adapter-instance.js';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
-import { logger } from 'hono/logger';
+import { logger as honoLogger } from 'hono/logger';
+import { logger as rootLogger } from './logger.js';
+
+const log = rootLogger.child({ component: 'server' });
 
 
 assertProductionHttps(config.INVITE_BASE_URL, 'INVITE_BASE_URL');
@@ -31,9 +34,9 @@ assertProductionHttps(config.INVITE_BASE_URL, 'INVITE_BASE_URL');
 const app = new Hono();
 
 // WS logger with token redaction
-app.use('*', logger((str, ...rest) => {
+app.use('*', honoLogger((str) => {
   const redacted = str.replace(/[?&]token=[^&\s]*/g, (m) => m.replace(/token=[^&\s]*/, 'token=[REDACTED]'));
-  console.log(redacted, ...rest);
+  log.info(redacted);
 }));
 
 app.use('/api/*', cors({
@@ -126,7 +129,7 @@ if (fs.existsSync(config.WEB_DIST)) {
       'Content-Type': 'text/html',
     });
   });
-  console.log(`Serving static files from: ${config.WEB_DIST}`);
+  log.info({ dir: config.WEB_DIST }, 'Serving static files');
 }
 
 function getContentType(filePath: string): string {
@@ -164,10 +167,11 @@ wss.on('upgrade', (request, socket, head) => {
   const url = new URL(request.url || '/', `http://${request.headers.host}`);
   const pathMatch = url.pathname.match(/^\/ws\/spaces\/([^/]+)$/);
 
-  console.log('[WS-UPGRADE] url:', request.url, 'headers:', JSON.stringify({ upgrade: request.headers.upgrade, authorization: request.headers.authorization ? 'present' : 'absent', tokenParam: url.searchParams.has('token') ? 'present' : 'absent' }));
+  const wsLog = log.child({ component: 'ws-upgrade' });
+  wsLog.debug({ url: request.url, hasAuth: !!request.headers.authorization, hasToken: url.searchParams.has('token') }, 'WS upgrade');
 
   if (!pathMatch) {
-    console.log('[WS-UPGRADE] no path match, destroying');
+    wsLog.warn({ url: request.url }, 'No path match, destroying');
     socket.destroy();
     return;
   }
@@ -176,7 +180,7 @@ wss.on('upgrade', (request, socket, head) => {
 
   const serverSpace = getSpaceById(spaceId);
   if (!serverSpace) {
-    console.log('[WS-UPGRADE] space not found:', spaceId);
+    wsLog.warn({ spaceId }, 'Space not found');
     socket.destroy();
     return;
   }
@@ -195,7 +199,7 @@ wss.on('upgrade', (request, socket, head) => {
       : url.searchParams.get('token');
 
     if (!rawToken) {
-      console.log('[WS-UPGRADE] no token, closing 1008');
+      wsLog.warn('No token, closing 1008');
       wss.handleUpgrade(request, socket, head, (ws) => ws.close(1008, 'Authentication required'));
       return;
     }
@@ -204,9 +208,9 @@ wss.on('upgrade', (request, socket, head) => {
       const decoded = jwt.verify(rawToken, config.JWT_SECRET) as jwt.JwtPayload;
       if (!decoded.userId) throw new Error('Missing userId');
       userId = decoded.userId as string;
-      console.log('[WS-UPGRADE] auth ok, userId:', userId);
+      wsLog.debug({ userId }, 'Auth ok');
     } catch (err) {
-      console.log('[WS-UPGRADE] invalid token:', (err as Error).message);
+      wsLog.warn({ err: (err as Error).message }, 'Invalid token');
       wss.handleUpgrade(request, socket, head, (ws) => ws.close(1008, 'Invalid token'));
       return;
     }
@@ -215,14 +219,14 @@ wss.on('upgrade', (request, socket, head) => {
   // Resolve the user's actual SpaceRole from the DB (admin → 'owner' handled here)
   const spaceRole = getUserSpaceRole(userId, spaceId);
   if (!spaceRole) {
-    console.log('[WS-UPGRADE] no space access, userId:', userId, 'spaceId:', spaceId);
+    wsLog.warn({ userId, spaceId }, 'No space access');
     wss.handleUpgrade(request, socket, head, (ws) => ws.close(1008, 'Forbidden'));
     return;
   }
 
   const pluginServer = getServerBySpaceId(spaceId);
   if (!pluginServer?.pluginUrl) {
-    console.log('[WS-PROXY] No plugin URL for space:', spaceId);
+    wsLog.warn({ spaceId }, 'No plugin URL for space');
     wss.handleUpgrade(request, socket, head, (ws) => ws.close(1011, 'No plugin registered for this space'));
     return;
   }
@@ -274,7 +278,7 @@ wss.on('upgrade', (request, socket, head) => {
   });
 
   gatewayWs.on('error', (err) => {
-    console.error('[WS-PROXY] Gateway WebSocket error:', err.message);
+    log.error({ err: err.message }, 'Gateway WebSocket error');
     if (clientWs && clientWs.readyState === WebSocket.OPEN) {
       clientWs.close(1011, 'Gateway error');
     }
@@ -304,7 +308,7 @@ wss.on('upgrade', (request, socket, head) => {
     });
 
     ws.on('error', (err) => {
-      console.error('[WS-PROXY] Browser WebSocket error:', err.message);
+      log.error({ err: err.message }, 'Browser WebSocket error');
       gatewayWs.close();
     });
   });
@@ -321,6 +325,6 @@ server.on('upgrade', (request, socket, head) => {
   wss.emit('upgrade', request, socket, head);
 });
 
-console.log(`Server started on port ${config.AI_SPACES_PORT}`);
+log.info({ port: config.AI_SPACES_PORT }, 'Server started');
 
 export { app };

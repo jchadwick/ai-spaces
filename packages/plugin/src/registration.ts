@@ -1,6 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { config } from './config.js';
+import { logger as rootLogger } from './logger.js';
+
+const log = rootLogger.child({ component: 'registration' });
 
 export interface RegistrationState {
   serverId: string;
@@ -62,11 +65,11 @@ async function attemptRegister(pluginUrl: string, gatewayUrl: string): Promise<R
 export async function registerWithServer(): Promise<RegistrationState> {
   const existing = loadRegistrationState();
   if (existing) {
-    console.log('[ai-spaces] Using persisted registration, serverId:', existing.serverId);
+    log.info({ serverId: existing.serverId }, 'Using persisted registration');
     return existing;
   }
 
-  console.log('[ai-spaces] Registering with server at:', config.AI_SPACES_URL);
+  log.info({ url: config.AI_SPACES_URL }, 'Registering with server');
   const pluginUrl = config.PLUGIN_URL ?? `http://127.0.0.1:${config.AI_SPACES_WS_PORT}`;
   const gatewayUrl = process.env.GATEWAY_URL ?? 'http://127.0.0.1:19000';
 
@@ -75,7 +78,7 @@ export async function registerWithServer(): Promise<RegistrationState> {
     try {
       const state = await attemptRegister(pluginUrl, gatewayUrl);
       saveState(state);
-      console.log('[ai-spaces] Registered, serverId:', state.serverId);
+      log.info({ serverId: state.serverId }, 'Registered with server');
       return state;
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
@@ -86,7 +89,7 @@ export async function registerWithServer(): Promise<RegistrationState> {
       const delay = RETRY_DELAYS_MS[attempt];
       if (delay === undefined) break;
 
-      console.warn(`[ai-spaces] Registration attempt ${attempt + 1} failed: ${lastError.message}. Retrying in ${delay / 1000}s...`);
+      log.warn({ attempt: attempt + 1, retryIn: delay / 1000, err: lastError.message }, 'Registration failed, retrying');
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }

@@ -14,6 +14,9 @@ import * as path from 'path';
 import { config } from './config.js';
 import { SpaceWatcher } from './space-watcher.js';
 import { registerWithServer, clearRegistrationState, loadRegistrationState } from './registration.js';
+import { logger as rootLogger } from './logger.js';
+
+const log = rootLogger.child({ component: 'plugin' });
 
 export default defineChannelPluginEntry({
   id: 'ai-spaces',
@@ -23,8 +26,8 @@ export default defineChannelPluginEntry({
   setRuntime,
 
   async registerFull(api) {
-    console.log('[ai-spaces] Registering proxy plugin');
-    console.log('[ai-spaces] Proxying to:', config.AI_SPACES_URL);
+    log.info('Registering proxy plugin');
+    log.info({ url: config.AI_SPACES_URL }, 'Proxying to server');
 
     startSpacesServer(config.AI_SPACES_WS_PORT);
 
@@ -72,13 +75,13 @@ export default defineChannelPluginEntry({
             body: JSON.stringify({ spaces: listSpaces(), serverId, callbackToken }),
           });
           if (resp.status === 401) {
-            console.warn('[ai-spaces] Server rejected callbackToken — clearing registration state and restarting');
+            log.warn('Server rejected callbackToken — clearing registration state and restarting');
             clearRegistrationState();
             process.exit(1);
           }
         }
       } catch (err) {
-        console.warn('[ai-spaces] Reconcile trigger failed:', err instanceof Error ? err.message : String(err));
+        log.warn({ err: err instanceof Error ? err.message : String(err) }, 'Reconcile trigger failed');
       } finally {
         reconcileInFlight = false;
       }
@@ -150,7 +153,7 @@ export default defineChannelPluginEntry({
         const isWsPath = url.pathname.match(/\/api\/spaces\/[^\/]+\/ws$/);
         
         if (isWebSocketUpgrade && isWsPath) {
-          console.log('[ai-spaces] WebSocket upgrade request for:', url.pathname);
+          log.info({ pathname: url.pathname }, 'WebSocket upgrade request');
           return handleSpaceWebSocket(req, res);
         }
         

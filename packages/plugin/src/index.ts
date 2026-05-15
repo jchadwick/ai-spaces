@@ -84,7 +84,13 @@ export default defineChannelPluginEntry({
       }
     }
 
-    const stopWatchers = () => watchers.forEach(w => w.stop());
+    // Periodic reconciliation loop: re-sync every 60s regardless of file events
+    const reconcileTimer = setInterval(() => { void triggerReconcile(); }, 60_000);
+
+    const stopWatchers = () => {
+      clearInterval(reconcileTimer);
+      watchers.forEach(w => w.stop());
+    };
     process.once('SIGTERM', stopWatchers);
     process.once('SIGINT', stopWatchers);
 

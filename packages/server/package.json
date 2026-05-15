@@ -19,7 +19,8 @@
     "start:dev": "npm run build && node --watch dist/index.js",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "doctor": "tsx src/cli/doctor.ts"
   },
   "devDependencies": {
     "@types/bcrypt": "^5.0.2",

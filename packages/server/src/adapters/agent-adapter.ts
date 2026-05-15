@@ -21,4 +21,5 @@ export interface AgentAdapter {
   renameDirectory(space: SpaceRecord, dirPath: string, newPath: string): Promise<void>;
   getMetadata(space: SpaceRecord): Promise<SpaceMetadata>;
   patchMetadata(space: SpaceRecord, files: Record<string, Partial<FileMetadataEntry>>): Promise<void>;
+  getCircuitStatus(): 'CLOSED' | 'OPEN' | 'HALF_OPEN';
 }

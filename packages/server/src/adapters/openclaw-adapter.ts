@@ -3,8 +3,15 @@ import type { SpaceRecord } from '../space-store.js';
 import type { SpaceRole, SpaceMetadata, FileMetadataEntry } from '@ai-spaces/shared';
 import { SpaceMetadataSchema } from '@ai-spaces/shared';
 import { getServerById } from '../db/queries.js';
+import { CircuitBreaker } from './circuit-breaker.js';
 
 export class OpenClawAgentAdapter implements AgentAdapter {
+  private readonly circuit = new CircuitBreaker({ failureThreshold: 5, resetTimeoutMs: 30_000 });
+
+  getCircuitStatus(): 'CLOSED' | 'OPEN' | 'HALF_OPEN' {
+    return this.circuit.getStatus();
+  }
+
   private getPluginUrl(space: SpaceRecord): string {
     const server = getServerById(space.serverId);
     if (!server?.pluginUrl) throw new Error(`No plugin URL registered for server ${space.serverId}`);
@@ -25,89 +32,90 @@ export class OpenClawAgentAdapter implements AgentAdapter {
     const params = new URLSearchParams({ role });
     if (dirPath) params.set('path', dirPath);
     const url = `${this.filesBase(space)}?${params}`;
-    const res = await fetch(url);
-    await this.checkOk(res, 'listFiles');
-    const data = await res.json() as { files: FileNode[] };
-    return data.files;
+    return this.circuit.execute(async () => {
+      const res = await fetch(url);
+      await this.checkOk(res, 'listFiles');
+      const data = await res.json() as { files: FileNode[] };
+      return data.files;
+    });
   }
 
   async readFile(space: SpaceRecord, filePath: string): Promise<{ content: string; contentType: string }> {
     const url = `${this.filesBase(space)}/${encodeURIComponent(filePath)}`;
-    const res = await fetch(url);
-    await this.checkOk(res, 'readFile');
-    const content = await res.text();
-    const contentType = res.headers.get('Content-Type') ?? 'text/plain';
-    return { content, contentType };
+    return this.circuit.execute(async () => {
+      const res = await fetch(url);
+      await this.checkOk(res, 'readFile');
+      const content = await res.text();
+      const contentType = res.headers.get('Content-Type') ?? 'text/plain';
+      return { content, contentType };
+    });
   }
 
   async writeFile(space: SpaceRecord, filePath: string, content: string, encoding?: 'utf-8' | 'base64'): Promise<void> {
     const url = `${this.filesBase(space)}/${encodeURIComponent(filePath)}`;
-    const res = await fetch(url, {
+    return this.circuit.execute(() => fetch(url, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content, encoding }),
-    });
-    await this.checkOk(res, 'writeFile');
+    }).then(res => this.checkOk(res, 'writeFile')));
   }
 
   async deleteFile(space: SpaceRecord, filePath: string): Promise<void> {
     const url = `${this.filesBase(space)}/${encodeURIComponent(filePath)}`;
-    const res = await fetch(url, { method: 'DELETE' });
-    await this.checkOk(res, 'deleteFile');
+    return this.circuit.execute(() => fetch(url, { method: 'DELETE' })
+      .then(res => this.checkOk(res, 'deleteFile')));
   }
 
   async renameFile(space: SpaceRecord, filePath: string, newPath: string): Promise<void> {
     const url = `${this.filesBase(space)}/${encodeURIComponent(filePath)}`;
-    const res = await fetch(url, {
+    return this.circuit.execute(() => fetch(url, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ newPath }),
-    });
-    await this.checkOk(res, 'renameFile');
+    }).then(res => this.checkOk(res, 'renameFile')));
   }
 
   async createDirectory(space: SpaceRecord, dirPath: string): Promise<void> {
     const url = `${this.getPluginUrl(space)}/api/spaces/${space.id}/directories`;
-    const res = await fetch(url, {
+    return this.circuit.execute(() => fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: dirPath }),
-    });
-    await this.checkOk(res, 'createDirectory');
+    }).then(res => this.checkOk(res, 'createDirectory')));
   }
 
   async deleteDirectory(space: SpaceRecord, dirPath: string): Promise<void> {
     const url = `${this.getPluginUrl(space)}/api/spaces/${space.id}/directories/${encodeURIComponent(dirPath)}`;
-    const res = await fetch(url, { method: 'DELETE' });
-    await this.checkOk(res, 'deleteDirectory');
+    return this.circuit.execute(() => fetch(url, { method: 'DELETE' })
+      .then(res => this.checkOk(res, 'deleteDirectory')));
   }
 
   async renameDirectory(space: SpaceRecord, dirPath: string, newPath: string): Promise<void> {
     const url = `${this.getPluginUrl(space)}/api/spaces/${space.id}/directories/${encodeURIComponent(dirPath)}`;
-    const res = await fetch(url, {
+    return this.circuit.execute(() => fetch(url, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ newPath }),
-    });
-    await this.checkOk(res, 'renameDirectory');
+    }).then(res => this.checkOk(res, 'renameDirectory')));
   }
 
   async getMetadata(space: SpaceRecord): Promise<SpaceMetadata> {
     const url = `${this.getPluginUrl(space)}/api/spaces/${space.id}/metadata`;
-    const res = await fetch(url);
-    if (!res.ok) return { files: {} };
-    const data = await res.json();
-    const parsed = SpaceMetadataSchema.safeParse(data);
-    return parsed.success ? parsed.data : { files: {} };
+    return this.circuit.execute(async () => {
+      const res = await fetch(url);
+      if (!res.ok) return { files: {} };
+      const data = await res.json();
+      const parsed = SpaceMetadataSchema.safeParse(data);
+      return parsed.success ? parsed.data : { files: {} };
+    });
   }
 
   async patchMetadata(space: SpaceRecord, files: Record<string, Partial<FileMetadataEntry>>): Promise<void> {
     const url = `${this.getPluginUrl(space)}/api/spaces/${space.id}/metadata`;
-    const res = await fetch(url, {
+    return this.circuit.execute(() => fetch(url, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ files }),
-    });
-    await this.checkOk(res, 'patchMetadata');
+    }).then(res => this.checkOk(res, 'patchMetadata')));
   }
 }

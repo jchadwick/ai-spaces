@@ -12,6 +12,8 @@ export function wsToAcpStream(ws: WsWebSocket): {
   output: WritableStream<Uint8Array>;
   input: ReadableStream<Uint8Array>;
 } {
+  let isClosed = false;
+
   const output = new WritableStream<Uint8Array>({
     write(chunk) {
       return new Promise<void>((resolve, reject) => {
@@ -21,10 +23,21 @@ export function wsToAcpStream(ws: WsWebSocket): {
         });
       });
     },
+    close() {
+      if (!isClosed) {
+        isClosed = true;
+        ws.close();
+      }
+    },
+    abort() {
+      if (!isClosed) {
+        isClosed = true;
+        ws.close();
+      }
+    },
   });
 
   let streamController: ReadableStreamDefaultController<Uint8Array>;
-  let isClosed = false;
 
   const onMessage = (data: Buffer | ArrayBuffer | Buffer[]) => {
     if (isClosed) return;
@@ -69,10 +82,13 @@ export function wsToAcpStream(ws: WsWebSocket): {
       ws.on('error', onError);
     },
     cancel() {
-      isClosed = true;
       ws.off('message', onMessage);
       ws.off('close', onClose);
       ws.off('error', onError);
+      if (!isClosed) {
+        isClosed = true;
+        ws.close();
+      }
     },
   });
 

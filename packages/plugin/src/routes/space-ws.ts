@@ -16,6 +16,7 @@ import { validateSession } from '../session-middleware.js';
 import { fileWatcher, type FileChangedEvent } from '../file-watcher.js';
 import type { WebSocketMessage, SpaceConfig, ChatMessage, SpaceRole } from '@ai-spaces/shared';
 import { toSpaceRole } from '@ai-spaces/shared';
+import { createAcpWsServer, handleAcpUpgrade } from './acp-ws.js';
 
 interface WebSocketClient {
   ws: WsWebSocket;
@@ -1008,9 +1009,18 @@ export function startSpacesServer(port: number): void {
   });
 
   const wsServer = new WebSocketServer({ noServer: true });
+  const acpWss = createAcpWsServer();
 
   httpServer.on('upgrade', (req, socket, head) => {
     const url = new URL(req.url || '/', `http://${req.headers.host}`);
+
+    // ACP WebSocket endpoint
+    const acpMatch = url.pathname.match(/^\/api\/spaces\/([^/]+)\/acp$/);
+    if (acpMatch) {
+      handleAcpUpgrade(acpWss, req, socket, head, acpMatch[1]);
+      return;
+    }
+
     const pathMatch =
       url.pathname.match(/^\/api\/spaces\/([^/]+)\/ws$/) ||
       url.pathname.match(/^\/ws\/spaces\/([^/]+)$/);

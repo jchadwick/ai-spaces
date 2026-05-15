@@ -10,6 +10,8 @@ const webDist = resolve(pluginDir, '../web/dist');
 const pluginDist = resolve(__dirname, '../dist');
 const pluginWebDist = resolve(pluginDist, 'web');
 
+const cjsShim = `import { createRequire } from 'module';\nconst require = createRequire(import.meta.url);\n`;
+
 // Bundle index.js into a single self-contained file (keeps openclaw/* as external)
 await build({
   entryPoints: [resolve(pluginDist, 'index.js')],
@@ -21,6 +23,7 @@ await build({
   allowOverwrite: true,
   packages: 'bundle',
   external: ['openclaw', 'openclaw/*'],
+  banner: { js: cjsShim },
 });
 console.log('Bundled plugin index.js');
 
@@ -36,6 +39,7 @@ if (existsSync(resolve(pluginDist, 'setup-entry.js'))) {
     allowOverwrite: true,
     packages: 'bundle',
     external: ['openclaw', 'openclaw/*'],
+    banner: { js: cjsShim },
   });
   console.log('Bundled plugin setup-entry.js');
 }
@@ -54,6 +58,7 @@ if (existsSync(spaceWsDist)) {
     outfile: spaceWsDist,
     allowOverwrite: true,
     external: ['openclaw', 'openclaw/*', 'ws', 'bcrypt', 'chokidar', 'jsonwebtoken', 'mime-types', 'zod'],
+    banner: { js: cjsShim },
   });
   console.log('Bundled routes/space-ws.js');
 }

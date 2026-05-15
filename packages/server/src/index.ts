@@ -14,6 +14,7 @@ import { identityRouter } from './routes/identity.js';
 import { confirmRouter } from './routes/confirm.js';
 import { adminRouter } from './routes/admin.js';
 import { internalRouter } from './routes/internal.js';
+import { agentSetupRouter } from './routes/agent-setup.js';
 import { runMigrations } from './db/migrate.js';
 import { runPreflightChecks } from './preflight.js';
 import { getUserSpaceRole, getServerBySpaceId } from './db/queries.js';
@@ -63,6 +64,8 @@ app.use('/register*', async (c, next) => {
 const internalMiddleware = createInternalMiddleware(config.GATEWAY_TOKEN);
 app.use('/api/internal/*', internalMiddleware);
 app.route('/api/internal', internalRouter);
+
+app.route('/agent-setup', agentSetupRouter);
 
 app.get('/health', async (c) => {
   const startedAt = Date.now();

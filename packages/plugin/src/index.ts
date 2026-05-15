@@ -62,6 +62,9 @@ export default defineChannelPluginEntry({
       watchers.push(watcher);
     }
 
+    type ConnectionState = 'connected' | 'degraded' | 'reconnecting';
+    let connectionState: ConnectionState = 'connected';
+
     let reconcileInFlight = false;
     let reconcileDirty = false;
 
@@ -85,12 +88,24 @@ export default defineChannelPluginEntry({
             clearRegistrationState();
             process.exit(1);
           }
+          if (connectionState !== 'connected') {
+            connectionState = 'connected';
+            log.info('Server connection restored');
+          }
         }
       } catch (err) {
         log.warn({ err: err instanceof Error ? err.message : String(err) }, 'Reconcile trigger failed');
+        if (connectionState === 'connected') {
+          connectionState = 'degraded';
+          log.warn('Entering degraded (read-only) mode — server unreachable');
+        }
       } finally {
         reconcileInFlight = false;
       }
+    }
+
+    function isReadOnly(): boolean {
+      return connectionState === 'degraded';
     }
 
     // Periodic reconciliation loop: re-sync every 60s regardless of file events
@@ -133,12 +148,13 @@ export default defineChannelPluginEntry({
         }
 
         const registration = loadRegistrationState();
-        const degraded = filesystemStatus !== 'ok' || serverStatus === 'unreachable';
+        const degraded = filesystemStatus !== 'ok' || serverStatus === 'unreachable' || connectionState === 'degraded';
 
         const body = JSON.stringify({
           status: degraded ? 'degraded' : 'ok',
           filesystem: filesystemStatus,
           server: serverStatus,
+          connection: connectionState,
           registration: registration ? 'registered' : 'unregistered',
           uptime: Math.floor(process.uptime()),
         });
@@ -209,6 +225,15 @@ export default defineChannelPluginEntry({
         }
 
         // File content: plugin owns all file I/O
+        if (req.method === 'PUT' || req.method === 'PATCH' || req.method === 'DELETE') {
+          if (isReadOnly()) {
+            res.statusCode = 503;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: 'Service Degraded', mode: 'read-only', message: 'Server connection lost — writes are disabled until reconnected' }));
+            return true;
+          }
+        }
+
         if (req.method === 'PUT') {
           const fileWriteMatch = url.pathname.match(/^\/api\/spaces\/([^/]+)\/files\/(.+)$/);
           if (fileWriteMatch) {

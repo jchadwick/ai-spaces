@@ -23,6 +23,7 @@ import { db } from './db/connection.js';
 import { servers } from './db/index.js';
 import { DEFAULT_SERVER_ID } from './db/constants.js';
 import { agentAdapter } from './agent-adapter-instance.js';
+import { acpConnectionPool } from './adapters/acp-connection-pool.js';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger as honoLogger } from 'hono/logger';
@@ -235,7 +236,7 @@ wss.on('upgrade', (request, socket, head) => {
     wss.handleUpgrade(request, socket, head, (ws) => ws.close(1011, 'No plugin registered for this space'));
     return;
   }
-  const pluginWsUrl = `${pluginServer.pluginUrl.replace(/^http/, 'ws')}/api/spaces/${spaceId}/ws`;
+  const pluginWsUrl = `${pluginServer.pluginUrl.replace(/^http/, 'ws')}/api/spaces/${spaceId}/acp`;
 
   // Mint a forwarding token with the resolved SpaceRole so the plugin gets the correct role
   const forwardToken = jwt.sign(
@@ -331,5 +332,12 @@ server.on('upgrade', (request, socket, head) => {
 });
 
 log.info({ port: config.AI_SPACES_PORT }, 'Server started');
+
+const shutdown = () => {
+  acpConnectionPool.disposeAll();
+  process.exit(0);
+};
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
 
 export { app };

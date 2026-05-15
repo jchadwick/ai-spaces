@@ -39,14 +39,16 @@ export function wsToAcpStream(ws: WsWebSocket): {
 
   let streamController: ReadableStreamDefaultController<Uint8Array>;
 
-  const onMessage = (data: Buffer | ArrayBuffer | Buffer[]) => {
+  const onMessage = (data: Buffer | ArrayBuffer | Buffer[] | string) => {
     if (isClosed) return;
     try {
-      if (Buffer.isBuffer(data)) {
+      if (typeof data === 'string') {
+        streamController.enqueue(new TextEncoder().encode(data));
+      } else if (Buffer.isBuffer(data)) {
         streamController.enqueue(data);
       } else if (data instanceof ArrayBuffer) {
         streamController.enqueue(new Uint8Array(data));
-      } else if (Array.isArray(data)) {
+      } else {
         streamController.enqueue(Buffer.concat(data));
       }
     } catch {

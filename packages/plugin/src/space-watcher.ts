@@ -89,6 +89,25 @@ export class SpaceWatcher extends EventEmitter {
     super();
   }
 
+  private scan(): void {
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(this.watchRoot, { withFileTypes: true });
+    } catch {
+      return;
+    }
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const configPath = path.join(this.watchRoot, entry.name, '.space', 'spaces.json');
+      if (!fs.existsSync(configPath)) continue;
+      const space = readSpaceRecord(configPath, this.watchRoot, this.agentId);
+      if (!space) continue;
+      console.log(`[space-watcher] Space discovered at startup: ${space.id}`);
+      this.emit('space:added', { space } satisfies SpaceAddedEvent);
+    }
+  }
+
   start(): void {
     if (this.watcher) return;
 
@@ -130,6 +149,8 @@ export class SpaceWatcher extends EventEmitter {
       const message = err instanceof Error ? err.message : String(err);
       console.error(`[space-watcher] Watcher error:`, message);
     });
+
+    this.scan();
   }
 
   stop(): void {

@@ -15,6 +15,7 @@ import { config } from './config.js';
 import { SpaceWatcher } from './space-watcher.js';
 import { registerWithServer, clearRegistrationState, loadRegistrationState } from './registration.js';
 import { logger as rootLogger } from './logger.js';
+import { cleanOrphanedFiles } from './cleanup.js';
 
 const log = rootLogger.child({ component: 'plugin' });
 
@@ -41,6 +42,11 @@ export default defineChannelPluginEntry({
       .map(a => ({ agentId: a.id, workspaceRoot: a.workspace }));
 
     initSpaceStore(agentWorkspaces);
+
+    // Clean up orphaned .tmp and .lock files from any previous crashed processes
+    for (const { workspaceRoot } of agentWorkspaces) {
+      cleanOrphanedFiles(workspaceRoot);
+    }
 
     // Start one watcher per unique workspace root
     const watchers: SpaceWatcher[] = [];

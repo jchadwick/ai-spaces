@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useFileTree } from "../hooks/useFileTree";
-import { useToast } from "./ui/toast";
+import { useToast } from "./ui/use-toast";
 import { useFileMetadata } from "../contexts/FileMetadataContext";
 import { getFileNodeIcon } from "../lib/fileIcons";
 import {

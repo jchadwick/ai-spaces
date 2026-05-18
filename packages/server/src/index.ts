@@ -288,7 +288,6 @@ wss.on('upgrade', (request, socket, head) => {
     if (clientWs && clientWs.readyState === WebSocket.OPEN) {
       clientWs.close(1011, 'Gateway error');
     }
-    socket.destroy();
   });
 
   gatewayWs.on('close', () => {

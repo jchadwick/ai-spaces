@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { useToast } from '@/components/ui/toast'
+import { useToast } from '@/components/ui/use-toast'
 import { useAPI } from '@/hooks/useAPI'
 import { useHeaderContent } from '@/contexts/HeaderContext'
 import AgentGlyph from '@/components/AgentGlyph'

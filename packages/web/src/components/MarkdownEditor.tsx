@@ -1,6 +1,6 @@
 import { useFileContent } from "../hooks/useFileContent";
 import { writeSpaceFileHttp, renameSpaceFile } from "../api/spaceFiles";
-import { useToast } from "./ui/toast";
+import { useToast } from "./ui/use-toast";
 import { useState, useEffect, useCallback, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";

@@ -1,8 +1,6 @@
 import { useState, useCallback, type ReactNode } from 'react';
 import { ToastContext, type ToastContextType } from './use-toast.js';
 
-export { useToast } from './use-toast.js';
-
 interface Toast {
   id: string;
   message: ReactNode;

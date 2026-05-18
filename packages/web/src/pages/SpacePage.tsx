@@ -85,7 +85,6 @@ export default function SpacePage() {
   // creates a loop (context update → re-render → new ref → context update)
   const breadcrumbContent = useMemo(
     () => <SpaceBreadcrumb spaceName={space?.config?.name} onSettings={() => setSettingsOpen(true)} />,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [space?.config?.name],
   )
   useHeaderContent(breadcrumbContent)

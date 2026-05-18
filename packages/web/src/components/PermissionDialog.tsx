@@ -11,7 +11,7 @@ export function PermissionDialog({ request, onRespond }: PermissionDialogProps) 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-t-bg-raised border border-t-hair rounded-xl shadow-lg max-w-sm w-full mx-4 p-6">
+      <div className="bg-t-bg-raised border border-t-hair rounded-xl shadow-lg max-w-[24rem] w-full mx-4 p-6">
         <h2 className="font-semibold text-t-ink text-base mb-2">{title}</h2>
         {toolCall.content && toolCall.content.length > 0 && (
           <div className="text-sm text-t-ink-mid mb-4">

@@ -1,4 +1,7 @@
-import { useState, createContext, useContext, useCallback, type ReactNode } from 'react';
+import { useState, useCallback, type ReactNode } from 'react';
+import { ToastContext, type ToastContextType } from './use-toast.js';
+
+export { useToast } from './use-toast.js';
 
 interface Toast {
   id: string;
@@ -7,29 +10,15 @@ interface Toast {
   duration?: number;
 }
 
-interface ToastContextType {
-  showToast: (message: ReactNode, type?: Toast['type'], duration?: number) => void;
-}
-
-const ToastContext = createContext<ToastContextType | null>(null);
-
-export function useToast(): ToastContextType {
-  const context = useContext(ToastContext);
-  if (!context) {
-    throw new Error('useToast must be used within a ToastProvider');
-  }
-  return context;
-}
-
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
   const showToast = useCallback((message: ReactNode, type: Toast['type'] = 'info', duration: number = 3000) => {
     const id = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
     const toast: Toast = { id, message, type, duration };
-    
+
     setToasts(prev => [...prev, toast]);
-    
+
     if (duration > 0) {
       setTimeout(() => {
         setToasts(prev => prev.filter(t => t.id !== id));
@@ -61,15 +50,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     return icons[type];
   };
 
+  const value: ToastContextType = { showToast };
+
   return (
-    <ToastContext.Provider value={{ showToast }}>
+    <ToastContext.Provider value={value}>
       {children}
-      
+
       <div className="fixed bottom-20 right-4 z-[100] flex flex-col gap-2">
         {toasts.map(toast => (
           <div
             key={toast.id}
-            className={`${getToastStyles(toast.type)} px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 min-w-64 max-w-md animate-in slide-in-from-right`}
+            className={`${getToastStyles(toast.type)} px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 min-w-64 max-w-[28rem] animate-in slide-in-from-right`}
           >
             <span className="material-symbols-outlined text-lg">{getToastIcon(toast.type)}</span>
             <span className="flex-1 text-sm">{toast.message}</span>

@@ -14,7 +14,7 @@ interface BaseErrorProps {
 function BaseErrorCard({ title, description, icon, onRetry, retryLabel = 'Try Again', onSecondary, secondaryLabel }: BaseErrorProps) {
   return (
     <div className="min-h-[200px] flex items-center justify-center p-8">
-      <Card className="max-w-md w-full shadow-ambient">
+      <Card className="max-w-[28rem] w-full shadow-ambient">
         <CardHeader className="text-center pb-0">
           {icon && (
             <div className="flex justify-center mb-md">

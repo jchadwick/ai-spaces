@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import FileExplorer from "../components/FileExplorer";
 import FileEditor from "../components/FileEditor";
 import AIChatPane from "../components/AIChatPane";
@@ -81,8 +81,14 @@ export default function SpacePage() {
   const leftRef = useRef<HTMLDivElement>(null);
   const rightRef = useRef<HTMLDivElement>(null);
 
-  // Inject breadcrumb into universal header
-  useHeaderContent(<SpaceBreadcrumb spaceName={space?.config?.name} onSettings={() => setSettingsOpen(true)} />)
+  // memoized: useHeaderContent consumes HeaderContext, so passing a new JSX ref every render
+  // creates a loop (context update → re-render → new ref → context update)
+  const breadcrumbContent = useMemo(
+    () => <SpaceBreadcrumb spaceName={space?.config?.name} onSettings={() => setSettingsOpen(true)} />,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [space?.config?.name],
+  )
+  useHeaderContent(breadcrumbContent)
 
   const handleFileChanged = useCallback(
     (event: FileChangedPayload) => {
@@ -164,7 +170,7 @@ export default function SpacePage() {
   if (error) {
     return (
       <div className="flex items-center justify-center flex-1 p-lg bg-t-bg">
-        <div className="max-w-md w-full">
+        <div className="max-w-[28rem] w-full">
           <div className="text-center mb-lg">
             <div className="w-16 h-16 mx-auto mb-md rounded-full bg-error-container flex items-center justify-center">
               <span className="material-symbols-outlined text-error text-3xl">
@@ -192,7 +198,7 @@ export default function SpacePage() {
   if (!space) {
     return (
       <div className="flex items-center justify-center flex-1 p-lg bg-t-bg">
-        <div className="max-w-md w-full">
+        <div className="max-w-[28rem] w-full">
           <div className="text-center mb-lg">
             <div className="w-16 h-16 mx-auto mb-md rounded-full bg-error-container flex items-center justify-center">
               <span className="material-symbols-outlined text-error text-3xl">

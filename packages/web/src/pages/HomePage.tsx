@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useToast } from '@/components/ui/toast'
 import { useAPI } from '@/hooks/useAPI'
@@ -85,7 +85,12 @@ function HomePage() {
     fetchSpaces()
   }, [fetchSpaces])
 
-  useHeaderContent(<HomeHeaderActions scanning={scanning} onScan={handleScan} />)
+  // memoized: same reason as SpacePage breadcrumb
+  const headerActions = useMemo(
+    () => <HomeHeaderActions scanning={scanning} onScan={handleScan} />,
+    [scanning, handleScan],
+  )
+  useHeaderContent(headerActions)
 
   return (
     <main style={{ flex: 1, overflow: 'auto', background: 'var(--t-bg)', color: 'var(--t-ink)', fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif" }}>

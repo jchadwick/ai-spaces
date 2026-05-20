@@ -173,22 +173,22 @@ function MessageBubble({ message }: { message: ChatMessage }) {
 
 function TypingIndicator() {
   return (
-    <div style={{ alignSelf: 'flex-start', maxWidth: '90%', background: 'var(--t-agentSoft)', border: '1px solid var(--t-hair)', padding: '12px 14px', borderRadius: '2px 14px 14px 14px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+    <div style={{ alignSelf: 'flex-start', width: '100%', background: 'var(--t-agentSoft)', border: '1px solid var(--t-agent)', borderColor: 'color-mix(in srgb, var(--t-agent) 30%, transparent)', padding: '12px 14px', borderRadius: '2px 14px 14px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
         <AgentGlyph size={12} color="var(--t-agent)" />
         <span style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 13, fontStyle: 'italic', color: 'var(--t-agent)' }}>agent</span>
       </div>
       <div style={{ display: 'flex', gap: 4 }}>
         <span
-          style={{ width: 7, height: 7, background: 'var(--t-inkDim)', borderRadius: '50%', display: 'inline-block', animation: 'bounce 1.2s infinite' }}
+          style={{ width: 7, height: 7, background: 'var(--t-agent)', opacity: 0.6, borderRadius: '50%', display: 'inline-block', animation: 'bounce 1.2s infinite' }}
           className="animate-bounce"
         />
         <span
-          style={{ width: 7, height: 7, background: 'var(--t-inkDim)', borderRadius: '50%', display: 'inline-block', animationDelay: '150ms' }}
+          style={{ width: 7, height: 7, background: 'var(--t-agent)', opacity: 0.6, borderRadius: '50%', display: 'inline-block', animationDelay: '150ms' }}
           className="animate-bounce"
         />
         <span
-          style={{ width: 7, height: 7, background: 'var(--t-inkDim)', borderRadius: '50%', display: 'inline-block', animationDelay: '300ms' }}
+          style={{ width: 7, height: 7, background: 'var(--t-agent)', opacity: 0.6, borderRadius: '50%', display: 'inline-block', animationDelay: '300ms' }}
           className="animate-bounce"
         />
       </div>
@@ -209,8 +209,13 @@ export default function AIChatPane({
 
   const isOwner = hasPermission(role, 'space:manage');
   const isDisconnected = connectionStatus !== "connected" && connectionStatus !== "connecting";
-  const latestAssistant = [...messages].reverse().find((m) => m.role === "assistant");
-  const showTypingIndicator = isStreaming && (!latestAssistant || latestAssistant.content.length === 0);
+  const hasPendingAssistantPlaceholder = messages.some(
+    (m) => m.role === "assistant" && m.content.length === 0,
+  );
+  const visibleMessages = messages.filter(
+    (m) => !(m.role === "assistant" && m.content.length === 0),
+  );
+  const showTypingIndicator = isStreaming && hasPendingAssistantPlaceholder;
 
   useEffect(() => {
     if (
@@ -276,7 +281,7 @@ export default function AIChatPane({
             </p>
           </div>
         )}
-        {messages.map((message) => (
+        {visibleMessages.map((message) => (
           <MessageBubble key={message.id} message={message} />
         ))}
         {showTypingIndicator && <TypingIndicator />}

@@ -174,7 +174,7 @@ wss.on('upgrade', (request, socket, head) => {
   const pathMatch = url.pathname.match(/^\/ws\/spaces\/([^/]+)$/);
 
   const wsLog = log.child({ component: 'ws-upgrade' });
-  wsLog.debug({ url: request.url, hasAuth: !!request.headers.authorization, hasToken: url.searchParams.has('token') }, 'WS upgrade');
+  wsLog.info({ url: request.url, host: request.headers.host, origin: request.headers.origin, hasAuth: !!request.headers.authorization, hasToken: url.searchParams.has('token') }, 'WS upgrade');
 
   if (!pathMatch) {
     wsLog.warn({ url: request.url }, 'No path match, destroying');
@@ -197,6 +197,7 @@ wss.on('upgrade', (request, socket, head) => {
   // In non-production dev mode with DEV_VIRTUAL_USER, bypass JWT validation
   if (process.env.NODE_ENV !== 'production' && process.env.DEV_VIRTUAL_USER === 'true') {
     userId = 'dev-user-00000000-0000-0000-0000-000000000000';
+    wsLog.info({ userId, spaceId }, 'WS auth via DEV_VIRTUAL_USER');
   } else {
     // Require JWT — check Authorization header first, then ?token= query param
     const authHeader = request.headers.authorization;
@@ -214,7 +215,7 @@ wss.on('upgrade', (request, socket, head) => {
       const decoded = jwt.verify(rawToken, config.JWT_SECRET) as jwt.JwtPayload;
       if (!decoded.userId) throw new Error('Missing userId');
       userId = decoded.userId as string;
-      wsLog.debug({ userId }, 'Auth ok');
+      wsLog.info({ userId, spaceId, tokenSource: authHeader?.startsWith('Bearer ') ? 'header' : 'query' }, 'WS auth ok');
     } catch (err) {
       wsLog.warn({ err: (err as Error).message }, 'Invalid token');
       wss.handleUpgrade(request, socket, head, (ws) => ws.close(1008, 'Invalid token'));
@@ -237,6 +238,7 @@ wss.on('upgrade', (request, socket, head) => {
     return;
   }
   const pluginWsUrl = `${pluginServer.pluginUrl.replace(/^http/, 'ws')}/api/spaces/${spaceId}/acp`;
+  wsLog.info({ userId, spaceId, pluginWsUrl }, 'Connecting gateway websocket');
 
   // Mint a forwarding token with the resolved SpaceRole so the plugin gets the correct role
   const forwardToken = jwt.sign(
@@ -272,6 +274,7 @@ wss.on('upgrade', (request, socket, head) => {
   };
 
   gatewayWs.on('open', () => {
+    wsLog.info({ userId, spaceId }, 'Gateway websocket open');
     flushToGateway();
   });
 
@@ -284,13 +287,15 @@ wss.on('upgrade', (request, socket, head) => {
   });
 
   gatewayWs.on('error', (err) => {
+    wsLog.error({ userId, spaceId, err: err.message }, 'Gateway websocket error');
     log.error({ err: err.message }, 'Gateway WebSocket error');
     if (clientWs && clientWs.readyState === WebSocket.OPEN) {
       clientWs.close(1011, 'Gateway error');
     }
   });
 
-  gatewayWs.on('close', () => {
+  gatewayWs.on('close', (code, reason) => {
+    wsLog.info({ userId, spaceId, code, reason: reason.toString() }, 'Gateway websocket close');
     if (clientWs && clientWs.readyState === WebSocket.OPEN) {
       clientWs.close(1000, 'Gateway closed');
     }
@@ -298,6 +303,7 @@ wss.on('upgrade', (request, socket, head) => {
 
   wss.handleUpgrade(request, socket, head, (ws) => {
     clientWs = ws;
+    wsLog.info({ userId, spaceId }, 'Client websocket upgraded');
     flushToClient();
 
     ws.on('message', (data) => {
@@ -308,7 +314,8 @@ wss.on('upgrade', (request, socket, head) => {
       }
     });
 
-    ws.on('close', () => {
+    ws.on('close', (code, reason) => {
+      wsLog.info({ userId, spaceId, code, reason: reason.toString() }, 'Client websocket close');
       gatewayWs.close();
     });
 

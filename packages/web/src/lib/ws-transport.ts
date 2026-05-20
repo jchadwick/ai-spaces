@@ -10,6 +10,7 @@ export function wsToAcpStream(ws: WebSocket): {
 } {
   let isClosed = false;
   const encoder = new TextEncoder();
+  let detachListeners: (() => void) | null = null;
 
   const output = new WritableStream<Uint8Array>({
     write(chunk) {
@@ -18,12 +19,16 @@ export function wsToAcpStream(ws: WebSocket): {
       }
     },
     close() {
+      detachListeners?.();
+      detachListeners = null;
       if (!isClosed) {
         isClosed = true;
         ws.close();
       }
     },
     abort() {
+      detachListeners?.();
+      detachListeners = null;
       if (!isClosed) {
         isClosed = true;
         ws.close();
@@ -37,34 +42,51 @@ export function wsToAcpStream(ws: WebSocket): {
     start(ctrl) {
       controller = ctrl;
 
-      ws.onmessage = (event: MessageEvent) => {
+      const onMessage = async (event: Event) => {
         if (isClosed) return;
+        const messageEvent = event as MessageEvent;
         let chunk: Uint8Array;
-        if (typeof event.data === 'string') {
-          chunk = encoder.encode(event.data);
-        } else if (event.data instanceof ArrayBuffer) {
-          chunk = new Uint8Array(event.data);
+        if (typeof messageEvent.data === 'string') {
+          chunk = encoder.encode(messageEvent.data);
+        } else if (messageEvent.data instanceof ArrayBuffer) {
+          chunk = new Uint8Array(messageEvent.data);
+        } else if (messageEvent.data instanceof Blob) {
+          const buf = await messageEvent.data.arrayBuffer();
+          if (isClosed) return;
+          chunk = new Uint8Array(buf);
         } else {
           return;
         }
         controller.enqueue(chunk);
       };
 
-      ws.onclose = () => {
+      const onClose = () => {
         if (!isClosed) {
           isClosed = true;
           try { controller.close(); } catch { /* ignore */ }
         }
       };
 
-      ws.onerror = () => {
+      const onError = () => {
         if (!isClosed) {
           isClosed = true;
           try { controller.error(new Error('WebSocket error')); } catch { /* ignore */ }
         }
       };
+
+      ws.addEventListener('message', onMessage);
+      ws.addEventListener('close', onClose);
+      ws.addEventListener('error', onError);
+
+      detachListeners = () => {
+        ws.removeEventListener('message', onMessage);
+        ws.removeEventListener('close', onClose);
+        ws.removeEventListener('error', onError);
+      };
     },
     cancel() {
+      detachListeners?.();
+      detachListeners = null;
       if (!isClosed) {
         isClosed = true;
         ws.close();

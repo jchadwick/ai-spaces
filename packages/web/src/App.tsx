@@ -12,6 +12,7 @@ import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import InvitePage from './pages/InvitePage'
 import AdminPage from './pages/AdminPage'
+import ProfilePage from './pages/ProfilePage'
 
 function AuthenticatedLayout() {
   const { isAuthenticated, isLoading } = useAuth()
@@ -53,6 +54,7 @@ function App() {
                   <Route path="/spaces" element={<HomePage />} />
                   <Route path="/space/:spaceId" element={<SpacePage />} />
                   <Route path="/space/:spaceId/*" element={<SpacePage />} />
+                  <Route path="/profile" element={<ProfilePage />} />
                   <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
                 </Route>
               </Routes>

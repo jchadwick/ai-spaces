@@ -55,7 +55,10 @@ function ProfileMenu() {
           fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif",
         }}>
           <button
-            onClick={() => setOpen(false)}
+            onClick={() => {
+              setOpen(false)
+              navigate('/profile')
+            }}
             style={{
               display: 'flex', alignItems: 'center', gap: 8,
               width: '100%', padding: '8px 14px',

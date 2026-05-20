@@ -66,6 +66,23 @@ function buildSpaceWebSocketUrl(spaceId: string, accessToken?: string | null): s
   return accessToken ? `${base}?token=${encodeURIComponent(accessToken)}` : base;
 }
 
+function wsDebug(event: string, data?: Record<string, unknown>): void {
+  try {
+    console.debug('[chat-ws]', event, data ?? {});
+  } catch {
+    // ignore
+  }
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  return await Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+    }),
+  ]);
+}
+
 function getStoredSessionId(spaceId: string): string | null {
   try { return sessionStorage.getItem(`acp-session:${spaceId}`); } catch { return null; }
 }
@@ -107,6 +124,7 @@ export function ConnectionStatusProvider({
   const streamMessageIdRef = useRef<string | null>(null);
   const onFileChangedRef = useRef(onFileChanged);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const connectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const intentionalDisconnectRef = useRef(false);
   const wasReconnectingRef = useRef(false);
 
@@ -119,25 +137,59 @@ export function ConnectionStatusProvider({
     }
   }, []);
 
+  const clearConnectTimeout = useCallback(() => {
+    if (connectTimeoutRef.current) {
+      clearTimeout(connectTimeoutRef.current);
+      connectTimeoutRef.current = null;
+    }
+  }, []);
+
   const clearReconnected = useCallback(() => setWasReconnected(false), []);
 
   useEffect(() => {
-    if (accessToken === null) return;
+    if (accessToken === null) {
+      return;
+    }
 
     intentionalDisconnectRef.current = false;
     let cancelled = false;
 
     const wsUrl = buildSpaceWebSocketUrl(spaceId, accessToken);
+    wsDebug('connect:start', { spaceId, wsUrl, connectKey });
     const ws = new WebSocket(wsUrl);
+    ws.binaryType = 'arraybuffer';
     wsRef.current = ws;
+
+    // In some environments (TLS/proxy/strict-mode), a ws can remain CONNECTING indefinitely.
+    // Force a retry if open hasn't happened within 12s.
+    clearConnectTimeout();
+    connectTimeoutRef.current = setTimeout(() => {
+      if (wsRef.current === ws && ws.readyState === WebSocket.CONNECTING && !intentionalDisconnectRef.current) {
+        wsDebug('connect:timeout', { spaceId, readyState: ws.readyState, reconnectAttempt: reconnectAttemptRef.current + 1 });
+        setStatus('reconnecting');
+        wasReconnectingRef.current = true;
+        reconnectAttemptRef.current += 1;
+        ws.close();
+      }
+    }, 12_000);
 
     ws.onerror = () => {
       if (wsRef.current !== ws) return;
+      clearConnectTimeout();
+      wsDebug('socket:error', { spaceId, readyState: ws.readyState });
       setStatus('error');
     };
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       if (wsRef.current !== ws) return;
+      clearConnectTimeout();
+      wsDebug('socket:close', {
+        spaceId,
+        code: event.code,
+        reason: event.reason,
+        wasClean: event.wasClean,
+        intentionalDisconnect: intentionalDisconnectRef.current,
+      });
       connectionRef.current = null;
       sessionIdRef.current = null;
       streamMessageIdRef.current = null;
@@ -157,7 +209,10 @@ export function ConnectionStatusProvider({
     };
 
     ws.onopen = async () => {
+      clearConnectTimeout();
+      wsDebug('socket:open', { spaceId, wsUrl });
       if (cancelled || wsRef.current !== ws) {
+        wsDebug('socket:open_stale_cleanup', { spaceId });
         ws.close(1000, 'effect cleanup');
         return;
       }
@@ -236,7 +291,13 @@ export function ConnectionStatusProvider({
           stream,
         );
 
-        await connection.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} });
+        wsDebug('acp:initialize_start', { spaceId });
+        await withTimeout(
+          connection.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {} }),
+          12_000,
+          'ACP initialize',
+        );
+        wsDebug('acp:initialize_ok', { spaceId });
         if (cancelled || wsRef.current !== ws) return;
 
         // Try to resume existing session, fall back to new session
@@ -247,17 +308,35 @@ export function ConnectionStatusProvider({
 
         if (storedSessionId) {
           try {
-            await connection.loadSession({ sessionId: storedSessionId, cwd: '', mcpServers: [] });
+            wsDebug('acp:loadSession_start', { spaceId, storedSessionId });
+            await withTimeout(
+              connection.loadSession({ sessionId: storedSessionId, cwd: '', mcpServers: [] }),
+              12_000,
+              'ACP loadSession',
+            );
+            wsDebug('acp:loadSession_ok', { spaceId, storedSessionId });
             if (cancelled || wsRef.current !== ws) return;
             sessionId = storedSessionId;
           } catch {
             if (cancelled || wsRef.current !== ws) return;
-            const result = await connection.newSession({ cwd: '', mcpServers: [] });
+            wsDebug('acp:newSession_start_after_load_fail', { spaceId });
+            const result = await withTimeout(
+              connection.newSession({ cwd: '', mcpServers: [] }),
+              12_000,
+              'ACP newSession (after load fail)',
+            );
+            wsDebug('acp:newSession_ok_after_load_fail', { spaceId, sessionId: result.sessionId });
             if (cancelled || wsRef.current !== ws) return;
             sessionId = result.sessionId;
           }
         } else {
-          const result = await connection.newSession({ cwd: '', mcpServers: [] });
+          wsDebug('acp:newSession_start', { spaceId });
+          const result = await withTimeout(
+            connection.newSession({ cwd: '', mcpServers: [] }),
+            12_000,
+            'ACP newSession',
+          );
+          wsDebug('acp:newSession_ok', { spaceId, sessionId: result.sessionId });
           if (cancelled || wsRef.current !== ws) return;
           sessionId = result.sessionId;
         }
@@ -275,9 +354,22 @@ export function ConnectionStatusProvider({
           wasReconnectingRef.current = false;
         }
         intentionalDisconnectRef.current = false;
-      } catch {
+      } catch (err) {
+        wsDebug('acp:setup_error', { spaceId, error: (err as Error).message });
         if (!cancelled && wsRef.current === ws) {
-          setStatus('error');
+          setStatus('reconnecting');
+          wasReconnectingRef.current = true;
+          reconnectAttemptRef.current += 1;
+          const delay = Math.min(1000 * 2 ** reconnectAttemptRef.current, 30000);
+          reconnectTimeoutRef.current = setTimeout(() => {
+            if (!intentionalDisconnectRef.current) {
+              setReconnectAttempt(reconnectAttemptRef.current);
+              setConnectKey((k) => k + 1);
+            }
+          }, delay);
+          if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+            ws.close(1011, 'acp setup failed');
+          }
         }
       }
     };
@@ -286,18 +378,24 @@ export function ConnectionStatusProvider({
       cancelled = true;
       intentionalDisconnectRef.current = true;
       clearReconnectTimeout();
+      clearConnectTimeout();
       wsRef.current = null;
       connectionRef.current = null;
       sessionIdRef.current = null;
       streamMessageIdRef.current = null;
-      if (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) {
+      // Avoid noisy browser warning in React StrictMode dev double-invoke:
+      // "WebSocket is closed before the connection is established."
+      // If still connecting, onopen handler already guards stale sockets and closes safely.
+      if (ws.readyState === WebSocket.OPEN) {
+        wsDebug('cleanup:close_open_socket', { spaceId });
         ws.close(1000, 'effect cleanup');
       }
     };
-  }, [spaceId, accessToken, connectKey, clearReconnectTimeout]);
+  }, [spaceId, accessToken, connectKey, clearReconnectTimeout, clearConnectTimeout]);
 
   const reconnect = useCallback(() => {
     clearReconnectTimeout();
+    clearConnectTimeout();
     intentionalDisconnectRef.current = true; // stays true; new effect resets it
     wasReconnectingRef.current = false;
     reconnectAttemptRef.current = 0;
@@ -305,14 +403,15 @@ export function ConnectionStatusProvider({
     setStatus('connecting');
     setReconnectAttempt(0);
     setConnectKey((k) => k + 1);
-  }, [clearReconnectTimeout]);
+  }, [clearReconnectTimeout, clearConnectTimeout]);
 
   const disconnect = useCallback(() => {
     intentionalDisconnectRef.current = true;
     clearReconnectTimeout();
+    clearConnectTimeout();
     if (wsRef.current) wsRef.current.close();
     setStatus('disconnected');
-  }, [clearReconnectTimeout]);
+  }, [clearReconnectTimeout, clearConnectTimeout]);
 
   const sendMessage = useCallback(
     (content: string) => {

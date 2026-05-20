@@ -1,10 +1,59 @@
 import { spawn } from 'child_process';
 import { Readable, Writable } from 'stream';
+import * as crypto from 'crypto';
 import { ClientSideConnection, ndJsonStream, PROTOCOL_VERSION } from '@agentclientprotocol/sdk';
 import type { ChildProcess } from 'child_process';
 import { logger as rootLogger } from '../logger.js';
 
 const log = rootLogger.child({ component: 'openclaw-acp-client' });
+
+function createFilteredAcpInput(stdout: NodeJS.ReadableStream): ReadableStream<Uint8Array> {
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  let buffer = '';
+
+  return new ReadableStream<Uint8Array>({
+    start(controller) {
+      const onData = (chunk: Buffer | string) => {
+        buffer += typeof chunk === 'string' ? chunk : decoder.decode(chunk, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          try {
+            JSON.parse(trimmed);
+            controller.enqueue(encoder.encode(`${trimmed}\n`));
+          } catch {
+            log.warn({ line: trimmed.slice(0, 160) }, 'Dropping non-ACP stdout line from openclaw acp');
+          }
+        }
+      };
+
+      const onEnd = () => {
+        const trimmed = buffer.trim();
+        if (trimmed) {
+          try {
+            JSON.parse(trimmed);
+            controller.enqueue(encoder.encode(trimmed));
+          } catch {
+            log.warn({ line: trimmed.slice(0, 160) }, 'Dropping trailing non-ACP stdout line from openclaw acp');
+          }
+        }
+        controller.close();
+      };
+
+      const onError = (err: Error) => {
+        controller.error(err);
+      };
+
+      stdout.on('data', onData);
+      stdout.on('end', onEnd);
+      stdout.on('error', onError);
+    },
+  });
+}
 
 // session/update params from ACP SDK
 export interface SessionUpdateParams {
@@ -16,6 +65,14 @@ export interface SessionUpdateParams {
 }
 
 export type SessionUpdateHandler = (params: SessionUpdateParams) => void | Promise<void>;
+
+interface GatewayCompletionResponse {
+  choices?: Array<{
+    message?: {
+      content?: string;
+    };
+  }>;
+}
 
 interface ManagedSession {
   sessionId: string;
@@ -70,7 +127,7 @@ export class OpenClawAcpClient {
 
     // ACP uses stdio: output=write-to-agent, input=read-from-agent
     const output = Writable.toWeb(proc.stdin!) as WritableStream<Uint8Array>;
-    const input = Readable.toWeb(proc.stdout!) as unknown as ReadableStream<Uint8Array>;
+    const input = createFilteredAcpInput(proc.stdout!);
     const stream = ndJsonStream(output, input);
 
     const connection = new ClientSideConnection(
@@ -118,10 +175,21 @@ export class OpenClawAcpClient {
   }
 
   async getOrCreateSession(spaceId: string, cwd: string): Promise<string> {
-    await this.ensureConnected();
-
     const existing = this.sessions.get(spaceId);
     if (existing) return existing.sessionId;
+
+    // Primary path: use OpenClaw gateway chat-completions API for prompt execution.
+    // Keep a lightweight logical session per space for cancellation tracking.
+    if ((process.env.AI_SPACES_USE_OPENCLAW_ACP ?? 'false') !== 'true') {
+      const sessionId = crypto.randomUUID();
+      const session: ManagedSession = { sessionId, spaceId, activeAbort: null };
+      this.sessions.set(spaceId, session);
+      this.sessionById.set(sessionId, session);
+      log.info({ spaceId, sessionId }, 'created logical gateway session');
+      return sessionId;
+    }
+
+    await this.ensureConnected();
 
     const { sessionId } = await this.connection!.newSession({
       cwd,
@@ -146,33 +214,54 @@ export class OpenClawAcpClient {
     onUpdate: SessionUpdateHandler,
     signal?: AbortSignal,
   ): Promise<string> {
-    await this.ensureConnected();
+    const session = this.sessions.get(spaceId) ?? { sessionId: crypto.randomUUID(), spaceId, activeAbort: null };
+    this.sessions.set(spaceId, session);
 
-    const session = this.sessions.get(spaceId);
-    if (!session) throw new Error(`No active session for space ${spaceId}`);
-
-    // Cancel any previous in-flight prompt for this session
     session.activeAbort?.abort();
     const abort = new AbortController();
     session.activeAbort = abort;
+    if (signal) signal.addEventListener('abort', () => abort.abort(), { once: true });
 
-    if (signal) {
-      signal.addEventListener('abort', () => abort.abort(), { once: true });
-    }
-
-    this.updateHandlers.set(session.sessionId, onUpdate);
+    const timeout = setTimeout(() => abort.abort(), 90_000);
+    const gatewayUrl = process.env.GATEWAY_URL ?? 'http://127.0.0.1:19000';
+    const gatewayToken = process.env.GATEWAY_TOKEN ?? 'secret';
 
     try {
-      const result = await this.connection!.prompt({
-        sessionId: session.sessionId,
-        prompt: [{ type: 'text', text }],
+      log.info({ spaceId }, 'forwarding prompt via OpenClaw gateway chat completions');
+      const response = await fetch(`${gatewayUrl}/v1/chat/completions`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${gatewayToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'openclaw',
+          messages: [{ role: 'user', content: text }],
+          stream: false,
+        }),
+        signal: abort.signal,
       });
-      return result.stopReason;
-    } finally {
-      this.updateHandlers.delete(session.sessionId);
-      if (session.activeAbort === abort) {
-        session.activeAbort = null;
+
+      if (!response.ok) {
+        throw new Error(`Gateway chat completion failed: ${response.status} ${await response.text()}`);
       }
+
+      const data = await response.json() as GatewayCompletionResponse;
+      const content = data.choices?.[0]?.message?.content ?? '';
+      if (content) {
+        await Promise.resolve(onUpdate({
+          sessionId: session.sessionId,
+          update: {
+            sessionUpdate: 'agent_message_chunk',
+            content: { type: 'text', text: content },
+          },
+        }));
+      }
+
+      return 'end_turn';
+    } finally {
+      clearTimeout(timeout);
+      if (session.activeAbort === abort) session.activeAbort = null;
     }
   }
 

@@ -82,6 +82,25 @@ export function getUserPasswordHash(userId: string): string | null {
   return ap?.passwordHash ?? null;
 }
 
+export function updateUserPassword(userId: string, passwordHash: string): boolean {
+  const provider = db.select({ id: authProviders.id })
+    .from(authProviders)
+    .where(and(eq(authProviders.userId, userId), eq(authProviders.provider, 'password')))
+    .get();
+
+  if (!provider) return false;
+
+  db.update(authProviders)
+    .set({
+      passwordHash,
+      updatedAt: new Date().toISOString(),
+    })
+    .where(eq(authProviders.id, provider.id))
+    .run();
+
+  return true;
+}
+
 export function getUserById(id: string): DbUser | null {
   return db.select().from(users).where(eq(users.id, id)).limit(1).get() ?? null;
 }

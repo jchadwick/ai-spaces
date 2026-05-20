@@ -207,12 +207,10 @@ export default function AIChatPane({
 
   const { messages, sendMessage, isStreaming, status: connectionStatus, reconnectAttempt, reconnect } = useConnectionStatus();
 
-  const isViewer = !hasPermission(role, 'files:write');
   const isOwner = hasPermission(role, 'space:manage');
   const isDisconnected = connectionStatus !== "connected" && connectionStatus !== "connecting";
-  const showTypingIndicator =
-    isStreaming &&
-    messages.every((m) => m.role !== "assistant" || m.content.length === 0);
+  const latestAssistant = [...messages].reverse().find((m) => m.role === "assistant");
+  const showTypingIndicator = isStreaming && (!latestAssistant || latestAssistant.content.length === 0);
 
   useEffect(() => {
     if (
@@ -226,7 +224,7 @@ export default function AIChatPane({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputValue.trim() || isViewer || isStreaming || isDisconnected) return;
+    if (!inputValue.trim() || isStreaming || isDisconnected) return;
 
     sendMessage(inputValue.trim());
     setInputValue("");
@@ -255,7 +253,7 @@ export default function AIChatPane({
           )}
           <div data-testid="chat-ws-status" data-status={connectionStatus}>
             <ConnectionStatusIndicator
-              status={isStreaming ? "connecting" : connectionStatus}
+              status={connectionStatus}
               reconnectAttempt={reconnectAttempt}
               onRetry={reconnect}
             />
@@ -263,14 +261,18 @@ export default function AIChatPane({
         </div>
       </div>
 
+      {isStreaming && (
+        <div style={{ padding: '6px 18px', borderBottom: '1px solid var(--t-hair)', fontSize: 11, color: 'var(--t-agent)', fontFamily: "'JetBrains Mono', monospace" }}>
+          agent responding...
+        </div>
+      )}
+
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto custom-scrollbar" style={{ padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
         {messages.length === 0 && !isStreaming && (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <p style={{ fontSize: 13, color: 'var(--t-inkFaint)', textAlign: 'center', fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif" }}>
-              {isViewer
-                ? "Connect to start chatting with the agent."
-                : "Start a conversation with the agent."}
+              Start a conversation with the agent.
             </p>
           </div>
         )}
@@ -284,33 +286,31 @@ export default function AIChatPane({
       {/* Composer */}
       <div style={{ borderTop: '1px solid var(--t-hair)', padding: '12px 14px' }}>
         {/* Quick action chips */}
-        {!isViewer && (
-          <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-            {['Summarize this doc', 'What changed today?', 'Make a plan'].map(chip => (
-              <button
-                key={chip}
-                type="button"
-                onClick={() => setInputValue(chip)}
-                style={{ fontSize: 11.5, padding: '4px 10px', borderRadius: 20, background: 'var(--t-bg)', border: '1px solid var(--t-hair)', color: 'var(--t-inkMid)', cursor: 'pointer', fontFamily: "'Inter Tight', sans-serif" }}
-              >
-                {chip}
-              </button>
-            ))}
-          </div>
-        )}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+          {['Summarize this doc', 'What changed today?', 'Make a plan'].map(chip => (
+            <button
+              key={chip}
+              type="button"
+              onClick={() => setInputValue(chip)}
+              style={{ fontSize: 11.5, padding: '4px 10px', borderRadius: 20, background: 'var(--t-bg)', border: '1px solid var(--t-hair)', color: 'var(--t-inkMid)', cursor: 'pointer', fontFamily: "'Inter Tight', sans-serif" }}
+            >
+              {chip}
+            </button>
+          ))}
+        </div>
         {/* Input */}
         <form onSubmit={handleSubmit}>
           <div style={{ background: 'var(--t-bg)', border: '1px solid var(--t-hair)', borderRadius: 12, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <textarea
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              disabled={isViewer || isStreaming || isDisconnected}
-              style={{ background: 'transparent', border: 'none', outline: 'none', resize: 'none', fontSize: 13.5, color: isViewer ? 'var(--t-inkFaint)' : 'var(--t-ink)', fontFamily: "'Inter Tight', sans-serif", height: 72, width: '100%', opacity: isViewer || isStreaming || isDisconnected ? 0.6 : 1 }}
+              disabled={isStreaming || isDisconnected}
+              style={{ background: 'transparent', border: 'none', outline: 'none', resize: 'none', fontSize: 13.5, color: 'var(--t-ink)', fontFamily: "'Inter Tight', sans-serif", height: 72, width: '100%', opacity: isStreaming || isDisconnected ? 0.6 : 1 }}
               placeholder={
-                isViewer
-                  ? "Read-only mode - cannot send messages"
-                  : isDisconnected
-                    ? "Reconnecting..."
+                isDisconnected
+                  ? "Reconnecting..."
+                  : isStreaming
+                    ? "Agent is responding..."
                     : "Ask AI anything..."
               }
               onKeyDown={(e) => {
@@ -323,10 +323,10 @@ export default function AIChatPane({
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <button
                 type="submit"
-                disabled={isViewer || !inputValue.trim() || isStreaming || isDisconnected}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: 'var(--t-accent)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: isViewer || !inputValue.trim() || isStreaming || isDisconnected ? 'not-allowed' : 'pointer', opacity: isViewer || !inputValue.trim() || isStreaming || isDisconnected ? 0.5 : 1, fontFamily: "'Inter Tight', sans-serif" }}
+                disabled={!inputValue.trim() || isStreaming || isDisconnected}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: 'var(--t-accent)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: !inputValue.trim() || isStreaming || isDisconnected ? 'not-allowed' : 'pointer', opacity: !inputValue.trim() || isStreaming || isDisconnected ? 0.5 : 1, fontFamily: "'Inter Tight', sans-serif" }}
               >
-                <AgentGlyph size={11} color="#fff" /> Send
+                <AgentGlyph size={11} color="#fff" /> {isStreaming ? 'Thinking...' : 'Send'}
               </button>
             </div>
           </div>

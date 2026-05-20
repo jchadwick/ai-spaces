@@ -1,8 +1,18 @@
 import { test, expect } from '@playwright/test';
 import { E2E_SPACE_ID } from './constants';
+import { API_BASE } from './helpers/constants.js';
+
+async function ensureUser(): Promise<void> {
+  await fetch(`${API_BASE}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'admin@ai-spaces.test', password: 'ai-spaces', displayName: 'E2E Admin' }),
+  });
+}
 
 test.describe('Space WebSocket (dev stack)', () => {
   test('login, open space, WebSocket reaches connected', async ({ page }) => {
+    await ensureUser();
     await page.goto('/login');
 
     await page.getByLabel('Email').fill('admin@ai-spaces.test');
@@ -30,6 +40,7 @@ test.describe('Space WebSocket (dev stack)', () => {
     await page.getByPlaceholder('Ask AI anything...').fill('Hello from Playwright');
     await page.locator('aside form button[type="submit"]').click();
 
-    await expect(page.getByText('Mock reply.')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Hello from Playwright')).toBeVisible({ timeout: 15_000 });
+    await expect(status).toHaveAttribute('data-status', 'connected', { timeout: 30_000 });
   });
 });

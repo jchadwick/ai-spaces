@@ -13,7 +13,7 @@ export default defineConfig({
   projects: [
     {
       name: 'api',
-      testMatch: 'e2e/api/**/*.spec.ts',
+      testMatch: ['e2e/api/**/*.spec.ts', 'e2e/server-ws-chat.spec.ts'],
       use: {
         ...devices['Desktop Chrome'],
         baseURL: `http://localhost:${API_PORT}`,
@@ -21,7 +21,7 @@ export default defineConfig({
     },
     {
       name: 'ui',
-      testMatch: 'e2e/ui/**/*.spec.ts',
+      testMatch: ['e2e/ui/**/*.spec.ts', 'e2e/chat-websocket.spec.ts'],
       use: {
         ...devices['Desktop Chrome'],
         baseURL: `http://localhost:${WEB_PORT}`,
@@ -37,6 +37,7 @@ export default defineConfig({
         `AI_SPACES_DATA=/tmp/ai-spaces-test-data`,
         `OPENCLAW_HOME=/tmp/openclaw-test`,
         `NODE_ENV=test`,
+        `ALLOW_OPEN_REGISTRATION=true`,
         `npx tsx packages/server/src/index.ts`,
       ].join(' '),
       url: `http://localhost:${API_PORT}/health`,

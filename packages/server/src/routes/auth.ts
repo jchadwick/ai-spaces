@@ -7,12 +7,16 @@ import {
   verifyPassword,
   hashPassword,
   createUser,
+  getUserPasswordHash,
+  updateUser,
+  updateUserPassword,
 } from '../user-service.js';
 import type { UserWithServerRole } from '../db/index.js';
 import jwt from 'jsonwebtoken';
 import { config } from '../config.js';
+import { authMiddleware, type AuthVariables } from '../middleware/auth.js';
 
-export const authRouter = new Hono();
+export const authRouter = new Hono<{ Variables: AuthVariables }>();
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -27,6 +31,15 @@ const registerSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
   displayName: z.string().optional(),
+});
+
+const updateProfileSchema = z.object({
+  displayName: z.string().max(100).optional(),
+});
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8),
 });
 
 // @ts-ignore -- tsgo TS2589: type instantiation depth limit on Hono+zValidator chains
@@ -120,6 +133,66 @@ authRouter.post('/register', zValidator('json', registerSchema), async (c) => {
     }
     throw err;
   }
+});
+
+authRouter.get('/me', authMiddleware, (c) => {
+  const { userId } = c.get('user');
+  const user = getUserWithServerRole(userId);
+
+  if (!user) {
+    return c.json({ error: 'User not found' }, 404);
+  }
+
+  return c.json({
+    id: user.id,
+    email: user.email,
+    displayName: user.displayName,
+    serverRole: user.serverRole,
+  });
+});
+
+// @ts-ignore -- tsgo TS2589: type instantiation depth limit on Hono+zValidator chains
+authRouter.put('/me', authMiddleware, zValidator('json', updateProfileSchema), (c) => {
+  const { userId } = c.get('user');
+  const { displayName } = c.req.valid('json');
+  const user = updateUser(userId, { displayName });
+
+  if (!user) {
+    return c.json({ error: 'User not found' }, 404);
+  }
+
+  const userWithRole = getUserWithServerRole(user.id);
+  return c.json({
+    id: user.id,
+    email: user.email,
+    displayName: user.displayName,
+    serverRole: userWithRole?.serverRole ?? 'user',
+  });
+});
+
+// @ts-ignore -- tsgo TS2589: type instantiation depth limit on Hono+zValidator chains
+authRouter.put('/me/password', authMiddleware, zValidator('json', changePasswordSchema), async (c) => {
+  const { userId } = c.get('user');
+  const { currentPassword, newPassword } = c.req.valid('json');
+
+  const existingHash = getUserPasswordHash(userId);
+  if (!existingHash) {
+    return c.json({ error: 'Password authentication not available' }, 400);
+  }
+
+  const isCurrentPasswordValid = await verifyPassword(currentPassword, existingHash);
+  if (!isCurrentPasswordValid) {
+    return c.json({ error: 'Current password is incorrect' }, 401);
+  }
+
+  const nextHash = await hashPassword(newPassword);
+  const updated = updateUserPassword(userId, nextHash);
+
+  if (!updated) {
+    return c.json({ error: 'Failed to update password' }, 500);
+  }
+
+  return c.json({ success: true });
 });
 
 function generateTokens(user: UserWithServerRole): { accessToken: string; refreshToken: string } {

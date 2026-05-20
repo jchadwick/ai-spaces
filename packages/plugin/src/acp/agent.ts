@@ -74,8 +74,8 @@ export class AISpacesAgent implements Agent {
   async newSession(params: NewSessionRequest): Promise<NewSessionResponse> {
     const sessionId = crypto.randomUUID();
 
-    // Resolve space from cwd — find a space whose root matches
-    const spaceId = this.resolveSpaceIdFromCwd(params.cwd ?? '') ?? '';
+    // Resolve space from cwd — find a space whose root matches; fall back to this connection's space
+    const spaceId = this.resolveSpaceIdFromCwd(params.cwd ?? '') ?? this.spaceId;
     const userId = (params as unknown as Record<string, string>).userId ?? 'unknown';
 
     this.sessions.set(sessionId, { sessionId, spaceId, userId, role: this.role, abort: null });
@@ -97,7 +97,7 @@ export class AISpacesAgent implements Agent {
 
   async loadSession(params: LoadSessionRequest): Promise<LoadSessionResponse> {
     const sessionId = params.sessionId;
-    const spaceId = this.resolveSpaceIdFromSession(sessionId) ?? '';
+    const spaceId = this.resolveSpaceIdFromSession(sessionId) ?? this.spaceId;
     const userId = (params as unknown as Record<string, string>).userId ?? 'unknown';
 
     // Re-register the session state
@@ -136,17 +136,6 @@ export class AISpacesAgent implements Agent {
       .filter((p: unknown) => (p as Record<string, string>).type === 'text')
       .map((p: unknown) => (p as Record<string, string>).text)
       .join('\n');
-
-    if (state.role === 'viewer') {
-      await this.conn.sessionUpdate({
-        sessionId: params.sessionId,
-        update: {
-          sessionUpdate: 'agent_message_chunk',
-          content: { type: 'text', text: 'I cannot modify files as a viewer. Ask the owner to upgrade your role if you need edit access.' },
-        } as unknown as SessionNotification['update'],
-      });
-      return { stopReason: 'end_turn' };
-    }
 
     const abort = new AbortController();
     state.abort = abort;

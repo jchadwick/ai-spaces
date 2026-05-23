@@ -1,12 +1,19 @@
 import * as crypto from 'crypto';
 import type { Agent, AgentSideConnection, InitializeRequest, InitializeResponse, NewSessionRequest, NewSessionResponse, LoadSessionRequest, LoadSessionResponse, PromptRequest, PromptResponse, CancelNotification, AuthenticateRequest, AuthenticateResponse, SessionNotification } from '@agentclientprotocol/sdk';
 import { PROTOCOL_VERSION } from '@agentclientprotocol/sdk';
-import type { SpaceRole, SpaceConfig, FileMetadataEntry } from '@ai-spaces/shared';
+import type { SpaceRole, FileMetadataEntry } from '@ai-spaces/shared';
 import { ACP_WORKSPACE_METHODS, toSpaceRole } from '@ai-spaces/shared';
 import { getSpace, resolveSpaceRoot, listSpaces } from '../space-store.js';
-import { config } from '../config.js';
 import { getOrCreateSession, addMessageToSession, getSessionMessages } from '../chat-history.js';
 import { openClawAcpClient, type SessionUpdateParams } from './openclaw-client.js';
+import {
+  buildChatSystemPrompt,
+  classifyPrompt,
+  sanitizeAssistantText,
+  formatWorkspaceSummary,
+  removeInternalFiles,
+  REFUSAL_MESSAGE,
+} from './chat-policy.js';
 import {
   listWorkspaceFiles,
   readWorkspaceFile,
@@ -153,29 +160,61 @@ export class AISpacesAgent implements Agent {
           timestamp: new Date().toISOString(),
         });
 
-        // Prepend system prompt on first message
-        const history = getSessionMessages(spaceRoot, state.userId);
-        const isFirstMessage = history.filter(m => m.role === 'user').length <= 1;
+        const decision = classifyPrompt(promptText, state.role);
+        if (decision.action === 'refuse') {
+          await this.conn.sessionUpdate({
+            sessionId: params.sessionId,
+            update: {
+              sessionUpdate: 'agent_message_chunk',
+              content: { type: 'text', text: decision.message },
+            } as unknown as SessionNotification['update'],
+          });
+          addMessageToSession(spaceRoot, state.userId, {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: decision.message,
+            timestamp: new Date().toISOString(),
+          });
+          return { stopReason: 'end_turn' };
+        }
+
+        if (decision.action === 'workspace_summary') {
+          const effectiveRole = state.role;
+          const files = removeInternalFiles(await listWorkspaceFiles(spaceRoot, effectiveRole, ''), effectiveRole);
+          const summary = formatWorkspaceSummary(files, effectiveRole);
+          await this.conn.sessionUpdate({
+            sessionId: params.sessionId,
+            update: {
+              sessionUpdate: 'agent_message_chunk',
+              content: { type: 'text', text: summary },
+            } as unknown as SessionNotification['update'],
+          });
+          addMessageToSession(spaceRoot, state.userId, {
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: summary,
+            timestamp: new Date().toISOString(),
+          });
+          return { stopReason: 'end_turn' };
+        }
+
         const space_ = getSpace(state.spaceId);
-        const effectiveText = isFirstMessage && space_
-          ? buildSystemPrompt(space_.config, resolveSpaceRoot(space_)) + '\n\n' + promptText
-          : promptText;
+        const systemPrompt = space_ ? buildChatSystemPrompt(space_.config) : REFUSAL_MESSAGE;
 
         let accumulated = '';
 
         try {
           const stopReason = await openClawAcpClient.forwardPrompt(
             state.spaceId,
-            effectiveText,
+            {
+              systemPrompt,
+              userPrompt: promptText,
+            },
             async (update: SessionUpdateParams) => {
               // Relay session/update notifications upstream
               if (update.update.sessionUpdate === 'agent_message_chunk') {
                 const text = (update.update as unknown as { content: { text: string } }).content?.text ?? '';
                 accumulated += text;
-                await this.conn.sessionUpdate({
-                  sessionId: params.sessionId,
-                  update: update.update as SessionNotification['update'],
-                });
               } else {
                 // Relay all other update types (tool_call, plan, etc.) as-is
                 await this.conn.sessionUpdate({
@@ -187,11 +226,20 @@ export class AISpacesAgent implements Agent {
             abort.signal,
           );
 
+          const sanitized = sanitizeAssistantText(accumulated, { spaceRoot, role: state.role });
+          await this.conn.sessionUpdate({
+            sessionId: params.sessionId,
+            update: {
+              sessionUpdate: 'agent_message_chunk',
+              content: { type: 'text', text: sanitized },
+            } as unknown as SessionNotification['update'],
+          });
+
           // Store assistant message
           addMessageToSession(spaceRoot, state.userId, {
             id: crypto.randomUUID(),
             role: 'assistant',
-            content: accumulated,
+            content: sanitized,
             timestamp: new Date().toISOString(),
           });
 
@@ -248,14 +296,14 @@ export class AISpacesAgent implements Agent {
       case ACP_WORKSPACE_METHODS.LIST_FILES: {
         const files = await listWorkspaceFiles(
           spaceRoot,
-          toSpaceRole(params.role as string),
+          this.resolveEffectiveRole(params.role),
           (params.path as string) ?? '',
         );
         return { files };
       }
 
       case ACP_WORKSPACE_METHODS.READ_FILE: {
-        const result = await readWorkspaceFile(spaceRoot, params.path as string);
+        const result = await readWorkspaceFile(spaceRoot, params.path as string, this.resolveEffectiveRole(params.role));
         return result;
       }
 
@@ -322,23 +370,9 @@ export class AISpacesAgent implements Agent {
   private resolveSpaceIdFromSession(sessionId: string): string | undefined {
     return this.sessions.get(sessionId)?.spaceId;
   }
-}
 
-function buildSystemPrompt(spaceConfig: SpaceConfig, fullSpacePath: string): string {
-  const capabilities = spaceConfig.agent?.capabilities || config.DEFAULT_ALLOWED_TOOLS;
-  const denied = spaceConfig.agent?.denied || config.DEFAULT_DENIED_TOOLS;
-  const allDenied = [...new Set([...denied, ...config.DEFAULT_DENIED_TOOLS])];
-
-  return [
-    `# AI SPACES SECURITY POLICY`,
-    `CONTEXT: You are helping with a space called "${spaceConfig.name}".`,
-    spaceConfig.description ? `DESCRIPTION: ${spaceConfig.description}` : '',
-    `WORKSPACE ROOT: ${fullSpacePath}`,
-    `CRITICAL: You are strictly confined to the workspace root above. You MUST NOT access, list, read, write, or mention any files or directories outside of it.`,
-    `CRITICAL: Any path containing "..", starting with "~/", "/home/", "/etc/", "/root/", or any absolute path that does not begin with "${fullSpacePath}" is FORBIDDEN.`,
-    `CRITICAL: Do NOT access agent-internal paths such as ~/.openclaw, AGENTS.md, MEMORY.md, USER.md, or any memory/ directory.`,
-    `ALLOWED TOOLS: ${capabilities.join(', ')}`,
-    allDenied.length > 0 ? `DENIED TOOLS: ${allDenied.join(', ')}` : '',
-    `REFERENCE: Check .space/SPACE.md if it exists for space-specific preferences.`,
-  ].filter(Boolean).join('\n');
+  private resolveEffectiveRole(requestedRole: unknown): SpaceRole {
+    if (this.role !== 'owner') return this.role;
+    return toSpaceRole(requestedRole);
+  }
 }

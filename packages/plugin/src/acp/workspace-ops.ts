@@ -9,12 +9,9 @@ import mime from 'mime-types';
 import type { FileNode, SpaceRole, FileMetadataEntry, SpaceMetadata } from '@ai-spaces/shared';
 import { hasPermission, SpaceMetadataSchema } from '@ai-spaces/shared';
 import { validatePath, isPathContained } from '../validation.js';
+import { isInternalWorkspacePath } from './chat-policy.js';
 
 const DEFAULT_MAX_DEPTH = 10;
-
-const AGENT_INTERNAL_FILES = new Set([
-  'AGENTS.md', 'SOUL.md', 'IDENTITY.md', 'MEMORY.md', 'TOOLS.md', 'USER.md', 'HEARTBEAT.md',
-]);
 
 interface QueueItem {
   dir: string;
@@ -54,12 +51,12 @@ export async function listWorkspaceFiles(
     const nodes: FileNode[] = [];
 
     for (const entry of entries) {
-      if (!showInternalFiles && (entry.name === '.space' || AGENT_INTERNAL_FILES.has(entry.name))) {
+      const relativePath = basePath ? `${basePath}/${entry.name}` : entry.name;
+      if (!showInternalFiles && isInternalWorkspacePath(relativePath)) {
         continue;
       }
 
       const fullPath = path.join(dir, entry.name);
-      const relativePath = basePath ? `${basePath}/${entry.name}` : entry.name;
 
       try {
         if (entry.isSymbolicLink()) {
@@ -106,9 +103,13 @@ function detectContentType(filePath: string): string {
 export async function readWorkspaceFile(
   spaceRoot: string,
   filePath: string,
+  role: SpaceRole,
 ): Promise<{ content: string; contentType: string }> {
   const validation = validatePath(filePath, spaceRoot);
   if (!validation.valid) throw new Error('Access denied: path outside workspace');
+  if (!hasPermission(role, 'files:read-internal') && isInternalWorkspacePath(filePath)) {
+    throw new Error('Access denied');
+  }
 
   const fullPath = validation.resolvedPath!;
   if (!fs.existsSync(fullPath)) throw new Error(`File not found: ${filePath}`);

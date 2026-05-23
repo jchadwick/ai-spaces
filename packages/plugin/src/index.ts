@@ -1,12 +1,10 @@
 import { defineChannelPluginEntry } from 'openclaw/plugin-sdk/core';
 import { aiSpacesPlugin } from './channel.js';
 import type { IncomingMessage, ServerResponse } from 'http';
-import { setRuntime, tryGetRuntime } from './runtime.js';
-import { getSpace, listSpaces, initSpaceStore, resolveSpaceRoot } from './space-store.js';
+import { setRuntime } from './runtime.js';
+import { listSpaces, initSpaceStore } from './space-store.js';
 import { proxyRequest } from './routes/proxy.js';
 import { startSpacesServer } from './routes/space-ws.js';
-import * as crypto from 'crypto';
-import * as path from 'path';
 import { config } from './config.js';
 import { SpaceWatcher } from './space-watcher.js';
 import { registerWithServer, clearRegistrationState, loadRegistrationState } from './registration.js';
@@ -218,58 +216,9 @@ export default defineChannelPluginEntry({
       path: '/api/chat/send',
       auth: 'plugin' as any,
       handler: async (req: IncomingMessage, res: ServerResponse) => {
-        const runtime = tryGetRuntime();
-        if (!runtime?.agent) {
-          res.statusCode = 500;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ error: 'Agent runtime not available' }));
-          return true;
-        }
-
-        let body = '';
-        for await (const chunk of req) {
-          body += chunk;
-        }
-
-        let params: { spaceId: string; content: string };
-        try {
-          params = JSON.parse(body);
-        } catch {
-          res.statusCode = 400;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ error: 'Invalid JSON body' }));
-          return true;
-        }
-
-        const { spaceId, content } = params;
-        const space = getSpace(spaceId);
-        if (!space) {
-          res.statusCode = 404;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ error: 'Space not found' }));
-          return true;
-        }
-
-        const fullSpacePath = resolveSpaceRoot(space);
-        const messageId = crypto.randomBytes(8).toString('hex');
-
-        let responseText = '';
-
-        await runtime.agent.runEmbeddedPiAgent({
-          sessionId: `space:${spaceId}:http`,
-          runId: messageId,
-          sessionFile: path.join(fullSpacePath, '.sessions', `space-${spaceId}-http.jsonl`),
-          workspaceDir: fullSpacePath,
-          prompt: content,
-          timeoutMs: 120000,
-          onPartialReply: (payload: { text?: string }) => {
-            if (payload.text) responseText += payload.text;
-          },
-        });
-
-        res.statusCode = 200;
+        res.statusCode = 410;
         res.setHeader('Content-Type', 'application/json');
-        res.end(JSON.stringify({ response: responseText, messageId }));
+        res.end(JSON.stringify({ error: 'Legacy chat endpoint disabled. Use ACP chat.' }));
         return true;
       },
     });

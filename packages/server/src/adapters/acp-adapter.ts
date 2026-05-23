@@ -26,8 +26,8 @@ export class ACPAgentAdapter implements AgentAdapter {
     return (result.files as FileNode[] | undefined) ?? [];
   }
 
-  async readFile(space: SpaceRecord, filePath: string): Promise<{ content: string; contentType: string }> {
-    const result = await this.ext(space, ACP_WORKSPACE_METHODS.READ_FILE, { path: filePath });
+  async readFile(space: SpaceRecord, filePath: string, role: SpaceRole): Promise<{ content: string; contentType: string }> {
+    const result = await this.ext(space, ACP_WORKSPACE_METHODS.READ_FILE, { path: filePath, role });
     return {
       content: (result.content as string | undefined) ?? '',
       contentType: (result.contentType as string | undefined) ?? 'text/plain',

@@ -210,7 +210,7 @@ export class OpenClawAcpClient {
    */
   async forwardPrompt(
     spaceId: string,
-    text: string,
+    prompt: { systemPrompt: string; userPrompt: string },
     onUpdate: SessionUpdateHandler,
     signal?: AbortSignal,
   ): Promise<string> {
@@ -236,7 +236,10 @@ export class OpenClawAcpClient {
         },
         body: JSON.stringify({
           model: 'openclaw',
-          messages: [{ role: 'user', content: text }],
+          messages: [
+            { role: 'system', content: prompt.systemPrompt },
+            { role: 'user', content: prompt.userPrompt },
+          ],
           stream: false,
         }),
         signal: abort.signal,

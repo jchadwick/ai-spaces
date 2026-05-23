@@ -134,13 +134,14 @@ spacesRouter.get('/:id/files/:filePath{.*}', async (c) => {
   const id = c.req.param('id');
   const filePath = c.req.param('filePath');
   const space = getSpace(id);
+  const role = c.get('spaceRole');
 
   if (!space) {
     return c.json({ error: 'Space not found' }, 404);
   }
 
   try {
-    const { content, contentType } = await agentAdapter.readFile(space, filePath);
+    const { content, contentType } = await agentAdapter.readFile(space, filePath, role);
     c.header('Content-Type', contentType);
     return c.body(content);
   } catch (err: any) {

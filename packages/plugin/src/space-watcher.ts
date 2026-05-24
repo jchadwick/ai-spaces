@@ -120,6 +120,7 @@ export class SpaceWatcher extends EventEmitter {
 
     this.watcher = chokidar.watch(this.watchRoot, {
       depth: 3,
+      followSymlinks: false,
       ignoreInitial: true,
       awaitWriteFinish: { stabilityThreshold: 200 },
     });

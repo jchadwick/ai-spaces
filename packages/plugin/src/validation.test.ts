@@ -24,19 +24,19 @@ describe('validatePath', () => {
   it('should allow valid paths inside space root', () => {
     const result = validatePath('test.txt', spaceRoot);
     expect(result.valid).toBe(true);
-    expect(result.resolvedPath).toBe(path.join(spaceRoot, 'test.txt'));
+    expect(result.resolvedPath).toBe(fs.realpathSync(path.join(spaceRoot, 'test.txt')));
   });
 
   it('should allow nested paths inside space root', () => {
     const result = validatePath('subdir/nested.txt', spaceRoot);
     expect(result.valid).toBe(true);
-    expect(result.resolvedPath).toBe(path.join(spaceRoot, 'subdir', 'nested.txt'));
+    expect(result.resolvedPath).toBe(fs.realpathSync(path.join(spaceRoot, 'subdir', 'nested.txt')));
   });
 
   it('should allow paths with ./ prefix', () => {
     const result = validatePath('./test.txt', spaceRoot);
     expect(result.valid).toBe(true);
-    expect(result.resolvedPath).toBe(path.join(spaceRoot, 'test.txt'));
+    expect(result.resolvedPath).toBe(fs.realpathSync(path.join(spaceRoot, 'test.txt')));
   });
 
   it('should block path traversal with ..', () => {
@@ -78,7 +78,7 @@ describe('validatePath', () => {
       fs.unlinkSync(linkPath);
     });
 
-    it('should block symlinks pointing outside space root', () => {
+    it('should allow symlinks pointing outside space root as delegated content', () => {
       const outsideDir = path.join(tempDir, 'outside');
       fs.mkdirSync(outsideDir);
       fs.writeFileSync(path.join(outsideDir, 'secret.txt'), 'secret');
@@ -87,10 +87,56 @@ describe('validatePath', () => {
       fs.symlinkSync(path.join(outsideDir, 'secret.txt'), linkPath);
       
       const result = validatePath('escaped.txt', spaceRoot);
-      expect(result.valid).toBe(false);
-      expect(result.error).toBe('Access denied');
+      expect(result.valid).toBe(true);
+      expect(result.resolvedPath).toBe(fs.realpathSync(path.join(outsideDir, 'secret.txt')));
       
       fs.unlinkSync(linkPath);
+    });
+
+    it('should allow new files under a symlinked directory', () => {
+      const outsideDir = path.join(tempDir, 'outside');
+      fs.mkdirSync(outsideDir);
+      fs.symlinkSync(outsideDir, path.join(spaceRoot, 'linked'));
+
+      const result = validatePath('linked/new.md', spaceRoot);
+      expect(result.valid).toBe(true);
+      expect(result.resolvedPath).toBe(path.join(fs.realpathSync(outsideDir), 'new.md'));
+    });
+
+    it('should block nested symlinks that escape a delegated target', () => {
+      const outsideDir = path.join(tempDir, 'outside');
+      const otherDir = path.join(tempDir, 'other');
+      fs.mkdirSync(outsideDir);
+      fs.mkdirSync(otherDir);
+      fs.symlinkSync(outsideDir, path.join(spaceRoot, 'linked'));
+      fs.symlinkSync(otherDir, path.join(outsideDir, 'nested'));
+
+      const result = validatePath('linked/nested/file.md', spaceRoot);
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe('Access denied');
+    });
+
+    it('should block absolute paths', () => {
+      const result = validatePath(path.join(spaceRoot, 'test.txt'), spaceRoot);
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe('Access denied');
+    });
+
+    it('should block broken symlinks', () => {
+      fs.symlinkSync(path.join(tempDir, 'missing'), path.join(spaceRoot, 'broken'));
+
+      const result = validatePath('broken', spaceRoot);
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe('Invalid path');
+    });
+
+    it('should block symlink loops', () => {
+      fs.symlinkSync(path.join(spaceRoot, 'loop-b'), path.join(spaceRoot, 'loop-a'));
+      fs.symlinkSync(path.join(spaceRoot, 'loop-a'), path.join(spaceRoot, 'loop-b'));
+
+      const result = validatePath('loop-a', spaceRoot);
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe('Invalid path');
     });
   });
 });

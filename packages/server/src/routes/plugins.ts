@@ -15,7 +15,7 @@ pluginsRouter.get('/:artifact', (c) => {
     'Content-Type': getContentType(target),
     'Content-Length': String(body.byteLength),
     'Content-Disposition': `attachment; filename="${path.basename(target)}"`,
-    'Cache-Control': path.basename(target).includes('latest') ? 'no-cache' : 'public, max-age=3600',
+    'Cache-Control': target.endsWith('.meta.json') ? 'no-cache' : 'public, max-age=3600',
   });
 });
 

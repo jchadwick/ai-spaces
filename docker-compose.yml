@@ -71,7 +71,8 @@ services:
         COPY tsconfig.base.json ./
     command: >
       sh -c "mkdir -p /plugins &&
-             if [ -d /plugin-source/openclaw-spaces/dist ]; then tar -czf /plugins/openclaw-spaces-latest.tar.gz -C /plugin-source openclaw-spaces; fi &&
+             rm -f /plugins/openclaw-spaces-*.tar.gz /plugins/openclaw-spaces.meta.json &&
+             if [ -d /plugin-source/openclaw-spaces/dist ]; then node /build/package-openclaw-plugin.mjs --dist /plugin-source/openclaw-spaces/dist --package /plugin-source/openclaw-spaces/package.json --out /plugins; fi &&
              npm run build:shared &&
              npx tsx sandbox/seed-dev-data.ts &&
              npx tsx watch packages/server/src/index.ts &
@@ -104,6 +105,7 @@ services:
       - ./packages/web/vite.config.ts:/build/packages/web/vite.config.ts:ro
       - ./tsconfig.base.json:/build/tsconfig.base.json:ro
       - ./REMOTE_AGENTS.md:/build/REMOTE_AGENTS.md:ro
+      - ./scripts/package-openclaw-plugin.mjs:/build/package-openclaw-plugin.mjs:ro
       - ./packages/plugin/dist:/plugin-source/openclaw-spaces/dist:ro
       - ./packages/plugin/package.json:/plugin-source/openclaw-spaces/package.json:ro
       - ./sandbox:/build/sandbox:ro

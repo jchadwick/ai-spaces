@@ -28,6 +28,10 @@ export default defineConfig({
         target: serverHost,
         changeOrigin: true,
       },
+      '/schemas': {
+        target: serverHost,
+        changeOrigin: true,
+      },
       '/api': {
         target: serverHost,
         changeOrigin: true,

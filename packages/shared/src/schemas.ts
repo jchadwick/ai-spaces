@@ -11,6 +11,28 @@ export const SpaceConfigSchema = z.object({
   notificationIgnorePatterns: z.array(z.string()).optional(),
 });
 
+export const SpaceConfigJsonSchema = {
+  $schema: 'https://json-schema.org/draft/2020-12/schema',
+  title: 'SpaceManifest',
+  type: 'object',
+  additionalProperties: false,
+  required: ['name'],
+  properties: {
+    id: { type: 'string', minLength: 1, maxLength: 100 },
+    name: { type: 'string', minLength: 1, maxLength: 100 },
+    description: { type: 'string', maxLength: 500 },
+    agent: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        capabilities: { type: 'array', items: { type: 'string' } },
+        denied: { type: 'array', items: { type: 'string' } },
+      },
+    },
+    notificationIgnorePatterns: { type: 'array', items: { type: 'string' } },
+  },
+} as const;
+
 export const SpaceSchema = z.object({
   id: z.string(),
   path: z.string(),

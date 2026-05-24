@@ -21,6 +21,7 @@ FROM deps AS builder
 
 COPY tsconfig.base.json ./
 COPY REMOTE_AGENTS.md ./REMOTE_AGENTS.md
+COPY scripts/package-openclaw-plugin.mjs ./scripts/package-openclaw-plugin.mjs
 COPY packages/shared/ ./packages/shared/
 COPY packages/web/ ./packages/web/
 COPY packages/server/ ./packages/server/
@@ -31,10 +32,10 @@ RUN npm run build:shared && \
     npm run build:plugin && \
     npm run build -w @ai-spaces/server
 
-RUN mkdir -p /plugin-package/openclaw-spaces/dist /plugin-artifacts && \
-    cp -R /build/packages/plugin/dist/. /plugin-package/openclaw-spaces/dist/ && \
-    cp /build/packages/plugin/package.json /plugin-package/openclaw-spaces/package.json && \
-    tar -czf /plugin-artifacts/openclaw-spaces-latest.tar.gz -C /plugin-package openclaw-spaces
+RUN node scripts/package-openclaw-plugin.mjs \
+      --dist /build/packages/plugin/dist \
+      --package /build/packages/plugin/package.json \
+      --out /plugin-artifacts
 
 # ─────────────────────────────────────────────
 # Stage: runtime — sidecar + plugin dist at /plugin

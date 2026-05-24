@@ -2,6 +2,16 @@
 
 This document details how you, the **AI Gateway / Agent Framework** (e.g., OpenClaw, custom sidecars, or runtime orchestration layers), integrate into the **AI Spaces** ecosystem. It outlines your roles, protocol expectations, dynamic security responsibilities, and setup steps required to provide a safe, collaborative web environment for your users.
 
+> ## Immediate Instruction for AI Agents Reading This Document
+>
+> This document is served directly from an AI Spaces Server onboarding endpoint, usually at a URL like `<server-origin>/agent-setup`. It intentionally contains the literal placeholder `%%SERVER_URL%%` in API, schema, and plugin download examples.
+>
+> Before executing any command or validating any linked schema, derive the server origin from the URL that served this document and mentally replace every `%%SERVER_URL%%` occurrence with that origin.
+>
+> For example, if you fetched this document from `https://dev.ai-spaces.orb.local/agent-setup`, then use `https://dev.ai-spaces.orb.local` as `%%SERVER_URL%%`.
+>
+> Do **not** ask the user to perform this substitution for you. Apply it yourself consistently when following these instructions.
+
 ---
 
 ## 1. What is AI Spaces? (And Why Your Users Want It)
@@ -218,18 +228,39 @@ Inject these exact operational instructions into your system prompt array:
 
 To simplify deployment, this AI Spaces Server hosts the pre-compiled plugin packages directly.
 
-### Automated OpenClaw Installation Step
+### Automated OpenClaw Version Check and Installation
 
-To download, install, and link the required gateway adapter directly from this server instance, run the following sequence in your local development environment:
+This server publishes a small metadata file next to the OpenClaw plugin bundle. Always fetch this metadata first so you can compare your installed plugin version with the server's current supported version before downloading anything.
+
+* **Metadata Endpoint:** `%%SERVER_URL%%/plugins/openclaw-spaces.meta.json`
+* **Metadata Fields:**
+  * `latestVersion`: the current OpenClaw plugin version hosted by this server
+  * `artifacts[]`: downloadable versioned plugin bundles, including filename, path, size, and SHA-256 checksum
+  * `dependencies`: runtime package dependencies needed by the plugin
+  * `install`: machine-readable install command hints
+
+To check, download, verify, install, and link the required gateway adapter directly from this server instance, run the following sequence in your local development environment:
 
 ```bash
-# 1. Download the latest plugin bundle from this server
-curl -O %%SERVER_URL%%/plugins/openclaw-spaces-latest.tar.gz
+# 1. Fetch metadata and inspect the latest server-supported plugin version
+curl -fsS %%SERVER_URL%%/plugins/openclaw-spaces.meta.json -o openclaw-spaces.meta.json
+node -e "const m=require('./openclaw-spaces.meta.json'); console.log('Latest OpenClaw AI Spaces plugin:', m.latestVersion)"
 
-# 2. Extract the distribution bundle
-tar -xzf openclaw-spaces-latest.tar.gz
+# 2. Optional: compare with your locally installed plugin version if available
+openclaw plugins list | grep -i ai-spaces || true
 
-# 3. Register and link the plugin into your OpenClaw framework runtime
+# 3. Download the exact versioned plugin bundle advertised by metadata
+PLUGIN_FILE=$(node -p "require('./openclaw-spaces.meta.json').artifacts.find(a => a.version === require('./openclaw-spaces.meta.json').latestVersion).filename")
+PLUGIN_SHA256=$(node -p "require('./openclaw-spaces.meta.json').artifacts.find(a => a.version === require('./openclaw-spaces.meta.json').latestVersion).sha256")
+curl -fsS "%%SERVER_URL%%/plugins/${PLUGIN_FILE}" -o "${PLUGIN_FILE}"
+
+# 4. Verify the downloaded bundle checksum
+node -e "const fs=require('fs'), crypto=require('crypto'); const actual=crypto.createHash('sha256').update(fs.readFileSync(process.argv[1])).digest('hex'); if (actual !== process.argv[2]) throw new Error('Checksum mismatch'); console.log('Checksum OK:', actual)" "${PLUGIN_FILE}" "${PLUGIN_SHA256}"
+
+# 5. Extract the distribution bundle
+tar -xzf "${PLUGIN_FILE}"
+
+# 6. Register and link the plugin into your OpenClaw framework runtime
 openclaw plugins install --link "./openclaw-spaces"
 
 ```

@@ -19,6 +19,10 @@ export function validatePath(
     return { valid: false, resolvedPath: null, error: 'Invalid path' };
   }
 
+  if (path.isAbsolute(userPath)) {
+    return { valid: false, resolvedPath: null, error: 'Access denied' };
+  }
+
   const normalizedSpaceRoot = path.resolve(spaceRoot);
 
   let resolvedPath: string;
@@ -32,14 +36,88 @@ export function validatePath(
     return { valid: false, resolvedPath: null, error: 'Access denied' };
   }
 
-  if (fs.existsSync(resolvedPath)) {
-    const symlinkValidation = validateSymlink(resolvedPath, normalizedSpaceRoot);
-    if (!symlinkValidation.valid) {
-      return symlinkValidation;
-    }
-  }
+  return resolveWorkspacePath(resolvedPath, normalizedSpaceRoot);
+}
 
-  return { valid: true, resolvedPath };
+function canonicalizeExistingPath(filePath: string): string {
+  try {
+    return fs.realpathSync(filePath);
+  } catch {
+    return path.resolve(filePath);
+  }
+}
+
+function realpathExistingSymlink(filePath: string): string | null {
+  try {
+    return fs.realpathSync(filePath);
+  } catch {
+    return null;
+  }
+}
+
+function isContainedInAny(filePath: string, containers: readonly string[]): boolean {
+  return containers.some(container => isPathContained(filePath, container));
+}
+
+function resolveWorkspacePath(resolvedLogicalPath: string, normalizedSpaceRoot: string): PathValidationResult {
+  const realSpaceRoot = canonicalizeExistingPath(normalizedSpaceRoot);
+  const relativePath = path.relative(normalizedSpaceRoot, resolvedLogicalPath);
+  const segments = relativePath.split(path.sep).filter(Boolean);
+  const allowedRealRoots = new Set<string>([realSpaceRoot]);
+  const visitedSymlinks = new Set<string>();
+
+  let currentRealPath = realSpaceRoot;
+
+  try {
+    for (let index = 0; index < segments.length; index += 1) {
+      const segment = segments[index]!;
+      const candidateRealPath = path.join(currentRealPath, segment);
+
+      let stats: fs.Stats;
+      try {
+        stats = fs.lstatSync(candidateRealPath);
+      } catch (err) {
+        const code = (err as NodeJS.ErrnoException).code;
+        if (code !== 'ENOENT') {
+          return { valid: false, resolvedPath: null, error: 'Invalid path' };
+        }
+        const targetPath = path.join(currentRealPath, ...segments.slice(index));
+        return isContainedInAny(targetPath, [...allowedRealRoots])
+          ? { valid: true, resolvedPath: targetPath }
+          : { valid: false, resolvedPath: null, error: 'Access denied' };
+      }
+
+      if (!stats.isSymbolicLink()) {
+        currentRealPath = candidateRealPath;
+        continue;
+      }
+
+      const symlinkRealPath = realpathExistingSymlink(candidateRealPath);
+      if (!symlinkRealPath) {
+        return { valid: false, resolvedPath: null, error: 'Invalid path' };
+      }
+      if (visitedSymlinks.has(symlinkRealPath)) {
+        return { valid: false, resolvedPath: null, error: 'Invalid path' };
+      }
+      visitedSymlinks.add(symlinkRealPath);
+
+      const allowedRoots = [...allowedRealRoots];
+      if (!isContainedInAny(symlinkRealPath, allowedRoots)) {
+        if (!isPathContained(currentRealPath, realSpaceRoot)) {
+          return { valid: false, resolvedPath: null, error: 'Access denied' };
+        }
+        allowedRealRoots.add(symlinkRealPath);
+      }
+
+      currentRealPath = symlinkRealPath;
+    }
+
+    return isContainedInAny(currentRealPath, [...allowedRealRoots])
+      ? { valid: true, resolvedPath: currentRealPath }
+      : { valid: false, resolvedPath: null, error: 'Access denied' };
+  } catch {
+    return { valid: false, resolvedPath: null, error: 'Invalid path' };
+  }
 }
 
 export function isPathContained(resolvedPath: string, containerPath: string): boolean {

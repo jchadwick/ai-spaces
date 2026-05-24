@@ -8,7 +8,7 @@ const log = rootLogger.child({ component: 'preflight' });
 type AgentWorkspace = { agentId: string; workspaceRoot: string };
 
 export async function runPluginPreflightChecks(agentWorkspaces: AgentWorkspace[]): Promise<void> {
-  const openclawConfigPath = path.join(config.OPENCLAW_HOME, 'openclaw.json');
+  const openclawConfigPath = path.join(config.OPENCLAW_HOME, '.openclaw', 'openclaw.json');
   if (!fs.existsSync(openclawConfigPath)) {
     throw new Error(`Preflight FAIL: openclaw config not found at ${openclawConfigPath}`);
   }

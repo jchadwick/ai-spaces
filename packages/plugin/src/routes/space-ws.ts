@@ -8,7 +8,7 @@ import { config } from '../config.js';
 import { createAcpWsServer, handleAcpUpgrade } from './acp-ws.js';
 
 function initSpaceStoreFromConfig(): void {
-  const configPath = path.join(config.OPENCLAW_HOME, 'openclaw.json');
+  const configPath = path.join(config.OPENCLAW_HOME, '.openclaw', 'openclaw.json');
   try {
     const raw = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
     const agentList: { id: string; workspace?: string }[] = raw?.agents?.list ?? [];

@@ -75,7 +75,7 @@ sequenceDiagram
 
 Upon connection, the server will push an instantiation request message containing structural metadata. You must trap this message to initialize the localized session framework.
 
-* **JSON Schema Verification:** [`%%SERVER_URL%%/schemas/acp/initialize-request.json`](%%SERVER_URL%%/schemas/acp/initialize-request.json)
+* **JSON Schema Verification:** [`%%SERVER_URL%%/api/schemas/acp/initialize-request.json`](%%SERVER_URL%%/api/schemas/acp/initialize-request.json)
 
 ```json
 {
@@ -96,7 +96,7 @@ Upon connection, the server will push an instantiation request message containin
 
 You must parse the `spaceId`, verify that you manage a corresponding local directory, and return a structural acknowledgment.
 
-* **JSON Schema Verification:** [`%%SERVER_URL%%/schemas/acp/initialize-response.json`](%%SERVER_URL%%/schemas/acp/initialize-response.json)
+* **JSON Schema Verification:** [`%%SERVER_URL%%/api/schemas/acp/initialize-response.json`](%%SERVER_URL%%/api/schemas/acp/initialize-response.json)
 
 ```json
 {
@@ -119,7 +119,7 @@ You must parse the `spaceId`, verify that you manage a corresponding local direc
 
 A folder on the local file system is recognized by you as an eligible space when it contains a configuration directory and file located strictly at `<space-root>/.space/spaces.json`.
 
-* **JSON Schema Verification:** [`%%SERVER_URL%%/schemas/manifest.json`](%%SERVER_URL%%/schemas/manifest.json)
+* **JSON Schema Verification:** [`%%SERVER_URL%%/api/schemas/manifest.json`](%%SERVER_URL%%/api/schemas/manifest.json)
 
 ```json
 {
@@ -232,7 +232,7 @@ To simplify deployment, this AI Spaces Server hosts the pre-compiled plugin pack
 
 This server publishes a small metadata file next to the OpenClaw plugin bundle. Always fetch this metadata first so you can compare your installed plugin version with the server's current supported version before downloading anything.
 
-* **Metadata Endpoint:** `%%SERVER_URL%%/plugins/openclaw-spaces.meta.json`
+* **Metadata Endpoint:** `%%SERVER_URL%%/api/plugins/openclaw-spaces.meta.json`
 * **Metadata Fields:**
   * `latestVersion`: the current OpenClaw plugin version hosted by this server
   * `artifacts[]`: downloadable versioned plugin bundles, including filename, path, size, and SHA-256 checksum
@@ -243,7 +243,7 @@ To check, download, verify, install, and link the required gateway adapter direc
 
 ```bash
 # 1. Fetch metadata and inspect the latest server-supported plugin version
-curl -fsS %%SERVER_URL%%/plugins/openclaw-spaces.meta.json -o openclaw-spaces.meta.json
+curl -fsS %%SERVER_URL%%/api/plugins/openclaw-spaces.meta.json -o openclaw-spaces.meta.json
 node -e "const m=require('./openclaw-spaces.meta.json'); console.log('Latest OpenClaw AI Spaces plugin:', m.latestVersion)"
 
 # 2. Optional: compare with your locally installed plugin version if available
@@ -252,7 +252,7 @@ openclaw plugins list | grep -i ai-spaces || true
 # 3. Download the exact versioned plugin bundle advertised by metadata
 PLUGIN_FILE=$(node -p "require('./openclaw-spaces.meta.json').artifacts.find(a => a.version === require('./openclaw-spaces.meta.json').latestVersion).filename")
 PLUGIN_SHA256=$(node -p "require('./openclaw-spaces.meta.json').artifacts.find(a => a.version === require('./openclaw-spaces.meta.json').latestVersion).sha256")
-curl -fsS "%%SERVER_URL%%/plugins/${PLUGIN_FILE}" -o "${PLUGIN_FILE}"
+curl -fsS "%%SERVER_URL%%/api/plugins/${PLUGIN_FILE}" -o "${PLUGIN_FILE}"
 
 # 4. Verify the downloaded bundle checksum
 node -e "const fs=require('fs'), crypto=require('crypto'); const actual=crypto.createHash('sha256').update(fs.readFileSync(process.argv[1])).digest('hex'); if (actual !== process.argv[2]) throw new Error('Checksum mismatch'); console.log('Checksum OK:', actual)" "${PLUGIN_FILE}" "${PLUGIN_SHA256}"

@@ -69,7 +69,8 @@ app.use('/api/internal/*', internalMiddleware);
 app.route('/api/internal', internalRouter);
 
 app.route('/api/agent-setup', agentSetupRouter);
-app.route('/agent-setup', agentSetupRouter);
+app.route('/api/plugins', pluginsRouter);
+app.route('/api/schemas', schemasRouter);
 app.route('/plugins', pluginsRouter);
 app.route('/schemas', schemasRouter);
 
@@ -124,7 +125,7 @@ app.route('/api', confirmRouter);
 
 if (fs.existsSync(config.WEB_DIST)) {
   app.use('*', async (c, next) => {
-    if (c.req.path.startsWith('/api/') || c.req.path.startsWith('/ws/') || c.req.path.startsWith('/plugins/') || c.req.path.startsWith('/schemas/')) {
+    if (c.req.path === '/agent-setup' || c.req.path.startsWith('/agent-setup/') || c.req.path.startsWith('/api/') || c.req.path.startsWith('/ws/') || c.req.path.startsWith('/plugins/') || c.req.path.startsWith('/schemas/')) {
       return next();
     }
     const filePath = path.join(config.WEB_DIST, c.req.path);

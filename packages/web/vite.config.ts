@@ -1,7 +1,7 @@
 import path from 'path'
 import type { ServerResponse } from 'http'
 import type { Socket } from 'net'
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
@@ -9,7 +9,7 @@ const serverPort = process.env.AI_SPACES_PORT || '3001';
 const serverHost = process.env.AI_SPACES_URL || `http://127.0.0.1:${serverPort}`;
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [serverOwnedRoute404Plugin(), react(), tailwindcss()],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -53,3 +53,21 @@ export default defineConfig({
     },
   },
 })
+
+function serverOwnedRoute404Plugin(): Plugin {
+  const serverOwnedPaths = ['/agent-setup', '/plugins', '/schemas'];
+  return {
+    name: 'server-owned-route-404',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const pathname = new URL(req.url ?? '/', 'http://localhost').pathname;
+        if (!serverOwnedPaths.some((route) => pathname === route || pathname.startsWith(`${route}/`))) {
+          return next();
+        }
+        res.statusCode = 404;
+        res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+        res.end('Not found');
+      });
+    },
+  };
+}

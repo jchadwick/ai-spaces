@@ -1,6 +1,7 @@
 import { build } from 'esbuild';
 import { glob } from 'glob';
-import { rmSync } from 'fs';
+import { copyFileSync, mkdirSync, rmSync } from 'fs';
+import { resolve } from 'path';
 
 rmSync('dist', { recursive: true, force: true });
 
@@ -17,3 +18,6 @@ await build({
   sourcemap: true,
   logLevel: 'info',
 });
+
+mkdirSync('dist/assets', { recursive: true });
+copyFileSync(resolve('..', '..', 'REMOTE_AGENTS.md'), 'dist/assets/REMOTE_AGENTS.md');

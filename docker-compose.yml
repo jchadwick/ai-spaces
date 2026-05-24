@@ -36,6 +36,7 @@ services:
       PLUGIN_URL: http://openclaw:3002
       GATEWAY_URL: http://openclaw:19000
       GATEWAY_TOKEN: secret
+      AI_SPACES_AGENT_BASE_URL: http://dev:3001
       AI_SPACES_ROOT: /home/openclaw/workspace
     restart: on-failure
     deploy:
@@ -69,7 +70,9 @@ services:
         RUN npm ci
         COPY tsconfig.base.json ./
     command: >
-      sh -c "npm run build:shared &&
+      sh -c "mkdir -p /plugins &&
+             if [ -d /plugin-source/openclaw-spaces/dist ]; then tar -czf /plugins/openclaw-spaces-latest.tar.gz -C /plugin-source openclaw-spaces; fi &&
+             npm run build:shared &&
              npx tsx sandbox/seed-dev-data.ts &&
              npx tsx watch packages/server/src/index.ts &
              node_modules/.bin/vite packages/web --port 80 &
@@ -83,6 +86,8 @@ services:
       ALLOW_OPEN_REGISTRATION: "true"
       # Vite uses this to proxy /api and /ws to the server within the container
       AI_SPACES_URL: http://127.0.0.1:3001
+      AI_SPACES_AGENT_BASE_URL: http://dev:3001
+      AI_SPACES_PLUGIN_DIR: /plugins
     volumes:
       - dev-data:/data
       # Server source (tsx watch)
@@ -98,6 +103,9 @@ services:
       - ./packages/web/index.html:/build/packages/web/index.html:ro
       - ./packages/web/vite.config.ts:/build/packages/web/vite.config.ts:ro
       - ./tsconfig.base.json:/build/tsconfig.base.json:ro
+      - ./REMOTE_AGENTS.md:/build/REMOTE_AGENTS.md:ro
+      - ./packages/plugin/dist:/plugin-source/openclaw-spaces/dist:ro
+      - ./packages/plugin/package.json:/plugin-source/openclaw-spaces/package.json:ro
       - ./sandbox:/build/sandbox:ro
     ports:
       - "3000:80"

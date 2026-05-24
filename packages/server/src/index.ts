@@ -15,6 +15,7 @@ import { confirmRouter } from './routes/confirm.js';
 import { adminRouter } from './routes/admin.js';
 import { internalRouter } from './routes/internal.js';
 import { agentSetupRouter } from './routes/agent-setup.js';
+import { pluginsRouter } from './routes/plugins.js';
 import { runMigrations } from './db/migrate.js';
 import { runPreflightChecks } from './preflight.js';
 import { getUserSpaceRole, getServerBySpaceId } from './db/queries.js';
@@ -67,6 +68,7 @@ app.use('/api/internal/*', internalMiddleware);
 app.route('/api/internal', internalRouter);
 
 app.route('/agent-setup', agentSetupRouter);
+app.route('/plugins', pluginsRouter);
 
 app.get('/health', async (c) => {
   const startedAt = Date.now();
@@ -119,7 +121,7 @@ app.route('/api', confirmRouter);
 
 if (fs.existsSync(config.WEB_DIST)) {
   app.use('*', async (c, next) => {
-    if (c.req.path.startsWith('/api/') || c.req.path.startsWith('/ws/')) {
+    if (c.req.path.startsWith('/api/') || c.req.path.startsWith('/ws/') || c.req.path.startsWith('/plugins/')) {
       return next();
     }
     const filePath = path.join(config.WEB_DIST, c.req.path);

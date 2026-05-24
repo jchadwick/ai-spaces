@@ -19,10 +19,11 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build:shared && npm run build:web && npm run build:plugin",
+    "build": "npm run build:shared && npm run build:web && npm run build:plugin && npm run build:server",
     "build:shared": "npm run build -w @ai-spaces/shared",
     "build:web": "npm run build -w @ai-spaces/web",
     "build:plugin": "npm run build -w @openclaw/ai-spaces",
+    "build:server": "npm run build -w @ai-spaces/server",
     "dev:web": "npm run dev -w @ai-spaces/web",
     "dev:server": "npm run dev -w @ai-spaces/server",
     "dev:plugin": "npm run dev -w @openclaw/ai-spaces",

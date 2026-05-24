@@ -22,11 +22,40 @@ export const config = {
   // WEB_DIST default assumes project at ~/ai-spaces — set explicitly in production
   WEB_DIST:           process.env.WEB_DIST           ?? path.join(HOME, 'ai-spaces', 'packages', 'web', 'dist'),
   INVITE_BASE_URL:    process.env.INVITE_BASE_URL    ?? 'http://localhost:5173',
+  AI_SPACES_AGENT_BASE_URL: normalizeOptionalUrl(process.env.AI_SPACES_AGENT_BASE_URL, 'AI_SPACES_AGENT_BASE_URL'),
+  AI_SPACES_PLUGIN_DIR: process.env.AI_SPACES_PLUGIN_DIR ?? path.join(AI_SPACES_DATA, 'plugins'),
   ALLOW_ORPHAN_COLLABORATORS: process.env.ALLOW_ORPHAN_COLLABORATORS === 'true',
   ALLOW_OPEN_REGISTRATION: process.env.ALLOW_OPEN_REGISTRATION === 'true',
   CONFIRMATION_NONCE_TTL_MS: parseInt(process.env.CONFIRMATION_NONCE_TTL_MS ?? '300000', 10),
   INVITE_TOKEN_TTL_DAYS: parseInt(process.env.INVITE_TOKEN_TTL_DAYS ?? '5', 10),
 };
+
+export function normalizeServerUrl(value: string, name: string): string {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(`[config] ${name} must be a valid URL. Got: ${value}`);
+  }
+
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error(`[config] ${name} must use http or https. Got: ${value}`);
+  }
+  if (process.env.NODE_ENV === 'production' && url.protocol !== 'https:') {
+    throw new Error(`[config] ${name} must use HTTPS in production. Got: ${value}`);
+  }
+  if (url.username || url.password) {
+    throw new Error(`[config] ${name} must not include credentials. Got: ${value}`);
+  }
+
+  url.hash = '';
+  url.search = '';
+  return url.toString().replace(/\/$/, '');
+}
+
+function normalizeOptionalUrl(value: string | undefined, name: string): string | undefined {
+  return value ? normalizeServerUrl(value, name) : undefined;
+}
 
 export function assertProductionHttps(url: string, name: string): void {
   if (process.env.NODE_ENV === 'production' && !url.startsWith('https://')) {

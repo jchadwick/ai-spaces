@@ -8,8 +8,7 @@ import { config } from '../config.js';
 import { createAcpWsServer, handleAcpUpgrade } from './acp-ws.js';
 
 function initSpaceStoreFromConfig(): void {
-  const openclawHome = process.env.OPENCLAW_HOME ?? '';
-  const configPath = path.join(openclawHome, '.openclaw', 'openclaw.json');
+  const configPath = path.join(config.OPENCLAW_HOME, 'openclaw.json');
   try {
     const raw = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
     const agentList: { id: string; workspace?: string }[] = raw?.agents?.list ?? [];
@@ -21,7 +20,7 @@ function initSpaceStoreFromConfig(): void {
     initSpaceStore(agentWorkspaces);
     console.log('[ai-spaces] Space store initialized for agents:', agentWorkspaces.map(w => w.agentId).join(', '));
   } catch (err) {
-    console.warn('[ai-spaces] Could not initialize space store from config:', err instanceof Error ? err.message : String(err));
+    throw new Error(`[ai-spaces] Could not initialize space store from config (${configPath}): ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 

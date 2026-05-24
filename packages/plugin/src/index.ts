@@ -44,20 +44,6 @@ export default defineChannelPluginEntry({
       cleanOrphanedFiles(workspaceRoot);
     }
 
-    // Start one watcher per unique workspace root
-    const watchers: SpaceWatcher[] = [];
-    const watchedRoots = new Set<string>();
-
-    for (const { agentId, workspaceRoot } of agentWorkspaces) {
-      if (watchedRoots.has(workspaceRoot)) continue;
-      watchedRoots.add(workspaceRoot);
-      const watcher = new SpaceWatcher(workspaceRoot, agentId);
-      watcher.on('space:added', () => { void triggerReconcile(); });
-      watcher.on('space:removed', () => { void triggerReconcile(); });
-      watcher.start();
-      watchers.push(watcher);
-    }
-
     type ConnectionState = 'connected' | 'degraded' | 'reconnecting';
     let connectionState: ConnectionState = 'connected';
 
@@ -98,6 +84,20 @@ export default defineChannelPluginEntry({
       } finally {
         reconcileInFlight = false;
       }
+    }
+
+    // Start one watcher per unique workspace root
+    const watchers: SpaceWatcher[] = [];
+    const watchedRoots = new Set<string>();
+
+    for (const { agentId, workspaceRoot } of agentWorkspaces) {
+      if (watchedRoots.has(workspaceRoot)) continue;
+      watchedRoots.add(workspaceRoot);
+      const watcher = new SpaceWatcher(workspaceRoot, agentId);
+      watcher.on('space:added', () => { void triggerReconcile(); });
+      watcher.on('space:removed', () => { void triggerReconcile(); });
+      watcher.start();
+      watchers.push(watcher);
     }
 
     // Periodic reconciliation loop: re-sync every 60s regardless of file events

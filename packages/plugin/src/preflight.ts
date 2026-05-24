@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as path from 'path';
 import { config } from './config.js';
 import { logger as rootLogger } from './logger.js';
 
@@ -7,9 +8,9 @@ const log = rootLogger.child({ component: 'preflight' });
 type AgentWorkspace = { agentId: string; workspaceRoot: string };
 
 export async function runPluginPreflightChecks(agentWorkspaces: AgentWorkspace[]): Promise<void> {
-  // Check GATEWAY_TOKEN is set
-  if (!config.GATEWAY_TOKEN) {
-    throw new Error('Preflight FAIL: GATEWAY_TOKEN is not set');
+  const openclawConfigPath = path.join(config.OPENCLAW_HOME, 'openclaw.json');
+  if (!fs.existsSync(openclawConfigPath)) {
+    throw new Error(`Preflight FAIL: openclaw config not found at ${openclawConfigPath}`);
   }
 
   // Check workspace roots are readable
@@ -22,17 +23,23 @@ export async function runPluginPreflightChecks(agentWorkspaces: AgentWorkspace[]
     }
   }
 
-  // Best-effort server reachability check (warn, don't fail — server may start after plugin)
-  try {
-    const res = await fetch(`${config.AI_SPACES_URL}/health`, {
-      signal: AbortSignal.timeout(2000),
-    });
-    if (res.ok) {
-      log.info({ url: config.AI_SPACES_URL }, 'Preflight: server reachable');
-    } else {
-      log.warn({ url: config.AI_SPACES_URL, status: res.status }, 'Preflight WARN: server returned non-ok status');
+  // Reachability check with short retries to fail fast on broken URLs/network aliases.
+  let lastError = '';
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const res = await fetch(`${config.AI_SPACES_URL}/health`, {
+        signal: AbortSignal.timeout(2000),
+      });
+      if (res.ok) {
+        log.info({ url: config.AI_SPACES_URL, attempt }, 'Preflight: server reachable');
+        return;
+      }
+      lastError = `status ${res.status}`;
+    } catch (err) {
+      lastError = err instanceof Error ? err.message : String(err);
     }
-  } catch {
-    log.warn({ url: config.AI_SPACES_URL }, 'Preflight WARN: server not reachable (will retry during registration)');
+    await new Promise(resolve => setTimeout(resolve, 1000));
   }
+
+  throw new Error(`Preflight FAIL: could not reach ${config.AI_SPACES_URL}/health after 3 attempts (${lastError})`);
 }

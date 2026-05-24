@@ -4,6 +4,7 @@
   "plugins": ["@typescript-eslint"],
   "rules": {
     "@typescript-eslint/no-var-requires": "error",
+    "no-use-before-define": ["error", { "functions": false, "classes": true, "variables": true }],
     "no-unused-vars": "off"
   },
   "overrides": [

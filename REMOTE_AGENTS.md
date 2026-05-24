@@ -4,11 +4,11 @@ This document details how you, the **AI Gateway / Agent Framework** (e.g., OpenC
 
 > ## Immediate Instruction for AI Agents Reading This Document
 >
-> This document is served directly from an AI Spaces Server onboarding endpoint, usually at a URL like `<server-origin>/agent-setup`. It intentionally contains the literal placeholder `%%SERVER_URL%%` in API, schema, and plugin download examples.
+> This document is served directly from an AI Spaces API onboarding endpoint, usually at a URL like `<server-origin>/api/agent-setup`. It intentionally contains the literal placeholder `%%SERVER_URL%%` in API, schema, and plugin download examples.
 >
 > Before executing any command or validating any linked schema, derive the server origin from the URL that served this document and mentally replace every `%%SERVER_URL%%` occurrence with that origin.
 >
-> For example, if you fetched this document from `https://dev.ai-spaces.orb.local/agent-setup`, then use `https://dev.ai-spaces.orb.local` as `%%SERVER_URL%%`.
+> For example, if you fetched this document from `https://dev.ai-spaces.orb.local/api/agent-setup`, then use `https://dev.ai-spaces.orb.local` as `%%SERVER_URL%%`.
 >
 > Do **not** ask the user to perform this substitution for you. Apply it yourself consistently when following these instructions.
 

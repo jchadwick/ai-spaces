@@ -68,6 +68,7 @@ const internalMiddleware = createInternalMiddleware(config.GATEWAY_TOKEN);
 app.use('/api/internal/*', internalMiddleware);
 app.route('/api/internal', internalRouter);
 
+app.route('/api/agent-setup', agentSetupRouter);
 app.route('/agent-setup', agentSetupRouter);
 app.route('/plugins', pluginsRouter);
 app.route('/schemas', schemasRouter);

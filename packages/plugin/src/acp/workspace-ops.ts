@@ -20,12 +20,37 @@ interface QueueItem {
   parentChildren: FileNode[];
 }
 
+function getRealPath(filePath: string): string {
+  try {
+    return fs.realpathSync(filePath);
+  } catch {
+    return path.resolve(filePath);
+  }
+}
+
+function isInternalResolvedPath(spaceRoot: string, fullPath: string): boolean {
+  const realSpaceRoot = getRealPath(spaceRoot);
+  const realPath = getRealPath(fullPath);
+  if (!isPathContained(realPath, realSpaceRoot)) return false;
+  const relative = path.relative(realSpaceRoot, realPath).split(path.sep).join('/');
+  return isInternalWorkspacePath(relative);
+}
+
+function assertCanReadPath(spaceRoot: string, requestedPath: string, resolvedPath: string, role: SpaceRole): void {
+  if (hasPermission(role, 'files:read-internal')) return;
+  if (isInternalWorkspacePath(requestedPath) || isInternalResolvedPath(spaceRoot, resolvedPath)) {
+    throw new Error('Access denied');
+  }
+}
+
 export async function listWorkspaceFiles(
   spaceRoot: string,
   role: SpaceRole,
   dirPath = '',
 ): Promise<FileNode[]> {
-  const targetDir = dirPath ? path.join(spaceRoot, dirPath) : spaceRoot;
+  const validation = dirPath ? validatePath(dirPath, spaceRoot) : { valid: true, resolvedPath: spaceRoot };
+  if (!validation.valid) throw new Error('Access denied: path outside workspace');
+  const targetDir = validation.resolvedPath!;
   const showInternalFiles = hasPermission(role, 'files:read-internal');
 
   try {
@@ -36,10 +61,19 @@ export async function listWorkspaceFiles(
 
   const roots: FileNode[] = [];
   const queue: QueueItem[] = [{ dir: targetDir, basePath: dirPath, depth: 0, parentChildren: roots }];
+  const visitedDirs = new Set<string>();
 
   while (queue.length > 0) {
     const { dir, basePath, depth, parentChildren } = queue.shift()!;
     if (depth > DEFAULT_MAX_DEPTH) continue;
+
+    try {
+      const realDir = await fsPromises.realpath(dir);
+      if (visitedDirs.has(realDir)) continue;
+      visitedDirs.add(realDir);
+    } catch {
+      continue;
+    }
 
     let entries: fs.Dirent[];
     try {
@@ -59,18 +93,15 @@ export async function listWorkspaceFiles(
       const fullPath = path.join(dir, entry.name);
 
       try {
-        if (entry.isSymbolicLink()) {
-          const linkTarget = await fsPromises.readlink(fullPath);
-          const resolved = path.resolve(dir, linkTarget);
-          if (!isPathContained(resolved, spaceRoot)) continue;
-        }
-
+        const entryValidation = validatePath(relativePath, spaceRoot);
+        if (!entryValidation.valid || !entryValidation.resolvedPath) continue;
+        if (!showInternalFiles && isInternalResolvedPath(spaceRoot, entryValidation.resolvedPath)) continue;
         const stats = await fsPromises.stat(fullPath);
 
-        if (entry.isDirectory()) {
+        if (stats.isDirectory()) {
           const children: FileNode[] = [];
           nodes.push({ name: entry.name, path: relativePath, type: 'directory', children });
-          queue.push({ dir: fullPath, basePath: relativePath, depth: depth + 1, parentChildren: children });
+          queue.push({ dir: entryValidation.resolvedPath, basePath: relativePath, depth: depth + 1, parentChildren: children });
         } else {
           nodes.push({
             name: entry.name,
@@ -113,6 +144,7 @@ export async function readWorkspaceFile(
 
   const fullPath = validation.resolvedPath!;
   if (!fs.existsSync(fullPath)) throw new Error(`File not found: ${filePath}`);
+  assertCanReadPath(spaceRoot, filePath, fullPath, role);
 
   const stats = fs.statSync(fullPath);
   if (stats.isDirectory()) throw new Error('Cannot read directory as file');

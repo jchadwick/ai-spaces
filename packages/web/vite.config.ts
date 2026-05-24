@@ -24,6 +24,10 @@ export default defineConfig({
         target: serverHost,
         changeOrigin: true,
       },
+      '/plugins': {
+        target: serverHost,
+        changeOrigin: true,
+      },
       '/api': {
         target: serverHost,
         changeOrigin: true,

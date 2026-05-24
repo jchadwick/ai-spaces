@@ -12,6 +12,12 @@ agentSetupRouter.get('/', (c) => {
   return c.text(doc, 200, { 'Content-Type': 'text/markdown; charset=utf-8' });
 });
 
+agentSetupRouter.get('/*', (c) => {
+  const serverUrl = resolveAgentBaseUrl(new URL(c.req.url).origin);
+  const doc = readRemoteAgentsTemplate().replaceAll('%%SERVER_URL%%', serverUrl);
+  return c.text(doc, 200, { 'Content-Type': 'text/markdown; charset=utf-8' });
+});
+
 function resolveAgentBaseUrl(requestOrigin: string): string {
   if (config.AI_SPACES_AGENT_BASE_URL) return config.AI_SPACES_AGENT_BASE_URL;
   if (process.env.NODE_ENV === 'production') {
@@ -24,6 +30,8 @@ function readRemoteAgentsTemplate(): string {
   const thisDir = path.dirname(fileURLToPath(import.meta.url));
   const candidates = [
     path.resolve(process.cwd(), 'REMOTE_AGENTS.md'),
+    path.resolve(process.cwd(), '..', '..', 'REMOTE_AGENTS.md'),
+    path.resolve(thisDir, '..', '..', '..', '..', 'REMOTE_AGENTS.md'),
     path.resolve(thisDir, '..', 'assets', 'REMOTE_AGENTS.md'),
   ];
 

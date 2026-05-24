@@ -57,6 +57,18 @@ if [ -d /tpl/workspaces ]; then
   done
 fi
 
+# Dev-only external content used to verify symlinks inside spaces.
+# Do not treat .space configs under this tree as discoverable spaces.
+if [ -d /tpl/brain ]; then
+  mkdir -p "$OPENCLAW_HOME/brain"
+  cp -r /tpl/brain/. "$OPENCLAW_HOME/brain/"
+  mkdir -p "$OPENCLAW_HOME/workspaces/travel"
+  if [ ! -e "$OPENCLAW_HOME/workspaces/travel/LinkedVacations" ]; then
+    ln -s "$OPENCLAW_HOME/brain/Vacations" "$OPENCLAW_HOME/workspaces/travel/LinkedVacations"
+    echo "[entrypoint] Created travel/LinkedVacations symlink fixture"
+  fi
+fi
+
 # Install plugin via CLI so openclaw writes the installs section it needs at startup
 echo "[entrypoint] Installing ai-spaces plugin..."
 openclaw plugins install --link "$PLUGIN_DIST" 2>&1 || \

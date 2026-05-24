@@ -1,0 +1,5 @@
+{
+  "id": "linked-vacations-should-not-be-discovered",
+  "name": "Linked Vacations Negative Fixture",
+  "description": "This config is inside a symlink target and must not be discovered as a space."
+}

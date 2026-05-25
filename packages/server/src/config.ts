@@ -28,6 +28,8 @@ export const config = {
   ALLOW_OPEN_REGISTRATION: process.env.ALLOW_OPEN_REGISTRATION === 'true',
   CONFIRMATION_NONCE_TTL_MS: parseInt(process.env.CONFIRMATION_NONCE_TTL_MS ?? '300000', 10),
   INVITE_TOKEN_TTL_DAYS: parseInt(process.env.INVITE_TOKEN_TTL_DAYS ?? '5', 10),
+  BOOTSTRAP_ADMIN_EMAIL: process.env.BOOTSTRAP_ADMIN_EMAIL,
+  BOOTSTRAP_ADMIN_PASSWORD: process.env.BOOTSTRAP_ADMIN_PASSWORD,
 };
 
 export function normalizeServerUrl(value: string, name: string): string {

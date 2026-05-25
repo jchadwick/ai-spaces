@@ -19,13 +19,14 @@ import { pluginsRouter } from './routes/plugins.js';
 import { schemasRouter } from './routes/schemas.js';
 import { runMigrations } from './db/migrate.js';
 import { runPreflightChecks } from './preflight.js';
-import { getUserSpaceRole, getServerBySpaceId } from './db/queries.js';
+import { getUserSpaceRole, getServerBySpaceId, getUserWithServerRole } from './db/queries.js';
 import { createInternalMiddleware } from './middleware/ip-allowlist.js';
 import { db } from './db/connection.js';
-import { servers } from './db/index.js';
+import { servers, users } from './db/index.js';
 import { DEFAULT_SERVER_ID } from './db/constants.js';
 import { agentAdapter } from './agent-adapter-instance.js';
 import { acpConnectionPool } from './adapters/acp-connection-pool.js';
+import { createUser, getUserWithServerRoleByEmail, hashPassword } from './user-service.js';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger as honoLogger } from 'hono/logger';
@@ -131,13 +132,24 @@ if (fs.existsSync(config.WEB_DIST)) {
     const filePath = path.join(config.WEB_DIST, c.req.path);
     if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
       const content = fs.readFileSync(filePath, 'utf-8');
+      const isAsset = c.req.path.startsWith('/assets/');
       return c.text(content, 200, {
         'Content-Type': getContentType(filePath),
+        'Cache-Control': isAsset ? 'public, max-age=31536000, immutable' : 'no-cache',
       });
     }
+
+    if (c.req.path.startsWith('/assets/')) {
+      return c.text('Not found', 404, {
+        'Content-Type': 'text/plain',
+        'Cache-Control': 'no-store',
+      });
+    }
+
     const indexContent = fs.readFileSync(path.join(config.WEB_DIST, 'index.html'), 'utf-8');
     return c.text(indexContent, 200, {
       'Content-Type': 'text/html',
+      'Cache-Control': 'no-store',
     });
   });
   log.info({ dir: config.WEB_DIST }, 'Serving static files');
@@ -164,6 +176,24 @@ db.insert(servers).values({
   name: 'God Server',
   createdAt: new Date().toISOString(),
 }).onConflictDoNothing().run();
+
+async function bootstrapAdminIfNeeded(): Promise<void> {
+  const email = config.BOOTSTRAP_ADMIN_EMAIL?.trim();
+  const password = config.BOOTSTRAP_ADMIN_PASSWORD;
+  if (!email || !password) return;
+
+  const existing = getUserWithServerRoleByEmail(email);
+  if (existing) return;
+
+  const existingAnyUser = db.select({ id: users.id }).from(users).limit(1).get();
+  if (existingAnyUser) return;
+
+  const passwordHash = await hashPassword(password);
+  createUser(email, passwordHash, 'admin');
+  log.info({ email }, 'Bootstrapped initial admin user');
+}
+
+await bootstrapAdminIfNeeded();
 
 function rawDataToBuffer(data: unknown): Buffer {
   if (Buffer.isBuffer(data)) return data;
@@ -221,6 +251,7 @@ wss.on('upgrade', (request, socket, head) => {
       const decoded = jwt.verify(rawToken, config.JWT_SECRET) as jwt.JwtPayload;
       if (!decoded.userId) throw new Error('Missing userId');
       userId = decoded.userId as string;
+      if (!getUserWithServerRole(userId)) throw new Error('User no longer exists');
       wsLog.info({ userId, spaceId, tokenSource: authHeader?.startsWith('Bearer ') ? 'header' : 'query' }, 'WS auth ok');
     } catch (err) {
       wsLog.warn({ err: (err as Error).message }, 'Invalid token');

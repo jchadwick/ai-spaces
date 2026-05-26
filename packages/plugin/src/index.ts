@@ -22,6 +22,32 @@ function safeRouteUrl(req: IncomingMessage): URL | null {
   }
 }
 
+function safeJson(res: ServerResponse, statusCode: number, body: Record<string, unknown>): void {
+  if ((res as unknown as { writableEnded?: boolean }).writableEnded) return;
+  try {
+    res.statusCode = statusCode;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify(body));
+  } catch {
+    try { res.end(); } catch { /* ignore */ }
+  }
+}
+
+function wrapRoute(
+  name: string,
+  handler: (req: IncomingMessage, res: ServerResponse) => Promise<boolean>,
+): (req: IncomingMessage, res: ServerResponse) => Promise<boolean> {
+  return async (req: IncomingMessage, res: ServerResponse) => {
+    try {
+      return await handler(req, res);
+    } catch (err) {
+      log.warn({ err: err instanceof Error ? err.message : String(err), route: name }, 'Route handler failed');
+      safeJson(res, 500, { error: 'Route handler failed' });
+      return true;
+    }
+  };
+}
+
 function safeCliAction<TArgs extends unknown[]>(actionName: string, fn: (...args: TArgs) => Promise<void>) {
   return async (...args: TArgs): Promise<void> => {
     try {
@@ -69,11 +95,19 @@ export default defineChannelPluginEntry({
       log.warn({ err: err instanceof Error ? err.message : String(err) }, 'Registration failed; continuing in degraded mode');
     }
 
-    initSpaceStore(agentWorkspaces);
+    try {
+      initSpaceStore(agentWorkspaces);
+    } catch (err) {
+      log.warn({ err: err instanceof Error ? err.message : String(err) }, 'Space store init failed; continuing degraded');
+    }
 
     // Clean up orphaned .tmp and .lock files from any previous crashed processes
     for (const { workspaceRoot } of agentWorkspaces) {
-      cleanOrphanedFiles(workspaceRoot);
+      try {
+        cleanOrphanedFiles(workspaceRoot);
+      } catch (err) {
+        log.warn({ err: err instanceof Error ? err.message : String(err), workspaceRoot }, 'Orphan cleanup failed');
+      }
     }
 
     type ConnectionState = 'connected' | 'degraded' | 'reconnecting';
@@ -161,7 +195,7 @@ export default defineChannelPluginEntry({
     api.registerHttpRoute({
       path: '/health',
       auth: 'plugin',
-      handler: async (_req: IncomingMessage, res: ServerResponse) => {
+      handler: wrapRoute('/health', async (_req: IncomingMessage, res: ServerResponse) => {
         // Check filesystem
         let filesystemStatus: 'ok' | 'error' = 'ok';
         for (const { workspaceRoot } of agentWorkspaces) {
@@ -211,13 +245,13 @@ export default defineChannelPluginEntry({
         res.setHeader('Content-Type', 'application/json');
         res.end(body);
         return true;
-      },
+      }),
     });
 
     api.registerHttpRoute({
       path: '/api/spaces',
       auth: 'plugin',
-      handler: async (req: IncomingMessage, res: ServerResponse) => {
+      handler: wrapRoute('/api/spaces', async (req: IncomingMessage, res: ServerResponse) => {
         const url = safeRouteUrl(req);
         if (!url) {
           res.statusCode = 400;
@@ -226,14 +260,14 @@ export default defineChannelPluginEntry({
           return true;
         }
         return proxyRequest(req, res, `${config.AI_SPACES_URL}${url.pathname}`);
-      },
+      }),
     });
 
     api.registerHttpRoute({
       path: '/api/spaces/',
       auth: 'plugin',
       match: 'prefix',
-      handler: async (req: IncomingMessage, res: ServerResponse) => {
+      handler: wrapRoute('/api/spaces/*', async (req: IncomingMessage, res: ServerResponse) => {
         const url = safeRouteUrl(req);
         if (!url) {
           res.statusCode = 400;
@@ -253,42 +287,42 @@ export default defineChannelPluginEntry({
         }
 
         return proxyRequest(req, res, `${config.AI_SPACES_URL}${url.pathname}${url.search}`);
-      },
+      }),
     });
 
     api.registerHttpRoute({
       path: '/api/auth/login',
       auth: 'plugin',
-      handler: async (req: IncomingMessage, res: ServerResponse) => {
+      handler: wrapRoute('/api/auth/login', async (req: IncomingMessage, res: ServerResponse) => {
         return proxyRequest(req, res, `${config.AI_SPACES_URL}/api/auth/login`);
-      },
+      }),
     });
 
     api.registerHttpRoute({
       path: '/api/auth/logout',
       auth: 'plugin',
-      handler: async (req: IncomingMessage, res: ServerResponse) => {
+      handler: wrapRoute('/api/auth/logout', async (req: IncomingMessage, res: ServerResponse) => {
         return proxyRequest(req, res, `${config.AI_SPACES_URL}/api/auth/logout`);
-      },
+      }),
     });
 
     api.registerHttpRoute({
       path: '/api/auth/refresh',
       auth: 'plugin',
-      handler: async (req: IncomingMessage, res: ServerResponse) => {
+      handler: wrapRoute('/api/auth/refresh', async (req: IncomingMessage, res: ServerResponse) => {
         return proxyRequest(req, res, `${config.AI_SPACES_URL}/api/auth/refresh`);
-      },
+      }),
     });
 
     api.registerHttpRoute({
       path: '/api/chat/send',
       auth: 'plugin' as any,
-      handler: async (req: IncomingMessage, res: ServerResponse) => {
+      handler: wrapRoute('/api/chat/send', async (req: IncomingMessage, res: ServerResponse) => {
         res.statusCode = 410;
         res.setHeader('Content-Type', 'application/json');
         res.end(JSON.stringify({ error: 'Legacy chat endpoint disabled. Use ACP chat.' }));
         return true;
-      },
+      }),
     });
 
     api.registerCli(

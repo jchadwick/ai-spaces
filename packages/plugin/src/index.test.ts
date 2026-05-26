@@ -173,4 +173,24 @@ describe('index registerFull resilience', () => {
     await expect(inviteAction!('space-1', { json: true })).resolves.toBeUndefined();
     expect(errorSpy).toHaveBeenCalled();
   });
+
+  it('route wrapper catches thrown proxy errors', async () => {
+    proxyRequestMock.mockImplementationOnce(async () => { throw new Error('proxy failed'); });
+    const plugin = (await import('./index.js')).default as { registerFull: (api: ReturnType<typeof createFakeApi>) => Promise<void> };
+    const api = createFakeApi();
+    await plugin.registerFull(api);
+
+    const loginRoute = api.routes.find(r => r.path === '/api/auth/login');
+    expect(loginRoute).toBeTruthy();
+
+    const req = { url: '/api/auth/login', method: 'POST', headers: {} } as unknown as IncomingMessage;
+    const res = {
+      statusCode: 0,
+      setHeader: vi.fn(),
+      end: vi.fn(),
+    } as unknown as ServerResponse;
+
+    await expect(loginRoute!.handler(req, res)).resolves.toBe(true);
+    expect((res as unknown as { statusCode: number }).statusCode).toBe(500);
+  });
 });

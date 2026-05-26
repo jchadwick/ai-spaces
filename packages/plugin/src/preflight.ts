@@ -7,10 +7,16 @@ const log = rootLogger.child({ component: 'preflight' });
 
 type AgentWorkspace = { agentId: string; workspaceRoot: string };
 
-export async function runPluginPreflightChecks(agentWorkspaces: AgentWorkspace[]): Promise<void> {
+export interface PreflightResult {
+  ok: boolean;
+  warnings: string[];
+}
+
+export async function runPluginPreflightChecks(agentWorkspaces: AgentWorkspace[]): Promise<PreflightResult> {
+  const warnings: string[] = [];
   const openclawConfigPath = path.join(config.OPENCLAW_HOME, '.openclaw', 'openclaw.json');
   if (!fs.existsSync(openclawConfigPath)) {
-    throw new Error(`Preflight FAIL: openclaw config not found at ${openclawConfigPath}`);
+    warnings.push(`openclaw config not found at ${openclawConfigPath}`);
   }
 
   // Check workspace roots are readable
@@ -19,6 +25,7 @@ export async function runPluginPreflightChecks(agentWorkspaces: AgentWorkspace[]
       fs.accessSync(workspaceRoot, fs.constants.R_OK);
       log.info({ agentId, workspaceRoot }, 'Preflight: workspace root readable');
     } catch {
+      warnings.push(`workspace root not readable for agent '${agentId}': ${workspaceRoot}`);
       log.warn({ agentId, workspaceRoot }, 'Preflight WARN: workspace root not readable');
     }
   }
@@ -32,7 +39,7 @@ export async function runPluginPreflightChecks(agentWorkspaces: AgentWorkspace[]
       });
       if (res.ok) {
         log.info({ url: config.AI_SPACES_URL, attempt }, 'Preflight: server reachable');
-        return;
+        return { ok: warnings.length === 0, warnings };
       }
       lastError = `status ${res.status}`;
     } catch (err) {
@@ -41,5 +48,7 @@ export async function runPluginPreflightChecks(agentWorkspaces: AgentWorkspace[]
     await new Promise(resolve => setTimeout(resolve, 1000));
   }
 
-  throw new Error(`Preflight FAIL: could not reach ${config.AI_SPACES_URL}/health after 3 attempts (${lastError})`);
+  warnings.push(`could not reach ${config.AI_SPACES_URL}/health after 3 attempts (${lastError})`);
+  log.warn({ warning: warnings[warnings.length - 1] }, 'Preflight warning');
+  return { ok: false, warnings };
 }

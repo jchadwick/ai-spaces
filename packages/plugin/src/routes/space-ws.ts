@@ -6,6 +6,22 @@ import { listSpaces, initSpaceStore } from '../space-store.js';
 import { registerWithServer } from '../registration.js';
 import { config } from '../config.js';
 import { createAcpWsServer, handleAcpUpgrade } from './acp-ws.js';
+import { logger as rootLogger } from '../logger.js';
+
+const log = rootLogger.child({ component: 'space-ws' });
+
+function safeJson(res: ServerResponse, statusCode: number, body: Record<string, unknown>): void {
+  if (res.writableEnded || res.destroyed) return;
+  try {
+    if (!res.headersSent) {
+      res.statusCode = statusCode;
+      res.setHeader('Content-Type', 'application/json');
+    }
+    res.end(JSON.stringify(body));
+  } catch {
+    try { res.end(); } catch { /* ignore */ }
+  }
+}
 
 function initSpaceStoreFromConfig(): void {
   const configPath = path.join(config.OPENCLAW_HOME, '.openclaw', 'openclaw.json');
@@ -18,9 +34,9 @@ function initSpaceStoreFromConfig(): void {
       workspaceRoot: a.workspace ?? defaultWorkspace,
     }));
     initSpaceStore(agentWorkspaces);
-    console.log('[ai-spaces] Space store initialized for agents:', agentWorkspaces.map(w => w.agentId).join(', '));
+    log.info({ agents: agentWorkspaces.map(w => w.agentId) }, 'Space store initialized from OpenClaw config');
   } catch (err) {
-    throw new Error(`[ai-spaces] Could not initialize space store from config (${configPath}): ${err instanceof Error ? err.message : String(err)}`);
+    log.warn({ err: err instanceof Error ? err.message : String(err), configPath }, 'Could not initialize space store from config; continuing degraded');
   }
 }
 
@@ -29,64 +45,96 @@ function initSpaceStoreFromConfig(): void {
  * Handles the ACP WebSocket endpoint and basic HTTP endpoints.
  */
 export function startSpacesServer(port: number): void {
-  initSpaceStoreFromConfig();
+  try {
+    initSpaceStoreFromConfig();
+  } catch (err) {
+    log.warn({ err: err instanceof Error ? err.message : String(err) }, 'Space store init failed unexpectedly');
+  }
 
-  console.log(`[ai-spaces] Starting spaces server on port ${port}`);
+  if (!Number.isFinite(port) || port <= 0 || port > 65535) {
+    log.warn({ port }, 'Invalid spaces server port; skipping server startup');
+    return;
+  }
+
+  log.info({ port }, 'Starting spaces server');
   const httpServer = http.createServer(async (_req: IncomingMessage, res: ServerResponse) => {
-    const url = new URL(_req.url ?? '/', `http://localhost:${port}`);
-
-    if (_req.method === 'GET' && url.pathname === '/api/spaces') {
-      const spaces = listSpaces();
-      res.statusCode = 200;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ spaces }));
+    let url: URL;
+    try {
+      url = new URL(_req.url ?? '/', `http://localhost:${port}`);
+    } catch {
+      safeJson(res, 400, { error: 'Invalid request URL' });
       return;
     }
 
-    if (_req.method === 'GET' && url.pathname === '/api/health') {
-      res.statusCode = 200;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(JSON.stringify({ status: 'ok' }));
-      return;
-    }
+    try {
+      if (_req.method === 'GET' && url.pathname === '/api/spaces') {
+        const spaces = listSpaces();
+        safeJson(res, 200, { spaces });
+        return;
+      }
 
-    res.statusCode = 404;
-    res.end(JSON.stringify({ error: 'Not found' }));
+      if (_req.method === 'GET' && url.pathname === '/api/health') {
+        safeJson(res, 200, { status: 'ok' });
+        return;
+      }
+
+      safeJson(res, 404, { error: 'Not found' });
+    } catch (err) {
+      log.warn({ err: err instanceof Error ? err.message : String(err) }, 'Spaces server request failed');
+      safeJson(res, 500, { error: 'Spaces server request failed' });
+    }
   });
 
   httpServer.on('error', (err) => {
-    console.error(`[ai-spaces] WebSocket server error:`, err.message);
+    log.warn({ err: err.message }, 'WebSocket server error');
   });
 
   const acpWss = createAcpWsServer();
 
   httpServer.on('upgrade', (req, socket, head) => {
-    const url = new URL(req.url || '/', `http://${req.headers.host}`);
+    let url: URL;
+    try {
+      url = new URL(req.url || '/', 'http://localhost');
+    } catch {
+      socket.destroy();
+      return;
+    }
 
     const acpMatch = url.pathname.match(/^\/api\/spaces\/([^/]+)\/acp$/);
     if (acpMatch) {
-      handleAcpUpgrade(acpWss, req, socket, head, acpMatch[1]);
+      try {
+        handleAcpUpgrade(acpWss, req, socket, head, acpMatch[1]);
+      } catch (err) {
+        log.warn({ err: err instanceof Error ? err.message : String(err) }, 'ACP upgrade failed');
+        socket.destroy();
+      }
       return;
     }
 
     socket.destroy();
   });
 
-  httpServer.listen(port, '0.0.0.0', () => {
-    console.log(`[ai-spaces] WebSocket server listening on ws://0.0.0.0:${port}`);
-  });
+  try {
+    httpServer.listen(port, '127.0.0.1', () => {
+      log.info({ port }, 'WebSocket server listening on loopback');
+    });
+  } catch (err) {
+    log.warn({ err: err instanceof Error ? err.message : String(err), port }, 'Could not listen on spaces server port');
+  }
 }
 
 export async function registerAndStartSpacesServer(port: number): Promise<void> {
-  const { serverId, callbackToken } = await registerWithServer();
+  const registration = await registerWithServer();
   startSpacesServer(port);
+  if (!registration) return;
   try {
     await fetch(`${config.AI_SPACES_URL}/api/internal/reconcile`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${config.GATEWAY_TOKEN}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ spaces: listSpaces(), serverId, callbackToken }),
+      body: JSON.stringify({ spaces: listSpaces(), serverId: registration.serverId, callbackToken: registration.callbackToken }),
+      signal: AbortSignal.timeout(3_000),
     });
   } catch (err) {
-    console.warn('[ai-spaces] Initial reconcile failed:', err instanceof Error ? err.message : String(err));
+    log.warn({ err: err instanceof Error ? err.message : String(err) }, 'Initial reconcile failed');
   }
 }

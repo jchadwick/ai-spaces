@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { config } from './config.js';
+import { config, configStatus } from './config.js';
 import { logger as rootLogger } from './logger.js';
 
 const log = rootLogger.child({ component: 'registration' });
@@ -9,6 +9,14 @@ export interface RegistrationState {
   serverId: string;
   callbackToken: string;
   gatewayUrl: string;
+}
+
+export type RegistrationStatus = 'registered' | 'unregistered' | 'invalid-config' | 'auth-failed' | 'server-unreachable' | 'stale-callback-token';
+
+export interface RegistrationResult {
+  status: RegistrationStatus;
+  state: RegistrationState | null;
+  error?: string;
 }
 
 export function loadRegistrationState(): RegistrationState | null {
@@ -29,15 +37,17 @@ export function loadRegistrationState(): RegistrationState | null {
 }
 
 function saveState(state: RegistrationState): void {
-  fs.mkdirSync(path.dirname(config.AI_SPACES_PLUGIN_STATE_FILE), { recursive: true });
-  fs.writeFileSync(config.AI_SPACES_PLUGIN_STATE_FILE, JSON.stringify(state, null, 2), 'utf-8');
+  try {
+    fs.mkdirSync(path.dirname(config.AI_SPACES_PLUGIN_STATE_FILE), { recursive: true });
+    fs.writeFileSync(config.AI_SPACES_PLUGIN_STATE_FILE, JSON.stringify(state, null, 2), 'utf-8');
+  } catch (err) {
+    log.warn({ err: err instanceof Error ? err.message : String(err) }, 'Could not persist registration state');
+  }
 }
 
 export function clearRegistrationState(): void {
   try { fs.unlinkSync(config.AI_SPACES_PLUGIN_STATE_FILE); } catch { /* ignore */ }
 }
-
-const RETRY_DELAYS_MS = [1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 60_000, 60_000];
 
 async function attemptRegister(pluginUrl: string, gatewayUrl: string): Promise<RegistrationState> {
   const res = await fetch(`${config.AI_SPACES_URL}/api/internal/register`, {
@@ -47,6 +57,7 @@ async function attemptRegister(pluginUrl: string, gatewayUrl: string): Promise<R
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ pluginUrl, gatewayUrl, name: 'openclaw-plugin' }),
+    signal: AbortSignal.timeout(3_000),
   });
 
   // Auth failures won't self-heal — propagate immediately without retry
@@ -62,37 +73,41 @@ async function attemptRegister(pluginUrl: string, gatewayUrl: string): Promise<R
   return { serverId: data.serverId, callbackToken: data.callbackToken, gatewayUrl: data.gatewayUrl };
 }
 
-export async function registerWithServer(): Promise<RegistrationState> {
+export async function registerWithServer(): Promise<RegistrationState | null> {
+  const result = await tryRegisterWithServer();
+  return result.state;
+}
+
+export async function tryRegisterWithServer(): Promise<RegistrationResult> {
+  if (!configStatus.hasGatewayToken) {
+    return {
+      status: 'invalid-config',
+      state: null,
+      error: 'GATEWAY_TOKEN missing',
+    };
+  }
+
   const existing = loadRegistrationState();
   if (existing) {
     log.info({ serverId: existing.serverId }, 'Using persisted registration');
-    return existing;
+    return { status: 'registered', state: existing };
   }
 
   log.info({ url: config.AI_SPACES_URL }, 'Registering with server');
   const pluginUrl = config.PLUGIN_URL ?? `http://127.0.0.1:${config.AI_SPACES_WS_PORT}`;
   const gatewayUrl = process.env.GATEWAY_URL ?? 'http://127.0.0.1:19000';
 
-  let lastError: Error = new Error('Unknown error');
-  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
-    try {
-      const state = await attemptRegister(pluginUrl, gatewayUrl);
-      saveState(state);
-      log.info({ serverId: state.serverId }, 'Registered with server');
-      return state;
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-
-      // Auth failures: don't retry
-      if (lastError.message.includes('rejected')) throw lastError;
-
-      const delay = RETRY_DELAYS_MS[attempt];
-      if (delay === undefined) break;
-
-      log.warn({ attempt: attempt + 1, retryIn: delay / 1000, err: lastError.message }, 'Registration failed, retrying');
-      await new Promise(resolve => setTimeout(resolve, delay));
+  try {
+    const state = await attemptRegister(pluginUrl, gatewayUrl);
+    saveState(state);
+    log.info({ serverId: state.serverId }, 'Registered with server');
+    return { status: 'registered', state };
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    log.warn({ err: error }, 'Registration failed');
+    if (error.includes('rejected (401)') || error.includes('rejected (403)')) {
+      return { status: 'auth-failed', state: null, error };
     }
+    return { status: 'server-unreachable', state: null, error };
   }
-
-  throw lastError;
 }

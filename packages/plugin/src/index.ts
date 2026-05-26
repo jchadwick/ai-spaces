@@ -14,6 +14,14 @@ import { runPluginPreflightChecks } from './preflight.js';
 
 const log = rootLogger.child({ component: 'plugin' });
 
+function safeRouteUrl(req: IncomingMessage): URL | null {
+  try {
+    return new URL(req.url || '/', 'http://localhost');
+  } catch {
+    return null;
+  }
+}
+
 export default defineChannelPluginEntry({
   id: 'ai-spaces',
   name: 'AI Spaces',
@@ -198,7 +206,13 @@ export default defineChannelPluginEntry({
       path: '/api/spaces',
       auth: 'plugin',
       handler: async (req: IncomingMessage, res: ServerResponse) => {
-        const url = new URL(req.url || '/', `http://${req.headers.host}`);
+        const url = safeRouteUrl(req);
+        if (!url) {
+          res.statusCode = 400;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'Invalid request URL' }));
+          return true;
+        }
         return proxyRequest(req, res, `${config.AI_SPACES_URL}${url.pathname}`);
       },
     });
@@ -208,7 +222,13 @@ export default defineChannelPluginEntry({
       auth: 'plugin',
       match: 'prefix',
       handler: async (req: IncomingMessage, res: ServerResponse) => {
-        const url = new URL(req.url || '/', `http://${req.headers.host}`);
+        const url = safeRouteUrl(req);
+        if (!url) {
+          res.statusCode = 400;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: 'Invalid request URL' }));
+          return true;
+        }
 
         // OPTIONS preflight
         if (req.method === 'OPTIONS') {

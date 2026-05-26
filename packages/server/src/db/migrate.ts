@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import path from 'path';
 import fs from 'fs';
 import { ensureSchemaHealth } from './schema-health.js';
+import { repairLegacy0003State } from './legacy-migration-repair.js';
 
 const migrationsFolder = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -21,6 +22,11 @@ export function runMigrations(): void {
       dbPath: sqlite.name,
       migrationsFolder,
     });
+
+    const legacyRepairs = repairLegacy0003State(sqlite, migrationsFolder);
+    if (legacyRepairs.length > 0) {
+      console.warn('[DB] Applied pre-migration legacy repairs', { repairs: legacyRepairs });
+    }
 
     migrate(db, { migrationsFolder });
 

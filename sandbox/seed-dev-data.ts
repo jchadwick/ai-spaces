@@ -3,15 +3,11 @@
  * Creates test users and runs migrations.
  * Run before starting the server in dev mode.
  */
-import * as path from 'path';
-import { fileURLToPath } from 'url';
 import { runMigrations } from '../packages/server/src/db/migrate.js';
 import { createUser, hashPassword, getUserWithServerRoleByEmail } from '../packages/server/src/user-service.js';
 import { db } from '../packages/server/src/db/connection.js';
 import { authProviders } from '../packages/server/src/db/index.js';
 import { eq, and } from 'drizzle-orm';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 async function resetPassword(userId: string, passwordHash: string): Promise<void> {
   db.update(authProviders)
@@ -22,9 +18,7 @@ async function resetPassword(userId: string, passwordHash: string): Promise<void
 
 async function seedUsers() {
   console.log('[seed-dev] Running migrations...');
-  await runMigrations(db, {
-    migrationsFolder: path.join(__dirname, '../packages/server/drizzle'),
-  });
+  runMigrations();
 
   const password = 'ai-spaces';
   const passwordHash = await hashPassword(password);

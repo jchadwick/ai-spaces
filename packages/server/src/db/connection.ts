@@ -3,7 +3,7 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 import * as schema from './index.js';
 import { config } from '../config.js';
 
-const sqlite = new Database(config.AI_SPACES_DB);
+export const sqlite = new Database(config.AI_SPACES_DB);
 
 sqlite.pragma('journal_mode = WAL');
 

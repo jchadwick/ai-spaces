@@ -7,7 +7,7 @@ import { proxyRequest } from './routes/proxy.js';
 import { startSpacesServer } from './routes/space-ws.js';
 import { config, configStatus, diagnostics as configDiagnostics } from './config.js';
 import { SpaceWatcher } from './space-watcher.js';
-import { registerWithServer, clearRegistrationState, loadRegistrationState } from './registration.js';
+import { registerWithServer, clearRegistrationState, loadRegistrationState, type RegistrationState } from './registration.js';
 import { logger as rootLogger } from './logger.js';
 import { cleanOrphanedFiles } from './cleanup.js';
 import { runPluginPreflightChecks } from './preflight.js';
@@ -25,17 +25,29 @@ export default defineChannelPluginEntry({
     log.info('Registering proxy plugin');
     log.info({ url: config.AI_SPACES_URL }, 'Proxying to server');
 
-    startSpacesServer(config.AI_SPACES_WS_PORT);
+    try {
+      startSpacesServer(config.AI_SPACES_WS_PORT);
+    } catch (err) {
+      log.warn({ err: err instanceof Error ? err.message : String(err) }, 'Could not start spaces server; continuing in degraded mode');
+    }
 
     const agentList = api.config.agents?.list ?? [];
     const agentWorkspaces = agentList
       .filter((a): a is typeof a & { workspace: string } => typeof a.workspace === 'string')
       .map(a => ({ agentId: a.id, workspaceRoot: a.workspace }));
 
-    await runPluginPreflightChecks(agentWorkspaces);
+    try {
+      await runPluginPreflightChecks(agentWorkspaces);
+    } catch (err) {
+      log.warn({ err: err instanceof Error ? err.message : String(err) }, 'Preflight failed; continuing in degraded mode');
+    }
 
-    const registration = await registerWithServer();
-    const { serverId, callbackToken } = registration;
+    let registration: RegistrationState | null = null;
+    try {
+      registration = await registerWithServer();
+    } catch (err) {
+      log.warn({ err: err instanceof Error ? err.message : String(err) }, 'Registration failed; continuing in degraded mode');
+    }
 
     initSpaceStore(agentWorkspaces);
 
@@ -57,18 +69,27 @@ export default defineChannelPluginEntry({
       try {
         while (reconcileDirty) {
           reconcileDirty = false;
+          if (!registration || !configStatus.hasGatewayToken) {
+            if (connectionState === 'connected') {
+              connectionState = 'degraded';
+            }
+            return;
+          }
+
           const resp = await fetch(`${config.AI_SPACES_URL}/api/internal/reconcile`, {
             method: 'POST',
             headers: {
               Authorization: `Bearer ${config.GATEWAY_TOKEN}`,
               'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ spaces: listSpaces(), serverId, callbackToken }),
+            body: JSON.stringify({ spaces: listSpaces(), serverId: registration.serverId, callbackToken: registration.callbackToken }),
           });
-          if (resp.status === 401) {
-            log.warn('Server rejected callbackToken — clearing registration state and restarting');
+          if (resp.status === 401 || resp.status === 403) {
+            log.warn('Server rejected callbackToken — clearing registration state and entering degraded mode');
             clearRegistrationState();
-            process.exit(1);
+            registration = null;
+            connectionState = 'degraded';
+            return;
           }
           if (connectionState !== 'connected') {
             connectionState = 'connected';
@@ -96,7 +117,12 @@ export default defineChannelPluginEntry({
       const watcher = new SpaceWatcher(workspaceRoot, agentId);
       watcher.on('space:added', () => { void triggerReconcile(); });
       watcher.on('space:removed', () => { void triggerReconcile(); });
-      watcher.start();
+      try {
+        watcher.start();
+      } catch (err) {
+        log.warn({ err: err instanceof Error ? err.message : String(err), workspaceRoot }, 'Watcher failed to start; continuing');
+        continue;
+      }
       watchers.push(watcher);
     }
 

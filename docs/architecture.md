@@ -2,6 +2,11 @@
 
 **Canonical architecture document.**
 
+Related operational docs:
+
+- [OpenClaw Gateway Safety Contract](./openclaw-gateway-safety.md)
+- [OpenClaw-Facing Boundary Inventory](./openclaw-boundary-inventory.md)
+
 ---
 
 ## Core Principle

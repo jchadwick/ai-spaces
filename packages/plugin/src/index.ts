@@ -7,7 +7,7 @@ import { proxyRequest } from './routes/proxy.js';
 import { startSpacesServer } from './routes/space-ws.js';
 import { config, configStatus, diagnostics as configDiagnostics } from './config.js';
 import { SpaceWatcher } from './space-watcher.js';
-import { registerWithServer, clearRegistrationState, loadRegistrationState, type RegistrationState } from './registration.js';
+import { tryRegisterWithServer, clearRegistrationState, loadRegistrationState, type RegistrationState, type RegistrationStatus } from './registration.js';
 import { logger as rootLogger } from './logger.js';
 import { cleanOrphanedFiles } from './cleanup.js';
 import { runPluginPreflightChecks } from './preflight.js';
@@ -82,17 +82,24 @@ export default defineChannelPluginEntry({
       .filter((a): a is typeof a & { workspace: string } => typeof a.workspace === 'string')
       .map(a => ({ agentId: a.id, workspaceRoot: a.workspace }));
 
+    let preflightWarnings: string[] = [];
+
     try {
-      await runPluginPreflightChecks(agentWorkspaces);
+      const preflight = await runPluginPreflightChecks(agentWorkspaces);
+      preflightWarnings = preflight.warnings;
     } catch (err) {
       log.warn({ err: err instanceof Error ? err.message : String(err) }, 'Preflight failed; continuing in degraded mode');
     }
 
     let registration: RegistrationState | null = null;
+    let registrationStatus: RegistrationStatus = 'unregistered';
     try {
-      registration = await registerWithServer();
+      const result = await tryRegisterWithServer();
+      registration = result.state;
+      registrationStatus = result.status;
     } catch (err) {
       log.warn({ err: err instanceof Error ? err.message : String(err) }, 'Registration failed; continuing in degraded mode');
+      registrationStatus = 'server-unreachable';
     }
 
     try {
@@ -142,6 +149,7 @@ export default defineChannelPluginEntry({
             log.warn('Server rejected callbackToken — clearing registration state and entering degraded mode');
             clearRegistrationState();
             registration = null;
+            registrationStatus = 'stale-callback-token';
             connectionState = 'degraded';
             return;
           }
@@ -232,6 +240,10 @@ export default defineChannelPluginEntry({
           server: serverStatus,
           connection: connectionState,
           registration: registration ? 'registered' : 'unregistered',
+          diagnostics: {
+            preflightWarnings,
+            registrationStatus,
+          },
           config: {
             status: configStatus.isDegraded ? 'degraded' : 'ok',
             hasGatewayToken: configStatus.hasGatewayToken,

@@ -14,11 +14,11 @@ vi.mock('./routes/space-ws.js', () => ({ startSpacesServer: (...args: unknown[])
 const preflightMock = vi.fn(async () => ({ ok: true, warnings: [] }));
 vi.mock('./preflight.js', () => ({ runPluginPreflightChecks: (...args: unknown[]) => preflightMock(...args) }));
 
-const registerWithServerMock = vi.fn(async () => null);
+const tryRegisterWithServerMock = vi.fn(async () => ({ status: 'unregistered', state: null }));
 const clearRegistrationStateMock = vi.fn();
 const loadRegistrationStateMock = vi.fn(() => null);
 vi.mock('./registration.js', () => ({
-  registerWithServer: (...args: unknown[]) => registerWithServerMock(...args),
+  tryRegisterWithServer: (...args: unknown[]) => tryRegisterWithServerMock(...args),
   clearRegistrationState: (...args: unknown[]) => clearRegistrationStateMock(...args),
   loadRegistrationState: (...args: unknown[]) => loadRegistrationStateMock(...args),
 }));
@@ -124,7 +124,7 @@ describe('index registerFull resilience', () => {
   it('registerFull resolves even when startup dependencies fail', async () => {
     startSpacesServerMock.mockImplementationOnce(() => { throw new Error('port in use'); });
     preflightMock.mockImplementationOnce(async () => { throw new Error('preflight fail'); });
-    registerWithServerMock.mockImplementationOnce(async () => { throw new Error('registration fail'); });
+    tryRegisterWithServerMock.mockImplementationOnce(async () => { throw new Error('registration fail'); });
 
     const plugin = (await import('./index.js')).default as { registerFull: (api: unknown) => Promise<void> };
     const api = createFakeApi();

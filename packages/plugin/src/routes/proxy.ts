@@ -3,15 +3,39 @@ import { pipeline } from 'stream';
 import https from 'https';
 import http from 'http';
 
+function writeProxyError(res: ServerResponse, statusCode: number, body: Record<string, unknown>): void {
+  if (res.writableEnded || res.destroyed) return;
+  try {
+    if (!res.headersSent) {
+      res.statusCode = statusCode;
+      res.setHeader('Content-Type', 'application/json');
+    }
+    res.end(JSON.stringify(body));
+  } catch {
+    try { res.end(); } catch { /* ignore */ }
+  }
+}
+
 export async function proxyRequest(
   req: IncomingMessage,
   res: ServerResponse,
   targetUrl: string
 ): Promise<boolean> {
   return new Promise((resolve) => {
-    const url = new URL(targetUrl);
+    let url: URL;
+    try {
+      url = new URL(targetUrl);
+    } catch {
+      writeProxyError(res, 502, {
+        error: 'Invalid proxy target URL',
+      });
+      resolve(true);
+      return;
+    }
+
     const isHttps = url.protocol === 'https:';
     const httpModule = isHttps ? https : http;
+    const target = `${url.hostname}:${url.port || (isHttps ? 443 : 80)}`;
 
     const proxyReq = httpModule.request({
       hostname: url.hostname,
@@ -23,10 +47,12 @@ export async function proxyRequest(
         host: url.host,
       },
     }, (proxyRes) => {
-      res.statusCode = proxyRes.statusCode || 500;
+      if (!res.headersSent) {
+        res.statusCode = proxyRes.statusCode || 500;
+      }
 
       for (const [key, value] of Object.entries(proxyRes.headers)) {
-        if (value) {
+        if (value && !res.headersSent) {
           res.setHeader(key, value);
         }
       }
@@ -37,18 +63,17 @@ export async function proxyRequest(
       });
     });
 
+    proxyReq.setTimeout(10_000, () => {
+      proxyReq.destroy(new Error('Proxy timeout'));
+    });
+
     proxyReq.on('error', (error) => {
-      const target = `${url.hostname}:${url.port || (isHttps ? 443 : 80)}`;
       console.error('[ai-spaces] Proxy error:', error.message, '→', targetUrl);
-      res.statusCode = 502;
-      res.setHeader('Content-Type', 'application/json');
-      res.end(
-        JSON.stringify({
-          error: `Cannot reach AI Spaces server at ${target} (${error.message}). Start it with: npm run dev -w @ai-spaces/server`,
-          message: error.message,
-          target,
-        }),
-      );
+      writeProxyError(res, 502, {
+        error: `Cannot reach AI Spaces server at ${target} (${error.message}). Start it with: npm run dev -w @ai-spaces/server`,
+        message: error.message,
+        target,
+      });
       resolve(true);
     });
 

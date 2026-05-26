@@ -13,6 +13,24 @@ import { logger as rootLogger } from '../logger.js';
 
 const log = rootLogger.child({ component: 'acp-ws' });
 
+function safeDestroySocket(socket: Duplex): void {
+  try {
+    if (!socket.destroyed) socket.destroy();
+  } catch {
+    // ignore
+  }
+}
+
+function safeWriteHttpError(socket: Duplex, statusLine: string): void {
+  try {
+    socket.write(`${statusLine}\r\n\r\n`);
+  } catch {
+    // ignore
+  } finally {
+    safeDestroySocket(socket);
+  }
+}
+
 /** Active ACP connections keyed by spaceId → set of connections */
 const spaceConnections = new Map<string, Set<AgentSideConnection>>();
 
@@ -25,8 +43,12 @@ function addConnection(spaceId: string, conn: AgentSideConnection): void {
   const wasEmpty = set.size === 0;
   set.add(conn);
   if (wasEmpty) {
-    const space = getSpace(spaceId);
-    if (space) fileWatcher.watch(spaceId, resolveSpaceRoot(space));
+    try {
+      const space = getSpace(spaceId);
+      if (space) fileWatcher.watch(spaceId, resolveSpaceRoot(space));
+    } catch (err) {
+      log.warn({ err: err instanceof Error ? err.message : String(err), spaceId }, 'Could not start file watcher for space');
+    }
   }
 }
 
@@ -36,26 +58,34 @@ function removeConnection(spaceId: string, conn: AgentSideConnection): void {
   set.delete(conn);
   if (set.size === 0) {
     spaceConnections.delete(spaceId);
-    fileWatcher.unwatch(spaceId);
+    try {
+      fileWatcher.unwatch(spaceId);
+    } catch (err) {
+      log.warn({ err: err instanceof Error ? err.message : String(err), spaceId }, 'Could not unwatch space');
+    }
   }
 }
 
 // Forward file change events to all connected clients as ACP ext notifications
 fileWatcher.on('file:changed', (event: FileChangedEvent) => {
-  const conns = spaceConnections.get(event.spaceId);
-  if (!conns?.size) return;
+  try {
+    const conns = spaceConnections.get(event.spaceId);
+    if (!conns?.size) return;
 
-  const payload = {
-    spaceId: event.spaceId,
-    path: event.path,
-    action: event.action,
-    triggeredBy: 'agent' as const,
-  };
+    const payload = {
+      spaceId: event.spaceId,
+      path: event.path,
+      action: event.action,
+      triggeredBy: 'agent' as const,
+    };
 
-  for (const conn of conns) {
-    conn.extNotification?.('workspace/file_changed', payload).catch((err) => {
-      log.warn({ err }, 'failed to send file_changed notification');
-    });
+    for (const conn of conns) {
+      conn.extNotification?.('workspace/file_changed', payload).catch((err) => {
+        log.warn({ err }, 'failed to send file_changed notification');
+      });
+    }
+  } catch (err) {
+    log.warn({ err: err instanceof Error ? err.message : String(err) }, 'file:changed handler failed');
   }
 });
 
@@ -77,23 +107,31 @@ export function handleAcpUpgrade(
   head: Buffer,
   spaceId: string,
 ): void {
-  const space = getSpace(spaceId);
-  if (!space) {
-    socket.write('HTTP/1.1 404 Not Found\r\n\r\n');
-    socket.destroy();
-    return;
-  }
+  try {
+    const space = getSpace(spaceId);
+    if (!space) {
+      safeWriteHttpError(socket, 'HTTP/1.1 404 Not Found');
+      return;
+    }
 
-  const session = validateSession(req);
-  if (!session) {
-    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
-    socket.destroy();
-    return;
-  }
+    const session = validateSession(req);
+    if (!session) {
+      safeWriteHttpError(socket, 'HTTP/1.1 401 Unauthorized');
+      return;
+    }
 
-  wss.handleUpgrade(req, socket, head, (ws: WsWebSocket) => {
-    setupAcpConnection(ws, spaceId, String(session.userId ?? 'unknown'), String(session.role ?? 'viewer'));
-  });
+    wss.handleUpgrade(req, socket, head, (ws: WsWebSocket) => {
+      try {
+        setupAcpConnection(ws, spaceId, String(session.userId ?? 'unknown'), String(session.role ?? 'viewer'));
+      } catch (err) {
+        log.warn({ err: err instanceof Error ? err.message : String(err), spaceId }, 'Failed to setup ACP connection');
+        try { ws.close(1011, 'internal error'); } catch { /* ignore */ }
+      }
+    });
+  } catch (err) {
+    log.warn({ err: err instanceof Error ? err.message : String(err), spaceId }, 'ACP upgrade handler failed');
+    safeWriteHttpError(socket, 'HTTP/1.1 500 Internal Server Error');
+  }
 }
 
 function setupAcpConnection(
@@ -102,29 +140,42 @@ function setupAcpConnection(
   userId: string,
   role: string,
 ): void {
-  const { output, input } = wsToAcpStream(ws);
-  const stream = ndJsonStream(output, input);
+  let conn: AgentSideConnection | null = null;
+  try {
+    const { output, input } = wsToAcpStream(ws);
+    const stream = ndJsonStream(output, input);
 
-  let conn: AgentSideConnection;
-
-  conn = new AgentSideConnection(
-    (connection) => {
-      const agent = new AISpacesAgent(connection, spaceId, toSpaceRole(role));
-      return agent;
-    },
-    stream,
-  );
+    conn = new AgentSideConnection(
+      (connection) => {
+        const agent = new AISpacesAgent(connection, spaceId, toSpaceRole(role));
+        return agent;
+      },
+      stream,
+    );
+  } catch (err) {
+    log.warn({ err: err instanceof Error ? err.message : String(err), spaceId }, 'Failed initializing ACP stream/connection');
+    try { ws.close(1011, 'connection init failed'); } catch { /* ignore */ }
+    return;
+  }
 
   addConnection(spaceId, conn);
   log.info({ spaceId, userId }, 'ACP connection established');
 
   ws.on('close', () => {
-    removeConnection(spaceId, conn);
+    try {
+      removeConnection(spaceId, conn);
+    } catch (err) {
+      log.warn({ err: err instanceof Error ? err.message : String(err), spaceId }, 'Failed during ACP connection close cleanup');
+    }
     log.info({ spaceId, userId }, 'ACP connection closed');
   });
 
   ws.on('error', (err) => {
     log.warn({ err, spaceId }, 'ACP WebSocket error');
-    removeConnection(spaceId, conn);
+    try {
+      removeConnection(spaceId, conn);
+    } catch (cleanupErr) {
+      log.warn({ err: cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr), spaceId }, 'Failed during ACP socket error cleanup');
+    }
   });
 }

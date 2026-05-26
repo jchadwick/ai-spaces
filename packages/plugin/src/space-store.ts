@@ -1,6 +1,9 @@
 import * as path from 'path';
 import { scanWorkspace } from '@ai-spaces/shared';
 import type { WorkspaceSpaceRecord } from '@ai-spaces/shared';
+import { logger as rootLogger } from './logger.js';
+
+const log = rootLogger.child({ component: 'space-store' });
 
 export type SpaceRecord = WorkspaceSpaceRecord;
 export { WorkspaceSpaceRecord };
@@ -20,7 +23,11 @@ function getAllSpaces(): SpaceRecord[] {
   for (const { agentId, workspaceRoot } of agentWorkspaces) {
     if (seen.has(workspaceRoot)) continue;
     seen.add(workspaceRoot);
-    results.push(...scanWorkspace(workspaceRoot, workspaceRoot, agentId));
+    try {
+      results.push(...scanWorkspace(workspaceRoot, workspaceRoot, agentId));
+    } catch (err) {
+      log.warn({ err: err instanceof Error ? err.message : String(err), workspaceRoot, agentId }, 'Workspace scan failed; skipping workspace');
+    }
   }
 
   return results;

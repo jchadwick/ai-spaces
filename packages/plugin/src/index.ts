@@ -22,6 +22,18 @@ function safeRouteUrl(req: IncomingMessage): URL | null {
   }
 }
 
+function safeCliAction<TArgs extends unknown[]>(actionName: string, fn: (...args: TArgs) => Promise<void>) {
+  return async (...args: TArgs): Promise<void> => {
+    try {
+      await fn(...args);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      log.warn({ err: message, actionName }, 'CLI action failed');
+      console.error(`Error: ${message}`);
+    }
+  };
+}
+
 export default defineChannelPluginEntry({
   id: 'ai-spaces',
   name: 'AI Spaces',
@@ -287,19 +299,19 @@ export default defineChannelPluginEntry({
           .command('list')
           .description('List discovered spaces')
           .option('--json', 'Output as JSON')
-          .action(async (options: { json?: boolean }) => {
+          .action(safeCliAction('spaces list', async (options: { json?: boolean }) => {
             const { listSpaces } = await import('./cli/list.js');
             await listSpaces(options);
-          });
+          }));
 
         spaces
           .command('show <spaceId>')
           .description('Show space details')
           .option('--json', 'Output as JSON')
-          .action(async (spaceId: string, options: { json?: boolean }) => {
+          .action(safeCliAction('spaces show', async (spaceId: string, options: { json?: boolean }) => {
             const { showSpace } = await import('./cli/show.js');
             await showSpace(spaceId, options);
-          });
+          }));
 
         spaces
           .command('create <path>')
@@ -307,30 +319,30 @@ export default defineChannelPluginEntry({
           .option('--json', 'Output as JSON')
           .option('--name <name>', 'Display name for the space')
           .option('--description <description>', 'Description of the space')
-          .action(async (spacePath: string, options: { json?: boolean; name?: string; description?: string }) => {
+          .action(safeCliAction('spaces create', async (spacePath: string, options: { json?: boolean; name?: string; description?: string }) => {
             const { createSpace } = await import('./cli/create.js');
             await createSpace(spacePath, options);
-          });
+          }));
 
         spaces
           .command('remove <spaceId>')
           .description('Remove a space')
           .option('--json', 'Output as JSON')
           .option('--force', 'Confirm deletion')
-          .action(async (spaceId: string, options: { json?: boolean; force?: boolean }) => {
+          .action(safeCliAction('spaces remove', async (spaceId: string, options: { json?: boolean; force?: boolean }) => {
             const { removeSpace } = await import('./cli/remove.js');
             await removeSpace(spaceId, options);
-          });
+          }));
 
         spaces
           .command('invite <spaceId>')
           .description('Create an invite for a space')
           .option('--role <role>', 'Role for invite (viewer/editor/owner)', 'editor')
           .option('--json', 'Output as JSON')
-          .action(async (spaceId: string, options: { json?: boolean; role?: string }) => {
+          .action(safeCliAction('spaces invite', async (spaceId: string, options: { json?: boolean; role?: string }) => {
             const { createInvite } = await import('./cli/invite.js');
             await createInvite(spaceId, options);
-          });
+          }));
       },
       {
         commands: ['spaces'],

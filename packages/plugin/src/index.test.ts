@@ -34,6 +34,7 @@ const proxyRequestMock = vi.fn(async () => true);
 vi.mock('./routes/proxy.js', () => ({ proxyRequest: (...args: unknown[]) => proxyRequestMock(...args) }));
 
 vi.mock('./cleanup.js', () => ({ cleanOrphanedFiles: vi.fn() }));
+vi.mock('./cli/invite.js', () => ({ createInvite: vi.fn(async () => { throw new Error('invite failed'); }) }));
 
 class MockSpaceWatcher {
   on = vi.fn();
@@ -50,6 +51,7 @@ vi.mock('./logger.js', () => ({
 
 function createFakeApi() {
   const routes: Array<{ path: string; handler: (req: IncomingMessage, res: ServerResponse) => Promise<boolean> }> = [];
+  let cliBuilder: ((args: { program: unknown }) => void) | null = null;
   return {
     config: {
       agents: {
@@ -59,8 +61,39 @@ function createFakeApi() {
     registerHttpRoute: vi.fn((route: { path: string; handler: (req: IncomingMessage, res: ServerResponse) => Promise<boolean> }) => {
       routes.push(route);
     }),
-    registerCli: vi.fn(),
+    registerCli: vi.fn((builder: (args: { program: unknown }) => void) => {
+      cliBuilder = builder;
+    }),
     routes,
+    getCliBuilder: () => cliBuilder,
+  };
+}
+
+class FakeCommand {
+  private actionHandler: ((...args: unknown[]) => Promise<void>) | null = null;
+
+  constructor(private readonly actions: Map<string, (...args: unknown[]) => Promise<void>>, private readonly key: string) {}
+
+  description() { return this; }
+  option() { return this; }
+  command(name: string) {
+    const cmd = new FakeCommand(this.actions, name);
+    return cmd;
+  }
+  action(handler: (...args: unknown[]) => Promise<void>) {
+    this.actionHandler = handler;
+    this.actions.set(this.key, handler);
+    return this;
+  }
+}
+
+function createFakeProgram() {
+  const actions = new Map<string, (...args: unknown[]) => Promise<void>>();
+  return {
+    command(name: string) {
+      return new FakeCommand(actions, name);
+    },
+    actions,
   };
 }
 
@@ -120,5 +153,24 @@ describe('index registerFull resilience', () => {
     expect(handled).toBe(true);
     expect((res as unknown as { statusCode: number }).statusCode).toBe(400);
     expect(proxyRequestMock).not.toHaveBeenCalled();
+  });
+
+  it('CLI action wrapper swallows dynamic import failures', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const plugin = (await import('./index.js')).default as { registerFull: (api: ReturnType<typeof createFakeApi>) => Promise<void> };
+    const api = createFakeApi();
+    await plugin.registerFull(api);
+
+    const builder = api.getCliBuilder();
+    expect(builder).toBeTruthy();
+
+    const fakeProgram = createFakeProgram();
+    builder!({ program: fakeProgram });
+
+    const inviteAction = fakeProgram.actions.get('invite <spaceId>');
+    expect(inviteAction).toBeTruthy();
+
+    await expect(inviteAction!('space-1', { json: true })).resolves.toBeUndefined();
+    expect(errorSpy).toHaveBeenCalled();
   });
 });

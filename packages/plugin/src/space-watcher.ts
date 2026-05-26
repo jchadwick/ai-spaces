@@ -104,7 +104,15 @@ export class SpaceWatcher extends EventEmitter {
       const space = readSpaceRecord(configPath, this.watchRoot, this.agentId);
       if (!space) continue;
       log.info({ spaceId: space.id }, 'Space discovered at startup');
-      this.emit('space:added', { space } satisfies SpaceAddedEvent);
+      this.safeEmit('space:added', { space } satisfies SpaceAddedEvent);
+    }
+  }
+
+  private safeEmit(eventName: 'space:added' | 'space:removed', payload: SpaceAddedEvent | SpaceRemovedEvent): void {
+    try {
+      this.emit(eventName, payload);
+    } catch (err) {
+      log.warn({ err: err instanceof Error ? err.message : String(err), eventName }, 'Space watcher listener threw');
     }
   }
 
@@ -118,39 +126,56 @@ export class SpaceWatcher extends EventEmitter {
 
     log.info({ watchRoot: this.watchRoot, agentId: this.agentId }, 'Starting workspace watcher');
 
-    this.watcher = chokidar.watch(this.watchRoot, {
-      depth: 3,
-      followSymlinks: false,
-      ignoreInitial: true,
-      awaitWriteFinish: { stabilityThreshold: 200 },
-    });
+    try {
+      this.watcher = chokidar.watch(this.watchRoot, {
+        depth: 3,
+        followSymlinks: false,
+        ignoreInitial: true,
+        awaitWriteFinish: { stabilityThreshold: 200 },
+      });
+    } catch (err) {
+      log.warn({ err: err instanceof Error ? err.message : String(err), watchRoot: this.watchRoot }, 'Failed to start watcher');
+      return;
+    }
 
     this.watcher.on('add', (filePath) => {
-      if (!isSpacesConfig(filePath)) return;
+      try {
+        if (!isSpacesConfig(filePath)) return;
 
-      const space = readSpaceRecord(filePath, this.watchRoot, this.agentId);
-      if (!space) return;
+        const space = readSpaceRecord(filePath, this.watchRoot, this.agentId);
+        if (!space) return;
 
-      log.info({ spaceId: space.id }, 'Space added');
-      this.emit('space:added', { space } satisfies SpaceAddedEvent);
+        log.info({ spaceId: space.id }, 'Space added');
+        this.safeEmit('space:added', { space } satisfies SpaceAddedEvent);
+      } catch (err) {
+        log.warn({ err: err instanceof Error ? err.message : String(err), filePath }, 'Watcher add handler failed');
+      }
     });
 
     this.watcher.on('unlink', (filePath) => {
-      if (!isSpacesConfig(filePath)) return;
+      try {
+        if (!isSpacesConfig(filePath)) return;
 
-      const parsed = parseSpacesConfigPath(filePath, this.watchRoot, this.agentId);
-      if (!parsed) return;
+        const parsed = parseSpacesConfigPath(filePath, this.watchRoot, this.agentId);
+        if (!parsed) return;
 
-      const spaceId = computeSpaceId(this.agentId, parsed.relativePath);
-      log.info({ spaceId }, 'Space removed');
-      this.emit('space:removed', { spaceId, spacePath: parsed.relativePath } satisfies SpaceRemovedEvent);
+        const spaceId = computeSpaceId(this.agentId, parsed.relativePath);
+        log.info({ spaceId }, 'Space removed');
+        this.safeEmit('space:removed', { spaceId, spacePath: parsed.relativePath } satisfies SpaceRemovedEvent);
+      } catch (err) {
+        log.warn({ err: err instanceof Error ? err.message : String(err), filePath }, 'Watcher unlink handler failed');
+      }
     });
 
     this.watcher.on('error', (err: unknown) => {
       log.error({ err: err instanceof Error ? err.message : String(err) }, 'Watcher error');
     });
 
-    this.scan();
+    try {
+      this.scan();
+    } catch (err) {
+      log.warn({ err: err instanceof Error ? err.message : String(err) }, 'Initial watcher scan failed');
+    }
   }
 
   stop(): void {

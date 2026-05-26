@@ -43,4 +43,19 @@ describe('registration', () => {
     expect(result.status).toBe('server-unreachable');
     expect(result.state).toBeNull();
   });
+
+  it('returns auth-failed on 401 response', async () => {
+    process.env.GATEWAY_TOKEN = 'test-token';
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      status: 401,
+      ok: false,
+      text: async () => 'unauthorized',
+    })));
+
+    const { tryRegisterWithServer } = await import('./registration.js');
+    const result = await tryRegisterWithServer();
+
+    expect(result.status).toBe('auth-failed');
+    expect(result.state).toBeNull();
+  });
 });

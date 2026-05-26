@@ -69,4 +69,22 @@ describe('SpaceWatcher resilience', () => {
     existsSyncMock.mockReturnValue(true);
     expect(() => handlers.add('/tmp/workspace/project/.space/spaces.json')).not.toThrow();
   });
+
+  it('stop does not throw when watcher close rejects', async () => {
+    existsSyncMock.mockReturnValue(true);
+    readdirSyncMock.mockReturnValue([]);
+
+    watchMock.mockReturnValue({
+      on: vi.fn(),
+      close: async () => {
+        throw new Error('close failed');
+      },
+    });
+
+    const { SpaceWatcher } = await import('./space-watcher.js');
+    const watcher = new SpaceWatcher('/tmp/workspace', 'main');
+    watcher.start();
+
+    expect(() => watcher.stop()).not.toThrow();
+  });
 });

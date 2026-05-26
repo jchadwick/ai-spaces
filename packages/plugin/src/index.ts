@@ -5,7 +5,7 @@ import { setRuntime } from './runtime.js';
 import { listSpaces, initSpaceStore } from './space-store.js';
 import { proxyRequest } from './routes/proxy.js';
 import { startSpacesServer } from './routes/space-ws.js';
-import { config } from './config.js';
+import { config, configStatus, diagnostics as configDiagnostics } from './config.js';
 import { SpaceWatcher } from './space-watcher.js';
 import { registerWithServer, clearRegistrationState, loadRegistrationState } from './registration.js';
 import { logger as rootLogger } from './logger.js';
@@ -140,7 +140,11 @@ export default defineChannelPluginEntry({
         }
 
         const registration = loadRegistrationState();
-        const degraded = filesystemStatus !== 'ok' || serverStatus === 'unreachable' || connectionState === 'degraded';
+        const degraded =
+          filesystemStatus !== 'ok'
+          || serverStatus === 'unreachable'
+          || connectionState === 'degraded'
+          || configStatus.isDegraded;
 
         const body = JSON.stringify({
           status: degraded ? 'degraded' : 'ok',
@@ -148,6 +152,12 @@ export default defineChannelPluginEntry({
           server: serverStatus,
           connection: connectionState,
           registration: registration ? 'registered' : 'unregistered',
+          config: {
+            status: configStatus.isDegraded ? 'degraded' : 'ok',
+            hasGatewayToken: configStatus.hasGatewayToken,
+            invalid: configDiagnostics.invalid,
+            warnings: configDiagnostics.warnings,
+          },
           uptime: Math.floor(process.uptime()),
         });
 

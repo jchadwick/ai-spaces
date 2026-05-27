@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
 import { z } from 'zod';
 import { zValidator } from '@hono/zod-validator';
 import {
@@ -228,7 +229,7 @@ authRouter.get('/google', (c) => {
   authUrl.searchParams.set('prompt', 'consent');
 
   // Set cookies for state and codeVerifier validation
-  c.cookie('oauth_state', state, {
+  setCookie(c, 'oauth_state', state, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'Lax',
@@ -236,7 +237,7 @@ authRouter.get('/google', (c) => {
     path: '/',
   });
 
-  c.cookie('oauth_code_verifier', codeVerifier, {
+  setCookie(c, 'oauth_code_verifier', codeVerifier, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'Lax',
@@ -255,12 +256,12 @@ authRouter.get('/google/callback', async (c) => {
 
   const code = c.req.query('code');
   const state = c.req.query('state');
-  const storedState = c.getCookie('oauth_state');
-  const storedCodeVerifier = c.getCookie('oauth_code_verifier');
+  const storedState = getCookie(c, 'oauth_state');
+  const storedCodeVerifier = getCookie(c, 'oauth_code_verifier');
 
   // Clear the cookies
-  c.cookie('oauth_state', '', { maxAge: 0, path: '/' });
-  c.cookie('oauth_code_verifier', '', { maxAge: 0, path: '/' });
+  deleteCookie(c, 'oauth_state', { path: '/' });
+  deleteCookie(c, 'oauth_code_verifier', { path: '/' });
 
   if (!code || !state || !storedState || !storedCodeVerifier) {
     return c.json({ error: 'Invalid OAuth request' }, 400);

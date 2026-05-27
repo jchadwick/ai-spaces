@@ -30,7 +30,22 @@ export const config = {
   INVITE_TOKEN_TTL_DAYS: parseInt(process.env.INVITE_TOKEN_TTL_DAYS ?? '5', 10),
   BOOTSTRAP_ADMIN_EMAIL: process.env.BOOTSTRAP_ADMIN_EMAIL,
   BOOTSTRAP_ADMIN_PASSWORD: process.env.BOOTSTRAP_ADMIN_PASSWORD,
+  // Google OAuth
+  GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ?? '',
+  GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET ?? '',
+  GOOGLE_OAUTH_REDIRECT_URI: process.env.GOOGLE_OAUTH_REDIRECT_URI ?? '',
 };
+
+export const isGoogleOAuthEnabled = (): boolean => {
+  return !!(config.GOOGLE_CLIENT_ID && config.GOOGLE_CLIENT_SECRET && config.GOOGLE_OAUTH_REDIRECT_URI);
+};
+
+export function getGoogleOAuthRedirectUri(): string {
+  if (config.GOOGLE_OAUTH_REDIRECT_URI) {
+    return config.GOOGLE_OAUTH_REDIRECT_URI;
+  }
+  return `${config.INVITE_BASE_URL}/api/auth/google/callback`;
+}
 
 export function normalizeServerUrl(value: string, name: string): string {
   let url: URL;

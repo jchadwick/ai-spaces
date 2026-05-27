@@ -13,6 +13,7 @@ import RegisterPage from './pages/RegisterPage'
 import InvitePage from './pages/InvitePage'
 import AdminPage from './pages/AdminPage'
 import ProfilePage from './pages/ProfilePage'
+import AuthCallbackPage from './pages/AuthCallbackPage'
 
 function AuthenticatedLayout() {
   const { isAuthenticated, isLoading } = useAuth()
@@ -49,6 +50,7 @@ function App() {
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
                 <Route path="/invite" element={<InvitePage />} />
+                <Route path="/auth/callback" element={<AuthCallbackPage />} />
                 <Route element={<AuthenticatedLayout />}>
                   <Route path="/" element={<HomePage />} />
                   <Route path="/spaces" element={<HomePage />} />

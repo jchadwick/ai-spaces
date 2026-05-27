@@ -10,11 +10,13 @@ import {
   getUserPasswordHash,
   updateUser,
   updateUserPassword,
+  findOrCreateOAuthUser,
 } from '../user-service.js';
 import type { UserWithServerRole } from '../db/index.js';
 import jwt from 'jsonwebtoken';
-import { config } from '../config.js';
+import { config, isGoogleOAuthEnabled, getGoogleOAuthRedirectUri } from '../config.js';
 import { authMiddleware, type AuthVariables } from '../middleware/auth.js';
+import * as arctic from 'arctic';
 
 export const authRouter = new Hono<{ Variables: AuthVariables }>();
 
@@ -193,6 +195,141 @@ authRouter.put('/me/password', authMiddleware, zValidator('json', changePassword
   }
 
   return c.json({ success: true });
+});
+
+// GET /api/auth/providers - Returns available authentication providers
+authRouter.get('/providers', (c) => {
+  return c.json({
+    password: true,
+    google: isGoogleOAuthEnabled(),
+  });
+});
+
+// GET /api/auth/google - Initiates Google OAuth flow
+authRouter.get('/google', (c) => {
+  if (!isGoogleOAuthEnabled()) {
+    return c.json({ error: 'Google OAuth is not configured' }, 400);
+  }
+
+  const google = new arctic.Google(
+    config.GOOGLE_CLIENT_ID,
+    config.GOOGLE_CLIENT_SECRET,
+    getGoogleOAuthRedirectUri()
+  );
+
+  const state = arctic.generateState();
+  const codeVerifier = arctic.generateCodeVerifier();
+  const scopes = ['openid', 'email', 'profile'];
+
+  const authUrl = google.createAuthorizationURL(state, codeVerifier, scopes);
+  
+  // Request refresh token for offline access
+  authUrl.searchParams.set('access_type', 'offline');
+  authUrl.searchParams.set('prompt', 'consent');
+
+  // Set cookies for state and codeVerifier validation
+  c.cookie('oauth_state', state, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'Lax',
+    maxAge: 60 * 10, // 10 minutes
+    path: '/',
+  });
+
+  c.cookie('oauth_code_verifier', codeVerifier, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'Lax',
+    maxAge: 60 * 10, // 10 minutes
+    path: '/',
+  });
+
+  return c.redirect(authUrl.toString());
+});
+
+// GET /api/auth/google/callback - Handles Google OAuth callback
+authRouter.get('/google/callback', async (c) => {
+  if (!isGoogleOAuthEnabled()) {
+    return c.json({ error: 'Google OAuth is not configured' }, 400);
+  }
+
+  const code = c.req.query('code');
+  const state = c.req.query('state');
+  const storedState = c.getCookie('oauth_state');
+  const storedCodeVerifier = c.getCookie('oauth_code_verifier');
+
+  // Clear the cookies
+  c.cookie('oauth_state', '', { maxAge: 0, path: '/' });
+  c.cookie('oauth_code_verifier', '', { maxAge: 0, path: '/' });
+
+  if (!code || !state || !storedState || !storedCodeVerifier) {
+    return c.json({ error: 'Invalid OAuth request' }, 400);
+  }
+
+  if (state !== storedState) {
+    return c.json({ error: 'Invalid state parameter' }, 400);
+  }
+
+  const google = new arctic.Google(
+    config.GOOGLE_CLIENT_ID,
+    config.GOOGLE_CLIENT_SECRET,
+    getGoogleOAuthRedirectUri()
+  );
+
+  let tokens: arctic.OAuth2Tokens;
+  try {
+    tokens = await google.validateAuthorizationCode(code, storedCodeVerifier);
+  } catch (e) {
+    console.error('[Google OAuth] Code exchange failed:', e);
+    if (e instanceof arctic.OAuth2RequestError) {
+      return c.json({ error: 'Failed to exchange authorization code' }, 400);
+    }
+    if (e instanceof arctic.ArcticFetchError) {
+      return c.json({ error: 'Failed to contact Google' }, 503);
+    }
+    return c.json({ error: 'OAuth exchange failed' }, 500);
+  }
+
+  // Decode ID token to get user info
+  const idToken = tokens.idToken();
+  if (!idToken) {
+    return c.json({ error: 'No ID token received from Google' }, 500);
+  }
+
+  let claims: arctic.IdTokenClaims;
+  try {
+    claims = arctic.decodeIdToken(idToken);
+  } catch (e) {
+    console.error('[Google OAuth] Failed to decode ID token:', e);
+    return c.json({ error: 'Invalid ID token' }, 500);
+  }
+
+  const oauthId = claims.sub;
+  const email = (claims as Record<string, string>).email;
+  const displayName = (claims as Record<string, string>).name;
+
+  if (!email) {
+    return c.json({ error: 'Google did not provide an email address' }, 400);
+  }
+
+  // Find or create user
+  let user: UserWithServerRole;
+  try {
+    user = findOrCreateOAuthUser('google', oauthId, email, displayName);
+  } catch (e) {
+    console.error('[Google OAuth] Failed to find or create user:', e);
+    return c.json({ error: 'Failed to create user account' }, 500);
+  }
+
+  // Generate JWT tokens
+  const { accessToken, refreshToken } = generateTokens(user);
+
+  // Redirect to frontend callback page with tokens
+  const callbackUrl = new URL(`${config.INVITE_BASE_URL}/auth/callback`);
+  callbackUrl.searchParams.set('accessToken', accessToken);
+  callbackUrl.searchParams.set('refreshToken', refreshToken);
+
+  return c.redirect(callbackUrl.toString());
 });
 
 function generateTokens(user: UserWithServerRole): { accessToken: string; refreshToken: string } {

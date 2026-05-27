@@ -1,5 +1,5 @@
 import { db } from './connection.js';
-import { users, spaceMembers, serverRoles, servers, spaces } from './index.js';
+import { users, spaceMembers, serverRoles, servers, spaces, authProviders } from './index.js';
 import type { UserWithServerRole } from './index.js';
 import { and, eq, inArray } from 'drizzle-orm';
 import type { SpaceRole } from '@ai-spaces/shared';
@@ -108,4 +108,17 @@ export function getUserWithServerRoleByEmail(email: string): UserWithServerRole 
     .where(and(eq(serverRoles.userId, user.id), eq(serverRoles.serverId, DEFAULT_SERVER_ID)))
     .get();
   return { ...user, serverRole: ((sr?.role ?? 'user') as 'admin' | 'user') };
+}
+
+export function getUserByOAuthId(provider: string, oauthId: string): UserWithServerRole | null {
+  const ap = db.select({ userId: authProviders.userId })
+    .from(authProviders)
+    .where(and(eq(authProviders.provider, provider), eq(authProviders.oauthId, oauthId)))
+    .get();
+  if (!ap?.userId) return null;
+  return getUserWithServerRole(ap.userId);
+}
+
+export function getUserByEmail(email: string): UserWithServerRole | null {
+  return getUserWithServerRoleByEmail(email);
 }

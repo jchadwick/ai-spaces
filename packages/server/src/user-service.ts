@@ -8,6 +8,7 @@ import { DEFAULT_SERVER_ID } from './db/constants.js';
 import {
   getUserWithServerRole,
   getUserWithServerRoleByEmail,
+  getUserByOAuthId,
 } from './db/queries.js';
 
 export { hashPassword, verifyPassword } from './password-utils.js';
@@ -146,4 +147,76 @@ export function updateUserServerRole(userId: string, serverId: string, role: 'ad
 export function deleteUser(id: string): boolean {
   const result = db.delete(users).where(eq(users.id, id)).run();
   return result.changes > 0;
+}
+
+/**
+ * Find or create a user based on OAuth provider information.
+ * 
+ * 1. Look up user by oauth_id + provider
+ * 2. If not found, look up by email and link the OAuth provider to existing user
+ * 3. If neither found, create new user with OAuth provider (bypasses ALLOW_OPEN_REGISTRATION)
+ */
+export function findOrCreateOAuthUser(
+  provider: string,
+  oauthId: string,
+  email: string,
+  displayName?: string,
+): UserWithServerRole {
+  // Step 1: Look up by OAuth ID
+  const existingOAuthUser = getUserByOAuthId(provider, oauthId);
+  if (existingOAuthUser) {
+    return existingOAuthUser;
+  }
+
+  // Step 2: Look up by email and link OAuth provider if user exists
+  const existingEmailUser = getUserWithServerRoleByEmail(email);
+  if (existingEmailUser) {
+    // Link the OAuth provider to this existing user
+    const authProviderId = crypto.randomBytes(16).toString('hex');
+    const now = new Date().toISOString();
+    
+    db.insert(authProviders).values({
+      id: authProviderId,
+      userId: existingEmailUser.id,
+      provider,
+      oauthId,
+      createdAt: now,
+      updatedAt: now,
+    }).run();
+    
+    return existingEmailUser;
+  }
+
+  // Step 3: Create new user with OAuth provider
+  const id = generateUserId();
+  const authProviderId = crypto.randomBytes(16).toString('hex');
+  const now = new Date().toISOString();
+
+  db.transaction((tx) => {
+    tx.insert(users).values({
+      id,
+      email,
+      displayName,
+      createdAt: now,
+      updatedAt: now,
+    }).run();
+
+    tx.insert(authProviders).values({
+      id: authProviderId,
+      userId: id,
+      provider,
+      oauthId,
+      createdAt: now,
+      updatedAt: now,
+    }).run();
+
+    tx.insert(serverRoles).values({
+      userId: id,
+      serverId: DEFAULT_SERVER_ID,
+      role: 'user',
+      createdAt: now,
+    }).run();
+  });
+
+  return getUserWithServerRole(id)!;
 }

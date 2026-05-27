@@ -89,6 +89,10 @@ services:
       AI_SPACES_URL: http://127.0.0.1:3001
       AI_SPACES_AGENT_BASE_URL: http://dev:3001
       AI_SPACES_PLUGIN_DIR: /plugins
+      # Google OAuth (optional - set via .env or docker-compose.override.yml)
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_OAUTH_REDIRECT_URI: ${GOOGLE_OAUTH_REDIRECT_URI:-http://localhost:3000/api/auth/google/callback}
     volumes:
       - dev-data:/data
       # Server source (tsx watch)

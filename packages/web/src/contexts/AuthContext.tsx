@@ -17,6 +17,7 @@ interface AuthContextType {
   user: User | null
   isLoading: boolean
   login: (email: string, password: string) => Promise<void>
+  loginWithTokens: (accessToken: string, refreshToken: string) => Promise<void>
   logout: () => Promise<void>
   refresh: () => Promise<string | null>
   isAuthenticated: boolean
@@ -192,6 +193,39 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }
 
+  const loginWithTokens = async (accessToken: string, refreshToken: string): Promise<void> => {
+    setIsLoading(true)
+    
+    try {
+      const tokens: AuthTokens = { accessToken, refreshToken }
+      
+      // Fetch user info to validate tokens
+      const response = await fetch('/api/auth/me', {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+
+      if (!response.ok) {
+        throw new Error('Invalid tokens')
+      }
+
+      const user = await response.json()
+      
+      setStoredTokens(tokens)
+      setStoredUser(user)
+      setUser(user)
+      setAccessToken(accessToken)
+    } catch (error) {
+      clearStoredAuth()
+      let errMsg = 'Authentication failed. Please try again.'
+      if (error instanceof Error) {
+        errMsg = error.message
+      }
+      throw new Error(errMsg)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const refresh = async (): Promise<string | null> => {
     const tokens = getStoredTokens()
     if (!tokens?.refreshToken) {
@@ -260,6 +294,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     user,
     isLoading,
     login,
+    loginWithTokens,
     logout,
     refresh,
     isAuthenticated: user !== null,

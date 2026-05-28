@@ -28,9 +28,8 @@ COPY packages/server/ ./packages/server/
 COPY packages/plugin/ ./packages/plugin/
 
 RUN npm run build:shared && \
-    npm run build:web && \
-    npm run build:plugin && \
-    npm run build -w @ai-spaces/server
+    npm run build:web & npm run build -w @ai-spaces/server & wait && \
+    npm run build:plugin
 
 RUN node scripts/package-openclaw-plugin.mjs \
       --dist /build/packages/plugin/dist \

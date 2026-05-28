@@ -37,7 +37,7 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --prefer-offline --no-audit --fund=false
 
       - name: Typecheck
         run: npm run typecheck
@@ -48,18 +48,30 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
       - name: Build image for healthcheck verification
         uses: docker/build-push-action@v6
         with:
           context: .
           load: true
-          tags: ai-spaces:healthcheck
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          tags: ai-spaces:ci
+          cache-from: type=gha,scope=container-build
+          cache-to: type=gha,mode=max,scope=container-build
 
       - name: Verify container healthcheck
         run: |
-          docker run -d --name ai-spaces-healthcheck-test ai-spaces:healthcheck
+          docker run -d --name ai-spaces-healthcheck-test ai-spaces:ci
           trap 'docker rm -f ai-spaces-healthcheck-test >/dev/null 2>&1 || true' EXIT
 
           for _ in {1..20}; do
@@ -86,26 +98,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=tag
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Build and publish image
+      - name: Tag and publish healthchecked image
         if: github.event_name != 'pull_request'
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          platforms: linux/amd64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+        env:
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          while IFS= read -r tag; do
+            [ -z "$tag" ] && continue
+            docker tag ai-spaces:ci "$tag"
+            docker push "$tag"
+          done <<EOF
+          $IMAGE_TAGS
+          EOF

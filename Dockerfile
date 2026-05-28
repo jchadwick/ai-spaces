@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 # ─────────────────────────────────────────────
 # Stage: install deps
 # ─────────────────────────────────────────────
@@ -12,7 +13,7 @@ COPY packages/shared/package.json ./packages/shared/
 COPY packages/web/package.json ./packages/web/
 COPY packages/server/package.json ./packages/server/
 COPY packages/plugin/package.json ./packages/plugin/
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm npm ci --prefer-offline --no-audit --fund=false
 
 # ─────────────────────────────────────────────
 # Stage: build all packages
@@ -28,7 +29,7 @@ COPY packages/server/ ./packages/server/
 COPY packages/plugin/ ./packages/plugin/
 
 RUN npm run build:shared && \
-    npm run build:web & npm run build -w @ai-spaces/server & wait && \
+    (npm run build:web & npm run build -w @ai-spaces/server & wait) && \
     npm run build:plugin
 
 RUN node scripts/package-openclaw-plugin.mjs \

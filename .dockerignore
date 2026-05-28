@@ -2,6 +2,12 @@ node_modules
 **/node_modules
 .git
 **/.git
+.codegraph
+.codex
+.claude
+.opencode
+.playwright-cli
+.tickets
 .logs
 **/dist
 !packages/shared/dist
@@ -17,3 +23,7 @@ PDF_VIEWER.md
 repomix-output.xml
 chat-test.png
 *.log
+.ai-spaces.db
+.ai-spaces.db-shm
+.ai-spaces.db-wal
+.DS_Store

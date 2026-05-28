@@ -19,7 +19,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build:shared && npm run build:web && npm run build:plugin && npm run build:server",
+    "build": "npm run typecheck && npm run build:shared && npm run build:web && npm run build:plugin && npm run build:server",
     "build:shared": "npm run build -w @ai-spaces/shared",
     "build:web": "npm run build -w @ai-spaces/web",
     "build:plugin": "npm run build -w @openclaw/ai-spaces",

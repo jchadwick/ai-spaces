@@ -115,8 +115,8 @@ export function startSpacesServer(port: number): void {
   });
 
   try {
-    httpServer.listen(port, '127.0.0.1', () => {
-      log.info({ port }, 'WebSocket server listening on loopback');
+    httpServer.listen(port, config.AI_SPACES_WS_HOST, () => {
+      log.info({ port, host: config.AI_SPACES_WS_HOST }, 'WebSocket server listening');
     });
   } catch (err) {
     log.warn({ err: err instanceof Error ? err.message : String(err), port }, 'Could not listen on spaces server port');

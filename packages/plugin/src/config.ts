@@ -70,12 +70,22 @@ function parsePositiveNumber(value: string | undefined, name: string, fallback: 
   return parsed;
 }
 
+function parseListenHost(value: string | undefined, name: string, fallback: string): string {
+  const candidate = (value ?? fallback).trim();
+  if (!candidate) {
+    markInvalid(name, `${name} must be a non-empty hostname or IP. Falling back to '${fallback}'.`);
+    return fallback;
+  }
+  return candidate;
+}
+
 export const config = {
   OPENCLAW_HOME: parseAbsolutePath(process.env.OPENCLAW_HOME, 'OPENCLAW_HOME', '/home/node'),
   JWT_SECRET:     process.env.JWT_SECRET     ?? 'ai-spaces-dev-secret-change-in-production',
   AI_SPACES_ROOT: process.env.AI_SPACES_ROOT ?? path.join(HOME, 'ai-spaces-workspace'),
   AI_SPACES_URL: parseHttpUrl(process.env.AI_SPACES_URL, 'AI_SPACES_URL', 'http://127.0.0.1:3001'),
   AI_SPACES_WS_PORT: parsePort(process.env.AI_SPACES_WS_PORT, 'AI_SPACES_WS_PORT', 3002),
+  AI_SPACES_WS_HOST: parseListenHost(process.env.AI_SPACES_WS_HOST, 'AI_SPACES_WS_HOST', '0.0.0.0'),
   AI_SPACES_PLUGIN_STATE_FILE: process.env.AI_SPACES_PLUGIN_STATE_FILE
     ?? path.join(process.env.OPENCLAW_HOME ?? '/home/node', 'ai-spaces-registration.json'),
   GATEWAY_TOKEN: process.env.GATEWAY_TOKEN ?? '',

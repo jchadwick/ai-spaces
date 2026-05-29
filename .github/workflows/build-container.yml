@@ -6,7 +6,23 @@ on:
       - '**'
     tags:
       - 'v*'
+    paths:
+      - '.github/workflows/build-container.yml'
+      - 'Dockerfile'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.base.json'
+      - 'scripts/package-openclaw-plugin.mjs'
+      - 'packages/**'
   pull_request:
+    paths:
+      - '.github/workflows/build-container.yml'
+      - 'Dockerfile'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.base.json'
+      - 'scripts/package-openclaw-plugin.mjs'
+      - 'packages/**'
   workflow_dispatch:
 
 permissions:
@@ -23,8 +39,8 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  build-container:
-    name: Build and publish container
+  ci-checks:
+    name: Typecheck and test
     runs-on: ubuntu-latest
 
     steps:
@@ -49,6 +65,20 @@ jobs:
       - name: Test
         run: npm test
 
+  build-container:
+    name: Build and publish container
+    runs-on: ubuntu-latest
+    needs: ci-checks
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.ref, 'refs/tags/v') ||
+      github.ref == 'refs/heads/beta' ||
+      github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -64,14 +94,25 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable={{is_default_branch}}
 
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build image for healthcheck verification
         uses: docker/build-push-action@v6
         with:
           context: .
           load: true
           tags: ai-spaces:ci
-          cache-from: type=gha,scope=container-build
-          cache-to: type=gha,mode=max,scope=container-build
+          cache-from: |
+            type=gha,scope=container-build
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
+          cache-to: |
+            type=gha,mode=max,scope=container-build
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
 
       - name: Verify container healthcheck
         run: |
@@ -94,16 +135,7 @@ jobs:
           docker logs ai-spaces-healthcheck-test
           exit 1
 
-      - name: Log in to GitHub Container Registry
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Tag and publish healthchecked image
-        if: github.event_name != 'pull_request'
         env:
           IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
         run: |

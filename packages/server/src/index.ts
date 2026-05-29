@@ -31,8 +31,53 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger as honoLogger } from 'hono/logger';
 import { logger as rootLogger } from './logger.js';
+import { execSync } from 'node:child_process';
+
+type BuildInfo = {
+  display: string;
+  sha: string;
+  branch: string;
+  tag: string;
+};
 
 const log = rootLogger.child({ component: 'server' });
+
+function runGit(command: string): string {
+  try {
+    return execSync(command, { encoding: 'utf8' }).trim();
+  } catch {
+    return '';
+  }
+}
+
+function resolveBuildInfo(): BuildInfo {
+  const tag = runGit('git describe --tags --exact-match');
+  const sha = runGit('git rev-parse --short HEAD');
+  const branch = runGit('git rev-parse --abbrev-ref HEAD');
+  const packageVersion = process.env.npm_package_version?.trim() ?? '';
+
+  const versionFallback = packageVersion ? `v${packageVersion}` : 'unknown';
+  const display = tag || (sha && branch ? `${branch}-${sha}` : sha || versionFallback);
+
+  return {
+    display,
+    sha,
+    branch,
+    tag,
+  };
+}
+
+function injectBuildMetaTags(html: string, buildInfo: BuildInfo): string {
+  const metaTags = [
+    `<meta name="ai-spaces-build" content="${buildInfo.display}">`,
+    `<meta name="ai-spaces-sha" content="${buildInfo.sha}">`,
+    `<meta name="ai-spaces-branch" content="${buildInfo.branch}">`,
+    `<meta name="ai-spaces-tag" content="${buildInfo.tag}">`,
+  ].join('\n    ');
+  return html.replace('</head>', `    ${metaTags}\n  </head>`);
+}
+
+const buildInfo = resolveBuildInfo();
 
 
 assertProductionHttps(config.INVITE_BASE_URL, 'INVITE_BASE_URL');
@@ -49,6 +94,14 @@ app.use('/api/*', cors({
   origin: '*',
   credentials: true,
 }));
+
+app.use('/api/*', async (c, next) => {
+  await next();
+  c.res.headers.set('X-AI-Spaces-Build', buildInfo.display);
+  c.res.headers.set('X-AI-Spaces-Sha', buildInfo.sha);
+  c.res.headers.set('X-AI-Spaces-Branch', buildInfo.branch);
+  c.res.headers.set('X-AI-Spaces-Tag', buildInfo.tag);
+});
 
 // CSP middleware for invite and login routes — register before static file serving
 // Note: Hono's use() does not accept an array of paths; register each path separately
@@ -132,8 +185,9 @@ if (fs.existsSync(config.WEB_DIST)) {
     const filePath = path.join(config.WEB_DIST, c.req.path);
     if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
       const content = fs.readFileSync(filePath, 'utf-8');
+      const responseContent = filePath.endsWith('.html') ? injectBuildMetaTags(content, buildInfo) : content;
       const isAsset = c.req.path.startsWith('/assets/');
-      return c.text(content, 200, {
+      return c.text(responseContent, 200, {
         'Content-Type': getContentType(filePath),
         'Cache-Control': isAsset ? 'public, max-age=31536000, immutable' : 'no-cache',
       });
@@ -147,7 +201,7 @@ if (fs.existsSync(config.WEB_DIST)) {
     }
 
     const indexContent = fs.readFileSync(path.join(config.WEB_DIST, 'index.html'), 'utf-8');
-    return c.text(indexContent, 200, {
+    return c.text(injectBuildMetaTags(indexContent, buildInfo), 200, {
       'Content-Type': 'text/html',
       'Cache-Control': 'no-store',
     });

@@ -6,11 +6,26 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useHeader } from '@/contexts/HeaderContext'
 import { HEADER_HEIGHT } from '@/constants/layout'
 
+function getBuildLabel(): string {
+  if (typeof document === 'undefined') return ''
+  const fromBuildMeta = document.querySelector('meta[name="ai-spaces-build"]')?.getAttribute('content')?.trim()
+  if (fromBuildMeta) return fromBuildMeta
+
+  const tag = document.querySelector('meta[name="ai-spaces-tag"]')?.getAttribute('content')?.trim()
+  if (tag) return tag
+
+  const branch = document.querySelector('meta[name="ai-spaces-branch"]')?.getAttribute('content')?.trim()
+  const sha = document.querySelector('meta[name="ai-spaces-sha"]')?.getAttribute('content')?.trim()
+  if (branch && sha) return `${branch}-${sha}`
+  return ''
+}
+
 function ProfileMenu() {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const { logout } = useAuth()
   const navigate = useNavigate()
+  const buildLabel = getBuildLabel()
 
   useEffect(() => {
     if (!open) return
@@ -93,6 +108,22 @@ function ProfileMenu() {
             </svg>
             Sign Out
           </button>
+          {buildLabel && (
+            <>
+              <div style={{ height: 1, background: 'var(--t-hair)', margin: '4px 0' }} />
+              <div
+                style={{
+                  padding: '6px 14px 8px',
+                  fontSize: 11,
+                  color: 'var(--t-inkDim)',
+                  fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+                  letterSpacing: 0.2,
+                }}
+              >
+                {buildLabel}
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

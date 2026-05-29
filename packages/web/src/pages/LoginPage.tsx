@@ -1,4 +1,4 @@
-import { useState, useId, useEffect } from "react";
+import { useEffect, useId, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,9 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [authProviders, setAuthProviders] = useState<AuthProviders | null>(null);
+  const [authProviders, setAuthProviders] = useState<AuthProviders | null>(
+    null,
+  );
 
   const emailId = useId();
   const passwordId = useId();
@@ -24,11 +26,11 @@ function LoginPage() {
 
   useEffect(() => {
     // Fetch available auth providers
-    fetch('/api/auth/providers')
-      .then(res => res.json())
+    fetch("/api/auth/providers")
+      .then((res) => res.json())
       .then(setAuthProviders)
-      .catch(err => {
-        console.error('[LoginPage] Failed to fetch auth providers:', err);
+      .catch((err) => {
+        console.error("[LoginPage] Failed to fetch auth providers:", err);
         // Default to password-only if fetch fails
         setAuthProviders({ password: true, google: false });
       });
@@ -36,7 +38,7 @@ function LoginPage() {
 
   const handleGoogleLogin = () => {
     // Navigate to Google OAuth endpoint (full page redirect)
-    window.location.href = '/api/auth/google';
+    window.location.href = "/api/auth/google";
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -47,28 +49,28 @@ function LoginPage() {
     try {
       await login(email, password);
 
-      const pendingToken = sessionStorage.getItem('pendingInviteToken');
+      const pendingToken = sessionStorage.getItem("pendingInviteToken");
       if (pendingToken) {
-        sessionStorage.removeItem('pendingInviteToken'); // delete immediately after reading
-        await fetch('/api/invites/redeem', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
+        sessionStorage.removeItem("pendingInviteToken"); // delete immediately after reading
+        await fetch("/api/invites/redeem", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify({ token: pendingToken }),
         });
       }
 
       navigate("/spaces");
     } catch (err) {
-      console.error('[LoginPage] Login error:', err);
+      console.error("[LoginPage] Login error:", err);
       let message = "Login failed. Please try again.";
       if (err instanceof Error) {
         message = err.message;
-        console.error('[LoginPage] Error message:', message);
-      } else if (err && typeof err === 'object') {
+        console.error("[LoginPage] Error message:", message);
+      } else if (err && typeof err === "object") {
         message = JSON.stringify(err);
-        console.error('[LoginPage] Object error:', message);
-      } else if (typeof err === 'string') {
+        console.error("[LoginPage] Object error:", message);
+      } else if (typeof err === "string") {
         message = err;
       }
       setError(message);
@@ -214,7 +216,6 @@ function LoginPage() {
                 "Sign In"
               )}
             </Button>
-
           </form>
         </div>
       </main>

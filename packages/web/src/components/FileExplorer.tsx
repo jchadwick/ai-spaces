@@ -40,6 +40,7 @@ function FileTreeNode({
   node,
   depth = 0,
   selectedFile,
+  selectedFolderPath,
   onFileSelect,
   onTopicSelect,
   expandedFolders,
@@ -57,10 +58,12 @@ function FileTreeNode({
   onFolderDrop,
   getDisplayName,
   promotedTopicPaths,
+  onFolderSelect,
 }: {
   node: FileNode;
   depth?: number;
   selectedFile: string | null;
+  selectedFolderPath: string | null;
   onFileSelect: (path: string) => void;
   onTopicSelect: (path: string) => void;
   expandedFolders: Set<string>;
@@ -78,9 +81,10 @@ function FileTreeNode({
   onFolderDrop: (e: React.DragEvent, path: string) => void;
   getDisplayName: (path: string) => string | undefined;
   promotedTopicPaths: ReadonlySet<string>;
+  onFolderSelect: (path: string) => void;
 }) {
   const isDirectory = node.type === "directory";
-  const isSelected = selectedFile === node.path;
+  const isSelected = selectedFile === node.path || selectedFolderPath === node.path;
   const isExpanded = expandedFolders.has(node.path);
   const isHidden = node.name.startsWith(".");
   const isSpaceFolder = node.name === ".space";
@@ -95,11 +99,17 @@ function FileTreeNode({
     if (isDirectory) {
       const expanding = !expandedFolders.has(node.path);
       toggleFolder(node.path);
+      onFolderSelect(node.path);
       if (expanding && node.children === undefined) {
         onLoadChildren(node.path);
       }
     } else {
       onFileSelect(node.path);
+      // Set folder selection to the file's parent directory
+      const parentPath = node.path.includes("/")
+        ? node.path.substring(0, node.path.lastIndexOf("/"))
+        : "";
+      onFolderSelect(parentPath || "");
     }
     if (!isSpaceFolder && isTopic) onTopicSelect(node.path);
   };
@@ -202,6 +212,7 @@ function FileTreeNode({
                 node={child}
                 depth={depth + 1}
                 selectedFile={selectedFile}
+                selectedFolderPath={selectedFolderPath}
                 onFileSelect={onFileSelect}
                 onTopicSelect={onTopicSelect}
                 expandedFolders={expandedFolders}
@@ -219,6 +230,7 @@ function FileTreeNode({
                 onFolderDrop={onFolderDrop}
                 getDisplayName={getDisplayName}
                 promotedTopicPaths={promotedTopicPaths}
+                onFolderSelect={onFolderSelect}
               />
             ))}
           </div>
@@ -266,7 +278,11 @@ export default function FileExplorer({
   const [folderName, setFolderName] = useState("");
   const [fileName, setFileName] = useState("");
   const [newFileParentPath, setNewFileParentPath] = useState("");
+  const [newFolderParentPath, setNewFolderParentPath] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+
+  // Folder selection state — tracks which folder is "active" for new file/folder creation
+  const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(null);
 
   // Context menu state
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -404,6 +420,14 @@ export default function FileExplorer({
     setFileName("");
     setExpandedFolders((prev) => new Set(prev).add(node.path));
     setShowFileModal(true);
+  }, []);
+
+  const startNewFolderInFolder = useCallback((node: FileNode) => {
+    setContextMenu(null);
+    setNewFolderParentPath(node.path);
+    setFolderName("");
+    setExpandedFolders((prev) => new Set(prev).add(node.path));
+    setShowFolderModal(true);
   }, []);
 
   const startDelete = useCallback((node: FileNode) => {
@@ -648,10 +672,13 @@ export default function FileExplorer({
     setIsCreating(true);
 
     try {
+      const fullPath = newFolderParentPath
+        ? `${newFolderParentPath}/${folderName.trim()}`
+        : folderName.trim();
       const response = await apiFetch(`/api/spaces/${spaceId}/directories`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: folderName.trim() }),
+        body: JSON.stringify({ path: fullPath }),
       });
 
       if (!response.ok) {
@@ -662,7 +689,13 @@ export default function FileExplorer({
       showToast(`Folder "${folderName}" created`, "success", 3000);
       setShowFolderModal(false);
       setFolderName("");
-      refresh();
+      setNewFolderParentPath("");
+
+      if (newFolderParentPath) {
+        loadChildren(newFolderParentPath);
+      } else {
+        refresh();
+      }
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to create folder";
@@ -771,7 +804,7 @@ export default function FileExplorer({
                 <button
                   type="button"
                   style={{ color: 'var(--t-inkDim)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 4, borderRadius: 4 }}
-                  onClick={() => setShowFileModal(true)}
+                  onClick={() => { setNewFileParentPath(selectedFolderPath || ""); setShowFileModal(true); }}
                   title="Create new file"
                 >
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -784,7 +817,7 @@ export default function FileExplorer({
                 <button
                   type="button"
                   style={{ color: 'var(--t-inkDim)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 4, borderRadius: 4 }}
-                  onClick={() => setShowFolderModal(true)}
+                  onClick={() => { setNewFolderParentPath(selectedFolderPath || ""); setShowFolderModal(true); }}
                   title="Create new folder"
                 >
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -808,6 +841,7 @@ export default function FileExplorer({
                   key={node.path}
                   node={node}
                   selectedFile={selectedFile}
+                  selectedFolderPath={selectedFolderPath}
                   onFileSelect={onFileSelect}
                   onTopicSelect={onTopicSelect}
                   expandedFolders={expandedFolders}
@@ -825,6 +859,7 @@ export default function FileExplorer({
                   onFolderDrop={handleFolderDrop}
                   getDisplayName={getDisplayName}
                   promotedTopicPaths={promotedTopicPaths}
+                  onFolderSelect={(path) => setSelectedFolderPath(path)}
                 />
               ))}
             </div>
@@ -860,16 +895,28 @@ export default function FileExplorer({
           }}
         >
           {contextMenu.node.type === "directory" && (
-            <button
-              type="button"
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-on-surface hover:bg-surface-container-lowest/80 transition-colors text-left"
-              onClick={() => startNewFileInFolder(contextMenu.node)}
-            >
-              <span className="material-symbols-outlined text-base">
-                note_add
-              </span>
-              New File
-            </button>
+            <>
+              <button
+                type="button"
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-on-surface hover:bg-surface-container-lowest/80 transition-colors text-left"
+                onClick={() => startNewFileInFolder(contextMenu.node)}
+              >
+                <span className="material-symbols-outlined text-base">
+                  note_add
+                </span>
+                New File
+              </button>
+              <button
+                type="button"
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-on-surface hover:bg-surface-container-lowest/80 transition-colors text-left"
+                onClick={() => startNewFolderInFolder(contextMenu.node)}
+              >
+                <span className="material-symbols-outlined text-base">
+                  create_new_folder
+                </span>
+                New Folder
+              </button>
+            </>
           )}
           {isOwner && (
             <button
@@ -907,10 +954,17 @@ export default function FileExplorer({
       )}
 
       {/* Create Folder Modal */}
-      <Dialog open={showFolderModal} onOpenChange={setShowFolderModal}>
+      <Dialog open={showFolderModal} onOpenChange={(open) => {
+        if (!open) {
+          setShowFolderModal(false);
+          setNewFolderParentPath("");
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Create New Folder</DialogTitle>
+            <DialogTitle>
+              Create New Folder{newFolderParentPath ? ` in ${newFolderParentPath}` : ""}
+            </DialogTitle>
           </DialogHeader>
           <div className="py-4">
             <Input
@@ -932,6 +986,7 @@ export default function FileExplorer({
               onClick={() => {
                 setShowFolderModal(false);
                 setFolderName("");
+                setNewFolderParentPath("");
               }}
               disabled={isCreating}
             >

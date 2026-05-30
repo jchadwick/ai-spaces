@@ -59,6 +59,8 @@ function FileTreeNode({
   getDisplayName,
   promotedTopicPaths,
   onFolderSelect,
+  onDragStart,
+  onDragEnd,
 }: {
   node: FileNode;
   depth?: number;
@@ -82,6 +84,8 @@ function FileTreeNode({
   getDisplayName: (path: string) => string | undefined;
   promotedTopicPaths: ReadonlySet<string>;
   onFolderSelect: (path: string) => void;
+  onDragStart: (e: React.DragEvent, node: FileNode) => void;
+  onDragEnd: () => void;
 }) {
   const isDirectory = node.type === "directory";
   const isSelected = selectedFile === node.path || selectedFolderPath === node.path;
@@ -151,9 +155,20 @@ function FileTreeNode({
     <>
       <button
         type="button"
+        draggable
         onClick={handleClick}
         onContextMenu={(e) => onContextMenu(e, node)}
-        onDragOver={isDirectory ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } : undefined}
+        onDragStart={(e) => onDragStart(e, node)}
+        onDragEnd={onDragEnd}
+        onDragOver={(e) => {
+          if (!isDirectory) return;
+          const isInternalMove = e.dataTransfer.types.includes("ai-spaces/move");
+          const isExternalUpload = e.dataTransfer.types.includes("Files");
+          if (isInternalMove || isExternalUpload) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = isInternalMove ? "move" : "copy";
+          }
+        }}
         onDragEnter={isDirectory ? () => onFolderDragEnter(node.path) : undefined}
         onDragLeave={isDirectory ? () => onFolderDragLeave(node.path) : undefined}
         onDrop={isDirectory ? (e) => onFolderDrop(e, node.path) : undefined}
@@ -231,6 +246,8 @@ function FileTreeNode({
                 getDisplayName={getDisplayName}
                 promotedTopicPaths={promotedTopicPaths}
                 onFolderSelect={onFolderSelect}
+                onDragStart={onDragStart}
+                onDragEnd={onDragEnd}
               />
             ))}
           </div>
@@ -611,16 +628,22 @@ export default function FileExplorer({
   }, [spaceId, isViewer, apiFetch, showToast, loadChildren, refresh]);
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
-    if (isViewer || !e.dataTransfer.types.includes("Files")) return;
+    if (isViewer) return;
+    const isInternalMove = e.dataTransfer.types.includes("ai-spaces/move");
+    const isExternalUpload = e.dataTransfer.types.includes("Files");
+    if (!isInternalMove && !isExternalUpload) return;
     e.preventDefault();
     dragCounter.current++;
     setIsDragOver(true);
   }, [isViewer]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
-    if (isViewer || !e.dataTransfer.types.includes("Files")) return;
+    if (isViewer) return;
+    const isInternalMove = e.dataTransfer.types.includes("ai-spaces/move");
+    const isExternalUpload = e.dataTransfer.types.includes("Files");
+    if (!isInternalMove && !isExternalUpload) return;
     e.preventDefault();
-    e.dataTransfer.dropEffect = "copy";
+    e.dataTransfer.dropEffect = "move";
   }, [isViewer]);
 
   const handleDragLeave = useCallback(() => {
@@ -630,15 +653,82 @@ export default function FileExplorer({
     }
   }, []);
 
+  const handleMoveItem = useCallback(async (source: { path: string; type: 'file' | 'directory' }, targetFolder: string) => {
+    if (!spaceId) return;
+
+    // Prevent dropping a folder into itself or its descendants
+    if (source.type === 'directory' && (targetFolder === source.path || targetFolder.startsWith(source.path + '/'))) {
+      showToast("Cannot move a folder into itself", "error", 3000);
+      return;
+    }
+
+    // Prevent moving to the same location
+    const sourceParent = source.path.includes('/') ? source.path.substring(0, source.path.lastIndexOf('/')) : '';
+    if (sourceParent === targetFolder) {
+      return; // Already in this folder, nothing to do
+    }
+
+    const newName = source.path.includes('/') ? source.path.substring(source.path.lastIndexOf('/') + 1) : source.path;
+    const newPath = targetFolder ? `${targetFolder}/${newName}` : newName;
+
+    if (newPath === source.path) return; // Same path, nothing to do
+
+    try {
+      const resourceType = source.type === 'directory' ? 'directories' : 'files';
+      const response = await apiFetch(
+        `/api/spaces/${spaceId}/${resourceType}/${source.path}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ newPath }),
+        },
+      );
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Failed to move");
+      }
+
+      showToast(`Moved "${source.path.split('/').pop()}" to ${targetFolder || 'root'}`, "success", 3000);
+
+      // Update selected file if it was moved
+      if (selectedFile === source.path) {
+        onFileSelect(newPath);
+      }
+
+      // Refresh both old and new parent directories
+      if (sourceParent) loadChildren(sourceParent);
+      if (targetFolder) loadChildren(targetFolder);
+      if (!sourceParent || !targetFolder) refresh();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to move";
+      showToast(message, "error", 4000);
+    }
+  }, [spaceId, showToast, apiFetch, selectedFile, onFileSelect, loadChildren, refresh]);
+
   const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
     dragCounter.current = 0;
     folderDragCounter.current = {};
     setIsDragOver(false);
     setDragOverFolder(null);
-    if (isViewer || !e.dataTransfer.files.length) return;
+    if (isViewer) return;
+
+    // Check for internal move first (move to root)
+    const moveData = e.dataTransfer.getData("ai-spaces/move");
+    if (moveData) {
+      try {
+        const source = JSON.parse(moveData) as { path: string; type: 'file' | 'directory' };
+        await handleMoveItem(source, "");
+        return;
+      } catch {
+        // Fall through to external upload
+      }
+    }
+
+    if (!e.dataTransfer.files.length) return;
     await uploadFiles(e.dataTransfer.files, "");
-  }, [isViewer, uploadFiles]);
+  }, [isViewer, uploadFiles, handleMoveItem]);
 
   const handleFolderDragEnter = useCallback((path: string) => {
     folderDragCounter.current[path] = (folderDragCounter.current[path] ?? 0) + 1;
@@ -660,9 +750,39 @@ export default function FileExplorer({
     folderDragCounter.current = {};
     setIsDragOver(false);
     setDragOverFolder(null);
-    if (isViewer || !e.dataTransfer.files.length) return;
+    if (isViewer) return;
+
+    // Check for internal move first
+    const moveData = e.dataTransfer.getData("ai-spaces/move");
+    if (moveData) {
+      try {
+        const source = JSON.parse(moveData) as { path: string; type: 'file' | 'directory' };
+        await handleMoveItem(source, path);
+        return;
+      } catch {
+        // Fall through to external upload
+      }
+    }
+
+    if (!e.dataTransfer.files.length) return;
     await uploadFiles(e.dataTransfer.files, path);
-  }, [isViewer, uploadFiles]);
+  }, [isViewer, uploadFiles, handleMoveItem]);
+
+  const handleDragStart = useCallback((e: React.DragEvent, node: FileNode) => {
+    if (isViewer) return;
+    const source = { path: node.path, type: node.type === 'directory' ? 'directory' as const : 'file' as const };
+    e.dataTransfer.setData("ai-spaces/move", JSON.stringify(source));
+    e.dataTransfer.effectAllowed = "move";
+    // Make the drag image semi-transparent
+    (e.currentTarget as HTMLElement).style.opacity = "0.4";
+  }, [isViewer]);
+
+  const handleDragEnd = useCallback(() => {
+    // Reset opacity on all tree nodes (browser handles this mostly, but be safe)
+    document.querySelectorAll('[draggable]').forEach((el) => {
+      (el as HTMLElement).style.opacity = "";
+    });
+  }, []);
 
   const handleCreateFolder = async () => {
     if (!folderName.trim() || !spaceId) {
@@ -860,6 +980,8 @@ export default function FileExplorer({
                   getDisplayName={getDisplayName}
                   promotedTopicPaths={promotedTopicPaths}
                   onFolderSelect={(path) => setSelectedFolderPath(path)}
+                  onDragStart={handleDragStart}
+                  onDragEnd={handleDragEnd}
                 />
               ))}
             </div>

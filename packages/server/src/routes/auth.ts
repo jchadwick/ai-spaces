@@ -15,7 +15,7 @@ import {
 } from '../user-service.js';
 import type { UserWithServerRole } from '../db/index.js';
 import jwt from 'jsonwebtoken';
-import { config, isGoogleOAuthEnabled, getGoogleOAuthRedirectUri } from '../config.js';
+import { config, isGoogleOAuthEnabled, getGoogleOAuthRedirectUri, getOAuthReturnOrigin } from '../config.js';
 import { authMiddleware, type AuthVariables } from '../middleware/auth.js';
 import * as arctic from 'arctic';
 
@@ -223,6 +223,7 @@ authRouter.get('/google', (c) => {
   const scopes = ['openid', 'email', 'profile'];
 
   const authUrl = google.createAuthorizationURL(state, codeVerifier, scopes);
+  const returnOrigin = getOAuthReturnOrigin(c.req.query('returnOrigin'));
   
   // Request refresh token for offline access
   authUrl.searchParams.set('access_type', 'offline');
@@ -245,6 +246,14 @@ authRouter.get('/google', (c) => {
     path: '/',
   });
 
+  setCookie(c, 'oauth_return_origin', returnOrigin, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'Lax',
+    maxAge: 60 * 10, // 10 minutes
+    path: '/',
+  });
+
   return c.redirect(authUrl.toString());
 });
 
@@ -258,10 +267,12 @@ authRouter.get('/google/callback', async (c) => {
   const state = c.req.query('state');
   const storedState = getCookie(c, 'oauth_state');
   const storedCodeVerifier = getCookie(c, 'oauth_code_verifier');
+  const returnOrigin = getOAuthReturnOrigin(getCookie(c, 'oauth_return_origin'));
 
   // Clear the cookies
   deleteCookie(c, 'oauth_state', { path: '/' });
   deleteCookie(c, 'oauth_code_verifier', { path: '/' });
+  deleteCookie(c, 'oauth_return_origin', { path: '/' });
 
   if (!code || !state || !storedState || !storedCodeVerifier) {
     return c.json({ error: 'Invalid OAuth request' }, 400);
@@ -326,7 +337,7 @@ authRouter.get('/google/callback', async (c) => {
   const { accessToken, refreshToken } = generateTokens(user);
 
   // Redirect to frontend callback page with tokens
-  const callbackUrl = new URL(`${config.INVITE_BASE_URL}/auth/callback`);
+  const callbackUrl = new URL('/auth/callback', returnOrigin);
   callbackUrl.searchParams.set('accessToken', accessToken);
   callbackUrl.searchParams.set('refreshToken', refreshToken);
 

@@ -38,7 +38,8 @@ function LoginPage() {
 
   const handleGoogleLogin = () => {
     // Navigate to Google OAuth endpoint (full page redirect)
-    window.location.href = "/api/auth/google";
+    const params = new URLSearchParams({ returnOrigin: window.location.origin });
+    window.location.href = `/api/auth/google?${params.toString()}`;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

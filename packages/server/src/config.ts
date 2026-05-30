@@ -47,6 +47,34 @@ export function getGoogleOAuthRedirectUri(): string {
   return `${config.INVITE_BASE_URL}/api/auth/google/callback`;
 }
 
+export function getOAuthReturnOrigin(requestedOrigin: string | undefined): string {
+  const fallbackOrigin = new URL(config.INVITE_BASE_URL).origin;
+  if (!requestedOrigin) {
+    return fallbackOrigin;
+  }
+
+  let url: URL;
+  try {
+    url = new URL(requestedOrigin);
+  } catch {
+    return fallbackOrigin;
+  }
+
+  if (url.origin === fallbackOrigin) {
+    return url.origin;
+  }
+
+  const isLoopbackHost = url.hostname === 'localhost'
+    || url.hostname === '127.0.0.1'
+    || url.hostname === '[::1]';
+  const isHttp = url.protocol === 'http:' || url.protocol === 'https:';
+  if (process.env.NODE_ENV !== 'production' && isLoopbackHost && isHttp) {
+    return url.origin;
+  }
+
+  return fallbackOrigin;
+}
+
 export function normalizeServerUrl(value: string, name: string): string {
   let url: URL;
   try {

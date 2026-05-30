@@ -22,6 +22,11 @@ interface FileExplorerProps {
   selectedFile: string | null;
   onFileSelect: (filePath: string | null) => void;
   onTopicSelect: (topicPath: string) => void;
+  promotedTopicPaths: ReadonlySet<string>;
+  onPromoteTopic: (topicPath: string, targetType: 'file' | 'directory') => Promise<void>;
+  onArchiveTopic: (topicPath: string) => Promise<void>;
+  onPathDeleted: (topicPath: string) => Promise<void>;
+  onPathRenamed: (fromPath: string, toPath: string) => Promise<void>;
 }
 
 interface ContextMenuState {
@@ -51,6 +56,7 @@ function FileTreeNode({
   onFolderDragLeave,
   onFolderDrop,
   getDisplayName,
+  promotedTopicPaths,
 }: {
   node: FileNode;
   depth?: number;
@@ -71,6 +77,7 @@ function FileTreeNode({
   onFolderDragLeave: (path: string) => void;
   onFolderDrop: (e: React.DragEvent, path: string) => void;
   getDisplayName: (path: string) => string | undefined;
+  promotedTopicPaths: ReadonlySet<string>;
 }) {
   const isDirectory = node.type === "directory";
   const isSelected = selectedFile === node.path;
@@ -79,13 +86,13 @@ function FileTreeNode({
   const isSpaceFolder = node.name === ".space";
   const isRenaming = renamingPath === node.path;
   const isDragTarget = isDirectory && dragOverFolder === node.path;
+  const isTopic = promotedTopicPaths.has(node.path);
 
   const paddingLeft = 8 + depth * 16;
 
   const handleClick = () => {
     if (isRenaming) return;
     if (isDirectory) {
-      if (!isSpaceFolder) onTopicSelect(node.path);
       const expanding = !expandedFolders.has(node.path);
       toggleFolder(node.path);
       if (expanding && node.children === undefined) {
@@ -94,6 +101,7 @@ function FileTreeNode({
     } else {
       onFileSelect(node.path);
     }
+    if (!isSpaceFolder && isTopic) onTopicSelect(node.path);
   };
 
   const icon = getFileNodeIcon(node.name, node.type);
@@ -147,6 +155,9 @@ function FileTreeNode({
           <span className="material-symbols-outlined" style={{ fontSize: 16, color: isSelected ? 'var(--t-accent)' : 'var(--t-inkDim)' }}>
             {isExpanded ? "folder_open" : "folder"}
           </span>
+        )}
+        {isTopic && (
+          <span className="material-symbols-outlined" title="Topic" style={{ fontSize: 14, color: 'var(--t-agent)' }}>forum</span>
         )}
         {!isDirectory && (
           <span className="material-symbols-outlined" style={{ fontSize: 16, color: isSelected ? 'var(--t-accent)' : 'var(--t-inkDim)' }}>{icon}</span>
@@ -207,6 +218,7 @@ function FileTreeNode({
                 onFolderDragLeave={onFolderDragLeave}
                 onFolderDrop={onFolderDrop}
                 getDisplayName={getDisplayName}
+                promotedTopicPaths={promotedTopicPaths}
               />
             ))}
           </div>
@@ -229,6 +241,11 @@ export default function FileExplorer({
   selectedFile,
   onFileSelect,
   onTopicSelect,
+  promotedTopicPaths,
+  onPromoteTopic,
+  onArchiveTopic,
+  onPathDeleted,
+  onPathRenamed,
 }: FileExplorerProps) {
   const apiFetch = useAPI();
   const { files, loading, error, refresh, loadChildren } = useFileTree(spaceId);
@@ -274,6 +291,7 @@ export default function FileExplorer({
 
   const canWrite = hasPermission(role, 'files:write');
   const isViewer = !canWrite;
+  const isOwner = hasPermission(role, 'space:manage');
 
   // Dismiss context menu on outside click or Escape
   useEffect(() => {
@@ -356,6 +374,7 @@ export default function FileExplorer({
         onFileSelect(newPath);
       }
       refresh();
+      await onPathRenamed(renamingPath, newPath);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to rename";
       showToast(message, "error", 4000);
@@ -372,6 +391,7 @@ export default function FileExplorer({
     selectedFile,
     onFileSelect,
     refresh,
+    onPathRenamed,
   ]);
 
   const cancelRename = useCallback(() => {
@@ -416,6 +436,7 @@ export default function FileExplorer({
         onFileSelect(null);
       }
       refresh();
+      await onPathDeleted(deleteTarget.path);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to delete";
       showToast(message, "error", 4000);
@@ -431,7 +452,28 @@ export default function FileExplorer({
     selectedFile,
     onFileSelect,
     refresh,
+    onPathDeleted,
   ]);
+
+  const handlePromoteTopic = useCallback(async (node: FileNode) => {
+    setContextMenu(null);
+    try {
+      await onPromoteTopic(node.path, node.type === 'directory' ? 'directory' : 'file');
+      showToast(`Promoted "${node.name}" to topic`, 'success', 3000);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to promote topic', 'error', 4000);
+    }
+  }, [onPromoteTopic, showToast]);
+
+  const handleArchiveTopic = useCallback(async (node: FileNode) => {
+    setContextMenu(null);
+    try {
+      await onArchiveTopic(node.path);
+      showToast(`Converted "${node.name}" back`, 'success', 3000);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to convert topic back', 'error', 4000);
+    }
+  }, [onArchiveTopic, showToast]);
 
   useEffect(() => {
     const handleFileModified = (
@@ -782,6 +824,7 @@ export default function FileExplorer({
                   onFolderDragLeave={handleFolderDragLeave}
                   onFolderDrop={handleFolderDrop}
                   getDisplayName={getDisplayName}
+                  promotedTopicPaths={promotedTopicPaths}
                 />
               ))}
             </div>
@@ -826,6 +869,20 @@ export default function FileExplorer({
                 note_add
               </span>
               New File
+            </button>
+          )}
+          {isOwner && (
+            <button
+              type="button"
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-on-surface hover:bg-surface-container-lowest/80 transition-colors text-left"
+              onClick={() => promotedTopicPaths.has(contextMenu.node.path)
+                ? void handleArchiveTopic(contextMenu.node)
+                : void handlePromoteTopic(contextMenu.node)}
+            >
+              <span className="material-symbols-outlined text-base">forum</span>
+              {promotedTopicPaths.has(contextMenu.node.path)
+                ? `Convert Back to ${contextMenu.node.type === 'directory' ? 'Folder' : 'File'}`
+                : 'Promote to Topic'}
             </button>
           )}
           <button

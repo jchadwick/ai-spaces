@@ -6,6 +6,7 @@ import type { SpaceRole } from '../permissions.js';
  * owns the workspace filesystem — the inverse of standard ACP fs/* methods.
  */
 export const ACP_WORKSPACE_METHODS = {
+  RESOLVE_PATH: 'workspace/resolve_path',
   LIST_FILES: 'workspace/list_files',
   READ_FILE: 'workspace/read_file',
   WRITE_FILE: 'workspace/write_file',
@@ -16,6 +17,18 @@ export const ACP_WORKSPACE_METHODS = {
   GET_METADATA: 'workspace/get_metadata',
   PATCH_METADATA: 'workspace/patch_metadata',
 } as const;
+
+export interface WorkspacePathFacts {
+  requestedPath: string;
+  canonicalRelativePath: string;
+  targetType: 'file' | 'directory' | 'missing';
+  exists: boolean;
+  contained: boolean;
+  hidden: boolean;
+  symlinkEscaped: boolean;
+  size?: number;
+  contentType?: string;
+}
 
 export type AcpWorkspaceMethod = (typeof ACP_WORKSPACE_METHODS)[keyof typeof ACP_WORKSPACE_METHODS];
 

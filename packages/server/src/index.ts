@@ -32,6 +32,7 @@ import { cors } from 'hono/cors';
 import { logger as honoLogger } from 'hono/logger';
 import { logger as rootLogger } from './logger.js';
 import { execSync } from 'node:child_process';
+import { BrowserAcpOrchestrator } from './acp/browser-orchestrator.js';
 
 type BuildInfo = {
   display: string;
@@ -345,6 +346,7 @@ wss.on('upgrade', (request, socket, head) => {
   });
 
   let clientWs: WebSocket | null = null;
+  const orchestrator = new BrowserAcpOrchestrator(serverSpace);
   const pendingToClient: Buffer[] = [];
   const pendingToGateway: Buffer[] = [];
 
@@ -370,6 +372,11 @@ wss.on('upgrade', (request, socket, head) => {
   });
 
   gatewayWs.on('message', (data, isBinary) => {
+    try {
+      orchestrator.observeGatewayChunk(rawDataToBuffer(data));
+    } catch (err) {
+      wsLog.warn({ err: (err as Error).message }, 'Could not inspect gateway ACP packet');
+    }
     if (clientWs && clientWs.readyState === WebSocket.OPEN) {
       clientWs.send(data, { binary: isBinary });
     } else {
@@ -397,11 +404,19 @@ wss.on('upgrade', (request, socket, head) => {
     wsLog.info({ userId, spaceId }, 'Client websocket upgraded');
     flushToClient();
 
-    ws.on('message', (data) => {
-      if (gatewayWs.readyState === WebSocket.OPEN) {
-        gatewayWs.send(data);
-      } else {
-        pendingToGateway.push(rawDataToBuffer(data));
+    ws.on('message', async (data) => {
+      try {
+        const filtered = await orchestrator.filterClientChunk(rawDataToBuffer(data));
+        if (filtered.response) ws.send(filtered.response);
+        if (!filtered.forward) return;
+        if (gatewayWs.readyState === WebSocket.OPEN) {
+          gatewayWs.send(filtered.forward);
+        } else {
+          pendingToGateway.push(filtered.forward);
+        }
+      } catch (err) {
+        wsLog.warn({ err: (err as Error).message }, 'Rejected browser ACP packet');
+        ws.send(Buffer.from(`${JSON.stringify({ jsonrpc: '2.0', id: null, error: { code: -32602, message: (err as Error).message } })}\n`));
       }
     });
 

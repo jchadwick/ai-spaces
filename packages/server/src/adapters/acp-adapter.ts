@@ -1,6 +1,6 @@
 import type { AgentAdapter, FileNode } from './agent-adapter.js';
 import type { SpaceRecord } from '../space-store.js';
-import type { SpaceRole, SpaceMetadata, FileMetadataEntry } from '@ai-spaces/shared';
+import type { SpaceMetadata, FileMetadataEntry, WorkspacePathFacts } from '@ai-spaces/shared';
 import { SpaceMetadataSchema } from '@ai-spaces/shared';
 import { ACP_WORKSPACE_METHODS } from '@ai-spaces/shared';
 import { acpConnectionPool } from './acp-connection-pool.js';
@@ -21,41 +21,45 @@ export class ACPAgentAdapter implements AgentAdapter {
     ]);
   }
 
-  async listFiles(space: SpaceRecord, dirPath: string, role: SpaceRole): Promise<FileNode[]> {
-    const result = await this.ext(space, ACP_WORKSPACE_METHODS.LIST_FILES, { path: dirPath, role });
+  async resolvePath(space: SpaceRecord, filePath: string): Promise<WorkspacePathFacts> {
+    return await this.ext(space, ACP_WORKSPACE_METHODS.RESOLVE_PATH, { path: filePath }) as unknown as WorkspacePathFacts;
+  }
+
+  async listFiles(space: SpaceRecord, dirPath: string, includeHidden: boolean, resolutionToken: string): Promise<FileNode[]> {
+    const result = await this.ext(space, ACP_WORKSPACE_METHODS.LIST_FILES, { path: dirPath, includeHidden, resolutionToken });
     return (result.files as FileNode[] | undefined) ?? [];
   }
 
-  async readFile(space: SpaceRecord, filePath: string, role: SpaceRole): Promise<{ content: string; contentType: string }> {
-    const result = await this.ext(space, ACP_WORKSPACE_METHODS.READ_FILE, { path: filePath, role });
+  async readFile(space: SpaceRecord, filePath: string, resolutionToken: string): Promise<{ content: string; contentType: string }> {
+    const result = await this.ext(space, ACP_WORKSPACE_METHODS.READ_FILE, { path: filePath, resolutionToken });
     return {
       content: (result.content as string | undefined) ?? '',
       contentType: (result.contentType as string | undefined) ?? 'text/plain',
     };
   }
 
-  async writeFile(space: SpaceRecord, filePath: string, content: string, encoding?: 'utf-8' | 'base64'): Promise<void> {
-    await this.ext(space, ACP_WORKSPACE_METHODS.WRITE_FILE, { path: filePath, content, encoding: encoding ?? 'utf-8' });
+  async writeFile(space: SpaceRecord, filePath: string, content: string, resolutionToken: string, encoding?: 'utf-8' | 'base64'): Promise<void> {
+    await this.ext(space, ACP_WORKSPACE_METHODS.WRITE_FILE, { path: filePath, content, encoding: encoding ?? 'utf-8', resolutionToken });
   }
 
-  async deleteFile(space: SpaceRecord, filePath: string): Promise<void> {
-    await this.ext(space, ACP_WORKSPACE_METHODS.DELETE_FILE, { path: filePath });
+  async deleteFile(space: SpaceRecord, filePath: string, resolutionToken: string): Promise<void> {
+    await this.ext(space, ACP_WORKSPACE_METHODS.DELETE_FILE, { path: filePath, resolutionToken });
   }
 
-  async renameFile(space: SpaceRecord, filePath: string, newPath: string): Promise<void> {
-    await this.ext(space, ACP_WORKSPACE_METHODS.RENAME, { path: filePath, newPath });
+  async renameFile(space: SpaceRecord, filePath: string, newPath: string, sourceResolutionToken: string, targetResolutionToken: string): Promise<void> {
+    await this.ext(space, ACP_WORKSPACE_METHODS.RENAME, { path: filePath, newPath, sourceResolutionToken, targetResolutionToken });
   }
 
-  async createDirectory(space: SpaceRecord, dirPath: string): Promise<void> {
-    await this.ext(space, ACP_WORKSPACE_METHODS.CREATE_DIRECTORY, { path: dirPath });
+  async createDirectory(space: SpaceRecord, dirPath: string, resolutionToken: string): Promise<void> {
+    await this.ext(space, ACP_WORKSPACE_METHODS.CREATE_DIRECTORY, { path: dirPath, resolutionToken });
   }
 
-  async deleteDirectory(space: SpaceRecord, dirPath: string): Promise<void> {
-    await this.ext(space, ACP_WORKSPACE_METHODS.DELETE_DIRECTORY, { path: dirPath });
+  async deleteDirectory(space: SpaceRecord, dirPath: string, resolutionToken: string): Promise<void> {
+    await this.ext(space, ACP_WORKSPACE_METHODS.DELETE_DIRECTORY, { path: dirPath, resolutionToken });
   }
 
-  async renameDirectory(space: SpaceRecord, dirPath: string, newPath: string): Promise<void> {
-    await this.ext(space, ACP_WORKSPACE_METHODS.RENAME, { path: dirPath, newPath });
+  async renameDirectory(space: SpaceRecord, dirPath: string, newPath: string, sourceResolutionToken: string, targetResolutionToken: string): Promise<void> {
+    await this.ext(space, ACP_WORKSPACE_METHODS.RENAME, { path: dirPath, newPath, sourceResolutionToken, targetResolutionToken });
   }
 
   async getMetadata(space: SpaceRecord): Promise<SpaceMetadata> {

@@ -317,7 +317,36 @@ export default function SpacePage() {
   );
 }
 
-function TopicAwareFileExplorer(props: Omit<ComponentProps<typeof FileExplorer>, 'onTopicSelect'>) {
-  const { selectTopic } = useConnectionStatus();
-  return <FileExplorer {...props} onTopicSelect={(topicPath) => { void selectTopic(topicPath); }} />;
+function TopicAwareFileExplorer(props: Omit<ComponentProps<typeof FileExplorer>, 'onTopicSelect' | 'promotedTopicPaths' | 'onPromoteTopic' | 'onArchiveTopic' | 'onPathDeleted' | 'onPathRenamed'>) {
+  const {
+    activeTopicPath,
+    promotedTopicPaths,
+    selectTopic,
+    promoteTopic,
+    archiveTopic,
+    refreshTopics,
+  } = useConnectionStatus();
+  return (
+    <FileExplorer
+      {...props}
+      promotedTopicPaths={promotedTopicPaths}
+      onTopicSelect={(topicPath) => { void selectTopic(topicPath); }}
+      onPromoteTopic={promoteTopic}
+      onArchiveTopic={archiveTopic}
+      onPathDeleted={async (deletedPath) => {
+        const normalized = `/${deletedPath}`;
+        if (activeTopicPath === normalized || activeTopicPath.startsWith(`${normalized}/`)) await selectTopic('/');
+        await refreshTopics();
+      }}
+      onPathRenamed={async (fromPath, toPath) => {
+        const from = `/${fromPath}`;
+        if (activeTopicPath === from || activeTopicPath.startsWith(`${from}/`)) {
+          await refreshTopics();
+          await selectTopic(`/${toPath}${activeTopicPath.slice(from.length)}`);
+          return;
+        }
+        await refreshTopics();
+      }}
+    />
+  );
 }

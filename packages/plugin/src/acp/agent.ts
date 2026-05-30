@@ -2,7 +2,7 @@ import * as crypto from 'crypto';
 import type { Agent, AgentSideConnection, InitializeRequest, InitializeResponse, NewSessionRequest, NewSessionResponse, LoadSessionRequest, LoadSessionResponse, PromptRequest, PromptResponse, CancelNotification, AuthenticateRequest, AuthenticateResponse, SessionNotification } from '@agentclientprotocol/sdk';
 import { PROTOCOL_VERSION } from '@agentclientprotocol/sdk';
 import type { SpaceRole, FileMetadataEntry } from '@ai-spaces/shared';
-import { ACP_WORKSPACE_METHODS, toSpaceRole } from '@ai-spaces/shared';
+import { ACP_WORKSPACE_METHODS } from '@ai-spaces/shared';
 import { getSpace, resolveSpaceRoot } from '../space-store.js';
 import { getOrCreateSession, addMessageToSession, getSessionMessages } from '../chat-history.js';
 import { openClawAcpClient, type SessionUpdateParams } from './openclaw-client.js';
@@ -24,8 +24,8 @@ import {
   deleteWorkspaceDirectory,
   getWorkspaceMetadata,
   patchWorkspaceMetadata,
+  getWorkspacePathFacts,
 } from './workspace-ops.js';
-import { buildTopicPromptContext, normalizeTopicPath } from './topic-context.js';
 import { logger as rootLogger } from '../logger.js';
 
 const log = rootLogger.child({ component: 'acp-agent' });
@@ -37,6 +37,16 @@ interface SessionState {
   role: SpaceRole;
   topicPath: string;
   abort: AbortController | null;
+  systemContext: string;
+}
+
+function normalizeTopicPath(topicPath: string): string {
+  return topicPath.replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+/g, '/');
+}
+
+function getServerContext(params: { _meta?: { [key: string]: unknown } | null }): string {
+  const value = params._meta?.aiSpacesSystemContext;
+  return typeof value === 'string' ? value : '';
 }
 
 /**
@@ -86,7 +96,7 @@ export class AISpacesAgent implements Agent {
     const topicPath = normalizeTopicPath(params.cwd ?? '');
     const userId = (params as unknown as Record<string, string>).userId ?? 'unknown';
 
-    this.sessions.set(sessionId, { sessionId, spaceId, userId, role: this.role, topicPath, abort: null });
+    this.sessions.set(sessionId, { sessionId, spaceId, userId, role: this.role, topicPath, abort: null, systemContext: getServerContext(params) });
 
     // Ensure an ACP session exists in OpenClaw for this space
     if (spaceId) {
@@ -110,7 +120,7 @@ export class AISpacesAgent implements Agent {
     const userId = (params as unknown as Record<string, string>).userId ?? 'unknown';
 
     // Re-register the session state
-    this.sessions.set(sessionId, { sessionId, spaceId, userId, role: this.role, topicPath, abort: null });
+    this.sessions.set(sessionId, { sessionId, spaceId, userId, role: this.role, topicPath, abort: null, systemContext: getServerContext(params) });
 
     // Replay chat history — OpenClaw does not do this itself
     if (spaceId) {
@@ -140,6 +150,7 @@ export class AISpacesAgent implements Agent {
     if (!state) {
       return { stopReason: 'end_turn' };
     }
+    state.systemContext = getServerContext(params) || state.systemContext;
 
     const promptText = params.prompt
       .filter((p: unknown) => (p as Record<string, string>).type === 'text')
@@ -183,7 +194,7 @@ export class AISpacesAgent implements Agent {
 
         if (decision.action === 'workspace_summary') {
           const effectiveRole = state.role;
-          const files = removeInternalFiles(await listWorkspaceFiles(spaceRoot, effectiveRole, ''), effectiveRole);
+          const files = removeInternalFiles(await listWorkspaceFiles(spaceRoot, false, ''), effectiveRole);
           const summary = formatWorkspaceSummary(files, effectiveRole);
           await this.conn.sessionUpdate({
             sessionId: params.sessionId,
@@ -202,9 +213,8 @@ export class AISpacesAgent implements Agent {
         }
 
         const space_ = getSpace(state.spaceId);
-        const topicContext = await buildTopicPromptContext(spaceRoot, state.topicPath, state.role);
         const systemPrompt = space_
-          ? `${buildChatSystemPrompt(space_.config)}\n\n${topicContext}`
+          ? `${buildChatSystemPrompt(space_.config)}\n\n${state.systemContext}`
           : REFUSAL_MESSAGE;
 
         let accumulated = '';
@@ -283,34 +293,25 @@ export class AISpacesAgent implements Agent {
     const spaceId = this.spaceId;
     if (!spaceId) throw new Error('spaceId required');
 
-    const MUTATING_METHODS: ReadonlyArray<string> = [
-      ACP_WORKSPACE_METHODS.WRITE_FILE,
-      ACP_WORKSPACE_METHODS.DELETE_FILE,
-      ACP_WORKSPACE_METHODS.RENAME,
-      ACP_WORKSPACE_METHODS.CREATE_DIRECTORY,
-      ACP_WORKSPACE_METHODS.DELETE_DIRECTORY,
-      ACP_WORKSPACE_METHODS.PATCH_METADATA,
-    ];
-    if (MUTATING_METHODS.includes(method) && this.role === 'viewer') {
-      throw new Error('Permission denied: viewers cannot modify files');
-    }
-
     const space = getSpace(spaceId);
     if (!space) throw new Error(`Space not found: ${spaceId}`);
     const spaceRoot = resolveSpaceRoot(space);
 
     switch (method) {
+      case ACP_WORKSPACE_METHODS.RESOLVE_PATH:
+        return await getWorkspacePathFacts(spaceRoot, (params.path as string) ?? '') as unknown as Record<string, unknown>;
+
       case ACP_WORKSPACE_METHODS.LIST_FILES: {
         const files = await listWorkspaceFiles(
           spaceRoot,
-          this.resolveEffectiveRole(params.role),
+          params.includeHidden === true,
           (params.path as string) ?? '',
         );
         return { files };
       }
 
       case ACP_WORKSPACE_METHODS.READ_FILE: {
-        const result = await readWorkspaceFile(spaceRoot, params.path as string, this.resolveEffectiveRole(params.role));
+        const result = await readWorkspaceFile(spaceRoot, params.path as string);
         return result;
       }
 
@@ -368,10 +369,5 @@ export class AISpacesAgent implements Agent {
 
   private historyUserKey(userId: string, topicPath: string): string {
     return `${userId}:${topicPath || '/'}`;
-  }
-
-  private resolveEffectiveRole(requestedRole: unknown): SpaceRole {
-    if (this.role !== 'owner') return this.role;
-    return toSpaceRole(requestedRole);
   }
 }

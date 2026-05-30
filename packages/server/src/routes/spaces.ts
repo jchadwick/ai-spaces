@@ -11,13 +11,19 @@ import {
 import { authMiddleware, type AuthVariables } from '../middleware/auth.js';
 import { agentAdapter } from '../agent-adapter-instance.js';
 import type { SpaceRole, FileMetadataEntry } from '@ai-spaces/shared';
-import { SpaceConfigSchema } from '@ai-spaces/shared';
+import { hasPermission, SpaceConfigSchema } from '@ai-spaces/shared';
 import { getUserSpaceRole, getUserSpaceRoles } from '../db/queries.js';
-import { db } from '../db/connection.js';
-import { spaceTopics } from '../db/index.js';
-import { and, eq } from 'drizzle-orm';
-import * as crypto from 'node:crypto';
-import * as path from 'node:path';
+import {
+  archiveTopicTree,
+  getActiveTopic,
+  getTopic,
+  listActiveTopics,
+  normalizeTopicPath,
+  persistTopicSession,
+  renameTopicTree,
+  upsertPromotedTopic,
+} from '../topics/topic-store.js';
+import { workspacePolicy } from '../security/workspace-policy-instance.js';
 
 export interface SpaceVariables extends AuthVariables {
   spaceRole: SpaceRole;
@@ -84,14 +90,8 @@ spacesRouter.get('/:id', (c) => {
   return c.json({ space, userRole: spaceRole });
 });
 
-function normalizeTopicPath(input: string): string {
-  const normalizedInput = input.replace(/\\/g, '/');
-  const segments = normalizedInput.split('/').filter(Boolean);
-  if (normalizedInput.includes('\0') || segments.includes('..') || segments.some((segment) => segment.startsWith('.'))) {
-    throw new Error('Invalid topic path');
-  }
-  const normalized = path.posix.normalize(`/${normalizedInput}`);
-  return normalized;
+function requirePermission(c: { get: (key: 'spaceRole') => SpaceRole }, permission: 'files:write' | 'space:manage') {
+  if (!hasPermission(c.get('spaceRole'), permission)) throw new Error('Forbidden');
 }
 
 const topicSchema = z.object({
@@ -103,9 +103,7 @@ spacesRouter.get('/:id/topics/session', (c) => {
   const spaceId = c.req.param('id');
   try {
     const topicPath = normalizeTopicPath(c.req.query('path') ?? '/');
-    const topic = db.select().from(spaceTopics)
-      .where(and(eq(spaceTopics.spaceId, spaceId), eq(spaceTopics.topicPath, topicPath)))
-      .get();
+    const topic = topicPath === '/' ? getTopic(spaceId, topicPath) : getActiveTopic(spaceId, topicPath);
     return c.json({ topic: topic ?? null });
   } catch (err) {
     return c.json({ error: (err as Error).message }, 400);
@@ -119,22 +117,49 @@ spacesRouter.put('/:id/topics/session', zValidator('json', topicSchema), (c) => 
   const { acpSessionId } = c.req.valid('json');
   try {
     const topicPath = normalizeTopicPath(c.req.valid('json').topicPath);
-    const now = new Date().toISOString();
-    db.insert(spaceTopics).values({
-      id: crypto.randomUUID(),
-      spaceId,
-      topicPath,
-      acpSessionId,
-      createdByUserId: userId,
-      createdAt: now,
-      updatedAt: now,
-    }).onConflictDoUpdate({
-      target: [spaceTopics.spaceId, spaceTopics.topicPath],
-      set: { acpSessionId, updatedAt: now },
-    }).run();
-    return c.json({ topic: { spaceId, topicPath, acpSessionId } });
+    const topic = persistTopicSession(spaceId, topicPath, acpSessionId, userId);
+    return c.json({ topic });
   } catch (err) {
     return c.json({ error: (err as Error).message }, 400);
+  }
+});
+
+spacesRouter.get('/:id/topics', (c) => {
+  return c.json({ topics: listActiveTopics(c.req.param('id')).filter((topic) => topic.topicPath !== '/') });
+});
+
+const promoteTopicSchema = z.object({
+  topicPath: z.string().min(1),
+  targetType: z.enum(['file', 'directory']),
+});
+
+// @ts-ignore -- tsgo TS2589
+spacesRouter.post('/:id/topics', zValidator('json', promoteTopicSchema), async (c) => {
+  try {
+    requirePermission(c, 'space:manage');
+    const spaceId = c.req.param('id');
+    const space = getSpace(spaceId);
+    if (!space) return c.json({ error: 'Space not found' }, 404);
+    const { topicPath, targetType } = c.req.valid('json');
+    const normalized = normalizeTopicPath(topicPath);
+    if (normalized === '/') return c.json({ error: 'Root topic is built in' }, 400);
+    const approved = await workspacePolicy.approvePath(space, normalized.slice(1), { expectedType: targetType });
+    workspacePolicy.consume(approved.token);
+    const topic = upsertPromotedTopic(spaceId, normalized, targetType, c.get('user').userId);
+    return c.json({ topic }, 201);
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, (err as Error).message === 'Forbidden' ? 403 : 400);
+  }
+});
+
+// @ts-ignore -- tsgo TS2589
+spacesRouter.delete('/:id/topics', zValidator('json', z.object({ topicPath: z.string().min(1) })), (c) => {
+  try {
+    requirePermission(c, 'space:manage');
+    archiveTopicTree(c.req.param('id'), c.req.valid('json').topicPath);
+    return c.json({ success: true });
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, (err as Error).message === 'Forbidden' ? 403 : 400);
   }
 });
 
@@ -164,7 +189,14 @@ spacesRouter.patch('/:id/metadata', zValidator('json', patchMetadataSchema), asy
   const space = getSpace(id);
   if (!space) return c.json({ error: 'Space not found' }, 404);
   try {
-    await agentAdapter.patchMetadata(space, files as Record<string, Partial<FileMetadataEntry>>);
+    requirePermission(c, 'files:write');
+    const approvedFiles: Record<string, Partial<FileMetadataEntry>> = {};
+    for (const [filePath, patch] of Object.entries(files)) {
+      const approved = await workspacePolicy.approvePath(space, filePath, { allowMissing: true });
+      const resolution = workspacePolicy.consume(approved.token);
+      approvedFiles[resolution.path] = patch as Partial<FileMetadataEntry>;
+    }
+    await agentAdapter.patchMetadata(space, approvedFiles);
     return c.json({ success: true });
   } catch (err: any) {
     return c.json({ error: err.message ?? 'Failed to update metadata' }, 500);
@@ -182,7 +214,9 @@ spacesRouter.get('/:id/files', async (c) => {
   }
 
   try {
-    const files = await agentAdapter.listFiles(space, dirPath, role);
+    const approved = await workspacePolicy.approvePath(space, dirPath, { expectedType: 'directory' });
+    const resolution = workspacePolicy.consume(approved.token);
+    const files = await agentAdapter.listFiles(space, resolution.path, hasPermission(role, 'files:read-internal'), resolution.token);
     return c.json({ files });
   } catch (err: any) {
     return c.json({ error: err.message ?? 'Failed to list files' }, 500);
@@ -200,7 +234,12 @@ spacesRouter.get('/:id/files/:filePath{.*}', async (c) => {
   }
 
   try {
-    const { content, contentType } = await agentAdapter.readFile(space, filePath, role);
+    const approved = await workspacePolicy.approvePath(space, filePath, {
+      allowHidden: hasPermission(role, 'files:read-internal'),
+      expectedType: 'file',
+    });
+    const resolution = workspacePolicy.consume(approved.token);
+    const { content, contentType } = await agentAdapter.readFile(space, resolution.path, resolution.token);
     c.header('Content-Type', contentType);
     return c.body(content);
   } catch (err: any) {
@@ -225,7 +264,10 @@ spacesRouter.put('/:id/files/:filePath{.*}', zValidator('json', writeFileSchema)
   }
 
   try {
-    await agentAdapter.writeFile(space, filePath, content, encoding);
+    requirePermission(c, 'files:write');
+    const approved = await workspacePolicy.approvePath(space, filePath, { allowMissing: true });
+    const resolution = workspacePolicy.consume(approved.token);
+    await agentAdapter.writeFile(space, resolution.path, content, resolution.token, encoding);
     return c.json({ success: true, path: filePath });
   } catch (err: any) {
     return c.json({ error: err.message ?? 'Failed to write file' }, 500);
@@ -247,7 +289,10 @@ spacesRouter.post('/:id/directories', zValidator('json', createDirSchema), async
   }
 
   try {
-    await agentAdapter.createDirectory(space, dirPath);
+    requirePermission(c, 'files:write');
+    const approved = await workspacePolicy.approvePath(space, dirPath, { allowMissing: true });
+    const resolution = workspacePolicy.consume(approved.token);
+    await agentAdapter.createDirectory(space, resolution.path, resolution.token);
     return c.json({ success: true, path: dirPath });
   } catch (err: any) {
     return c.json({ error: err.message ?? 'Failed to create directory' }, 500);
@@ -264,7 +309,11 @@ spacesRouter.delete('/:id/files/:filePath{.*}', async (c) => {
   }
 
   try {
-    await agentAdapter.deleteFile(space, filePath);
+    requirePermission(c, 'files:write');
+    const approved = await workspacePolicy.approvePath(space, filePath, { expectedType: 'file' });
+    const resolution = workspacePolicy.consume(approved.token);
+    await agentAdapter.deleteFile(space, resolution.path, resolution.token);
+    archiveTopicTree(id, `/${resolution.path}`);
     return c.json({ success: true });
   } catch (err: any) {
     return c.json({ error: err.message ?? 'Failed to delete file' }, 500);
@@ -287,7 +336,13 @@ spacesRouter.patch('/:id/files/:filePath{.*}', zValidator('json', renameFileSche
   }
 
   try {
-    await agentAdapter.renameFile(space, filePath, newPath);
+    requirePermission(c, 'files:write');
+    const from = await workspacePolicy.approvePath(space, filePath, { expectedType: 'file' });
+    const to = await workspacePolicy.approvePath(space, newPath, { allowMissing: true });
+    const sourceResolution = workspacePolicy.consume(from.token);
+    const targetResolution = workspacePolicy.consume(to.token);
+    await agentAdapter.renameFile(space, sourceResolution.path, targetResolution.path, sourceResolution.token, targetResolution.token);
+    renameTopicTree(id, `/${sourceResolution.path}`, `/${targetResolution.path}`);
     return c.json({ success: true, path: newPath });
   } catch (err: any) {
     return c.json({ error: err.message ?? 'Failed to rename file' }, 500);
@@ -304,7 +359,11 @@ spacesRouter.delete('/:id/directories/:dirPath{.*}', async (c) => {
   }
 
   try {
-    await agentAdapter.deleteDirectory(space, dirPath);
+    requirePermission(c, 'files:write');
+    const approved = await workspacePolicy.approvePath(space, dirPath, { expectedType: 'directory' });
+    const resolution = workspacePolicy.consume(approved.token);
+    await agentAdapter.deleteDirectory(space, resolution.path, resolution.token);
+    archiveTopicTree(id, `/${resolution.path}`);
     return c.json({ success: true });
   } catch (err: any) {
     return c.json({ error: err.message ?? 'Failed to delete directory' }, 500);
@@ -327,7 +386,13 @@ spacesRouter.patch('/:id/directories/:dirPath{.*}', zValidator('json', renameDir
   }
 
   try {
-    await agentAdapter.renameDirectory(space, dirPath, newPath);
+    requirePermission(c, 'files:write');
+    const from = await workspacePolicy.approvePath(space, dirPath, { expectedType: 'directory' });
+    const to = await workspacePolicy.approvePath(space, newPath, { allowMissing: true });
+    const sourceResolution = workspacePolicy.consume(from.token);
+    const targetResolution = workspacePolicy.consume(to.token);
+    await agentAdapter.renameDirectory(space, sourceResolution.path, targetResolution.path, sourceResolution.token, targetResolution.token);
+    renameTopicTree(id, `/${sourceResolution.path}`, `/${targetResolution.path}`);
     return c.json({ success: true, path: newPath });
   } catch (err: any) {
     return c.json({ error: err.message ?? 'Failed to rename directory' }, 500);
@@ -341,6 +406,11 @@ const patchConfigSchema = z.object({
 // @ts-ignore -- tsgo TS2589: type instantiation depth limit on Hono+zValidator chains
 spacesRouter.patch('/:id/config', zValidator('json', patchConfigSchema), async (c) => {
   const id = c.req.param('id');
+  try {
+    requirePermission(c, 'space:manage');
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 403);
+  }
   const space = getSpace(id);
   if (!space) return c.json({ error: 'Space not found' }, 404);
 
@@ -358,7 +428,9 @@ spacesRouter.patch('/:id/config', zValidator('json', patchConfigSchema), async (
     // Also write updated config to the space's spaces.json file
     try {
       const configPath = '.space/spaces.json';
-      await agentAdapter.writeFile(space, configPath, JSON.stringify(validated.data, null, 2));
+      const approved = await workspacePolicy.approvePath(space, configPath, { allowMissing: true, allowHidden: true });
+      const resolution = workspacePolicy.consume(approved.token);
+      await agentAdapter.writeFile(space, resolution.path, JSON.stringify(validated.data, null, 2), resolution.token);
     } catch (writeErr: any) {
       console.error('[spaces] Failed to write config file to space:', writeErr.message);
       // Config DB updated even if file write fails — space watcher will re-sync on next scan
@@ -371,6 +443,11 @@ spacesRouter.patch('/:id/config', zValidator('json', patchConfigSchema), async (
 });
 
 spacesRouter.delete('/:id', (c) => {
+  try {
+    requirePermission(c, 'space:manage');
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 403);
+  }
   const id = c.req.param('id');
   const deleted = deleteSpace(id);
 

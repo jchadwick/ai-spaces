@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { listWorkspaceFiles, readWorkspaceFile, writeWorkspaceFile } from './workspace-ops.js';
+import { getWorkspacePathFacts, listWorkspaceFiles, readWorkspaceFile, writeWorkspaceFile } from './workspace-ops.js';
 
 describe('workspace ops internal access', () => {
   let tempDir: string;
@@ -25,7 +25,7 @@ describe('workspace ops internal access', () => {
   });
 
   it('hides internal files from viewer listing', async () => {
-    const files = await listWorkspaceFiles(spaceRoot, 'viewer', '');
+    const files = await listWorkspaceFiles(spaceRoot, false, '');
     const paths = JSON.stringify(files);
     expect(paths).toContain('README.md');
     expect(paths).not.toContain('AGENTS.md');
@@ -33,14 +33,16 @@ describe('workspace ops internal access', () => {
     expect(paths).not.toContain('memory');
   });
 
-  it('blocks viewer reads of internal files', async () => {
-    await expect(readWorkspaceFile(spaceRoot, 'AGENTS.md', 'viewer')).rejects.toThrow('Access denied');
-    await expect(readWorkspaceFile(spaceRoot, '.space/SPACE.md', 'viewer')).rejects.toThrow('Access denied');
-    await expect(readWorkspaceFile(spaceRoot, 'memory/foo.md', 'viewer')).rejects.toThrow('Access denied');
+  it('includes internal files only when Hono requests them', async () => {
+    const files = await listWorkspaceFiles(spaceRoot, true, '');
+    const paths = JSON.stringify(files);
+    expect(paths).toContain('AGENTS.md');
+    expect(paths).toContain('.space');
+    expect(paths).toContain('memory');
   });
 
-  it('allows owner reads of internal files', async () => {
-    const data = await readWorkspaceFile(spaceRoot, 'AGENTS.md', 'owner');
+  it('mechanically reads internal files after Hono approval', async () => {
+    const data = await readWorkspaceFile(spaceRoot, 'AGENTS.md');
     expect(data.content).toBe('secret');
   });
 
@@ -50,10 +52,10 @@ describe('workspace ops internal access', () => {
     fs.writeFileSync(path.join(externalDir, 'Maine.md'), '# Maine');
     fs.symlinkSync(externalDir, path.join(spaceRoot, 'LinkedVacations'));
 
-    const files = await listWorkspaceFiles(spaceRoot, 'viewer', '');
+    const files = await listWorkspaceFiles(spaceRoot, false, '');
     const paths = JSON.stringify(files);
     expect(paths).not.toContain('LinkedVacations');
-    await expect(readWorkspaceFile(spaceRoot, 'LinkedVacations/Maine.md', 'viewer')).rejects.toThrow('Access denied');
+    await expect(readWorkspaceFile(spaceRoot, 'LinkedVacations/Maine.md')).rejects.toThrow('Access denied');
   });
 
   it('blocks writes under symlinked directories outside the workspace', async () => {
@@ -66,21 +68,37 @@ describe('workspace ops internal access', () => {
   });
 
   it('blocks listing traversal outside the workspace', async () => {
-    await expect(listWorkspaceFiles(spaceRoot, 'viewer', '../../')).rejects.toThrow('Access denied');
+    await expect(listWorkspaceFiles(spaceRoot, false, '../../')).rejects.toThrow('Access denied');
   });
 
-  it('does not expose internal files through symlink aliases', async () => {
+  it('reports path facts without granting access', async () => {
+    await expect(getWorkspacePathFacts(spaceRoot, 'README.md')).resolves.toMatchObject({
+      canonicalRelativePath: 'README.md',
+      targetType: 'file',
+      exists: true,
+      contained: true,
+      hidden: false,
+      symlinkEscaped: false,
+    });
+    await expect(getWorkspacePathFacts(spaceRoot, '../../etc/passwd')).resolves.toMatchObject({
+      contained: false,
+      symlinkEscaped: true,
+    });
+  });
+
+  it('reports internal symlink aliases so Hono can deny them', async () => {
     fs.symlinkSync(path.join(spaceRoot, '.space', 'SPACE.md'), path.join(spaceRoot, 'public.md'));
 
-    const files = await listWorkspaceFiles(spaceRoot, 'viewer', '');
+    const files = await listWorkspaceFiles(spaceRoot, false, '');
     expect(JSON.stringify(files)).not.toContain('public.md');
-    await expect(readWorkspaceFile(spaceRoot, 'public.md', 'viewer')).rejects.toThrow('Access denied');
+    await expect(getWorkspacePathFacts(spaceRoot, 'public.md')).resolves.toMatchObject({ hidden: true });
+    await expect(readWorkspaceFile(spaceRoot, 'public.md')).resolves.toMatchObject({ content: 'hidden' });
   });
 
   it('skips broken symlinks in listings', async () => {
     fs.symlinkSync(path.join(tempDir, 'missing'), path.join(spaceRoot, 'Broken'));
 
-    const files = await listWorkspaceFiles(spaceRoot, 'viewer', '');
+    const files = await listWorkspaceFiles(spaceRoot, false, '');
     expect(JSON.stringify(files)).not.toContain('Broken');
   });
 });

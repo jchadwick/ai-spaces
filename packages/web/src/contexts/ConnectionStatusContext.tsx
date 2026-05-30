@@ -37,7 +37,11 @@ interface ConnectionStatusContextValue {
   messages: ChatMessage[];
   isStreaming: boolean;
   activeTopicPath: string;
+  promotedTopicPaths: ReadonlySet<string>;
   selectTopic: (topicPath: string) => Promise<void>;
+  promoteTopic: (topicPath: string, targetType: 'file' | 'directory') => Promise<void>;
+  archiveTopic: (topicPath: string) => Promise<void>;
+  refreshTopics: () => Promise<void>;
   sendMessage: (content: string) => void;
   writeFile: (path: string, content: string) => Promise<{ success: boolean; path?: string; modified?: string; error?: string }>;
   writeFileHttp: (spaceId: string, path: string, content: string) => Promise<{ success: boolean; path?: string; modified?: string; error?: string }>;
@@ -113,6 +117,7 @@ export function ConnectionStatusProvider({
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
   const [isStreaming, setIsStreaming] = useState(false);
   const [activeTopicPath, setActiveTopicPath] = useState('/');
+  const [promotedTopicPaths, setPromotedTopicPaths] = useState<ReadonlySet<string>>(new Set());
   const [wasReconnected, setWasReconnected] = useState(false);
   const [pendingPermission, setPendingPermission] = useState<{
     request: RequestPermissionRequest;
@@ -136,6 +141,21 @@ export function ConnectionStatusProvider({
 
   useEffect(() => { onFileChangedRef.current = onFileChanged; }, [onFileChanged]);
   useEffect(() => { activeTopicPathRef.current = activeTopicPath; }, [activeTopicPath]);
+
+  const refreshTopics = useCallback(async (): Promise<void> => {
+    const response = await fetch(`/api/spaces/${spaceId}/topics`, {
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+    });
+    if (!response.ok) throw new Error('Failed to load promoted topics');
+    const data = await response.json() as { topics: Array<{ topicPath: string }> };
+    setPromotedTopicPaths(new Set(data.topics.map((topic) => topic.topicPath.replace(/^\/+/, ''))));
+  }, [accessToken, spaceId]);
+
+  useEffect(() => {
+    if (accessToken === null) return;
+    const timeout = setTimeout(() => void refreshTopics(), 0);
+    return () => clearTimeout(timeout);
+  }, [accessToken, refreshTopics]);
 
   const fetchPersistedSessionId = useCallback(async (topicPath: string): Promise<string | null> => {
     const response = await fetch(`/api/spaces/${spaceId}/topics/session?path=${encodeURIComponent(topicPath)}`, {
@@ -447,6 +467,33 @@ export function ConnectionStatusProvider({
     setActiveTopicPath(topicPath);
   }, [fetchPersistedSessionId, isStreaming, persistSessionId, status]);
 
+  const promoteTopic = useCallback(async (topicPath: string, targetType: 'file' | 'directory'): Promise<void> => {
+    const response = await fetch(`/api/spaces/${spaceId}/topics`, {
+      method: 'POST',
+      headers: {
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ topicPath, targetType }),
+    });
+    if (!response.ok) throw new Error((await response.json() as { error?: string }).error ?? 'Failed to promote topic');
+    await refreshTopics();
+  }, [accessToken, refreshTopics, spaceId]);
+
+  const archiveTopic = useCallback(async (topicPath: string): Promise<void> => {
+    const response = await fetch(`/api/spaces/${spaceId}/topics`, {
+      method: 'DELETE',
+      headers: {
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ topicPath }),
+    });
+    if (!response.ok) throw new Error((await response.json() as { error?: string }).error ?? 'Failed to convert topic back');
+    if (normalizeTopicPath(topicPath) === activeTopicPathRef.current) await selectTopic('/');
+    await refreshTopics();
+  }, [accessToken, refreshTopics, selectTopic, spaceId]);
+
   const reconnect = useCallback(() => {
     clearReconnectTimeout();
     clearConnectTimeout();
@@ -508,23 +555,9 @@ export function ConnectionStatusProvider({
 
   const writeFile = useCallback(
     async (path: string, content: string): Promise<{ success: boolean; path?: string; modified?: string; error?: string }> => {
-      const connection = connectionRef.current;
-      if (!connection || status !== 'connected') {
-        return { success: false, error: 'Not connected' };
-      }
-      try {
-        await connection.extMethod('workspace/write_file', {
-          spaceId,
-          path,
-          content,
-          encoding: 'utf-8',
-        });
-        return { success: true, path };
-      } catch (err) {
-        return { success: false, error: (err as Error).message };
-      }
+      return await writeSpaceFileHttp(spaceId, path, content);
     },
-    [spaceId, status],
+    [spaceId],
   );
 
   const writeFileHttp = useCallback(
@@ -541,7 +574,11 @@ export function ConnectionStatusProvider({
       messages,
       isStreaming,
       activeTopicPath,
+      promotedTopicPaths,
       selectTopic,
+      promoteTopic,
+      archiveTopic,
+      refreshTopics,
       sendMessage,
       writeFile,
       writeFileHttp,
@@ -556,7 +593,11 @@ export function ConnectionStatusProvider({
       messages,
       isStreaming,
       activeTopicPath,
+      promotedTopicPaths,
       selectTopic,
+      promoteTopic,
+      archiveTopic,
+      refreshTopics,
       sendMessage,
       writeFile,
       writeFileHttp,

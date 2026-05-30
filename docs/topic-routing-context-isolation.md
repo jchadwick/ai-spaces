@@ -12,15 +12,22 @@ lightweight in-memory logical session for cancellation tracking. When
 
 ## Implemented Routing
 
-- Hono persists `(space_id, topic_path) -> acp_session_id` in `space_topics`.
-- The web app loads or provisions an ACP session when a folder is activated.
-- ACP `cwd` carries the selected topic path through the server proxy.
-- The plugin validates that topic path, scopes logical OpenClaw sessions and
-  chat history by topic, and injects the visible workspace tree plus inherited
-  parent context into the prompt.
+- Hono persists explicitly promoted file and directory topics in `space_topics`.
+  Root chat remains a built-in active topic.
+- Ordinary folder navigation expands or collapses the file explorer. Ordinary
+  file selection opens its preview. A file or directory only activates topic
+  chat after an owner explicitly promotes it.
+- Hono allowlists browser ACP session traffic, rejects browser workspace RPCs,
+  and only forwards `session/new` or `session/load` for active topics.
+- Hono owns topic context assembly. It requests approved path facts and file
+  content through the adapter, then injects context into the runtime prompt.
+- ACP is transport only. It reports file-system facts and executes approved
+  operations, but it never decides membership, topic eligibility, or path
+  authorization.
 
 ## Isolation Rule
 
-All workspace paths must remain under the canonical space root. Nested symlinks
-that resolve outside that root are rejected for listing, reading, writing, and
-topic context construction.
+Hono evaluates workspace containment, hidden paths, symlink resolution,
+permissions, and topic status. Each approved file operation carries a
+short-lived one-shot Hono resolution token through the adapter. Nested symlinks
+that resolve outside the canonical space root are rejected before execution.

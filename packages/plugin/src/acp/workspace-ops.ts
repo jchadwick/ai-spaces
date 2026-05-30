@@ -6,8 +6,8 @@ import * as fs from 'fs';
 import * as fsPromises from 'fs/promises';
 import * as path from 'path';
 import mime from 'mime-types';
-import type { FileNode, SpaceRole, FileMetadataEntry, SpaceMetadata } from '@ai-spaces/shared';
-import { hasPermission, SpaceMetadataSchema } from '@ai-spaces/shared';
+import type { FileNode, FileMetadataEntry, SpaceMetadata, WorkspacePathFacts } from '@ai-spaces/shared';
+import { SpaceMetadataSchema } from '@ai-spaces/shared';
 import { validatePath, isPathContained } from '../validation.js';
 import { isInternalWorkspacePath } from './chat-policy.js';
 
@@ -36,23 +36,14 @@ function isInternalResolvedPath(spaceRoot: string, fullPath: string): boolean {
   return isInternalWorkspacePath(relative);
 }
 
-function assertCanReadPath(spaceRoot: string, requestedPath: string, resolvedPath: string, role: SpaceRole): void {
-  if (hasPermission(role, 'files:read-internal')) return;
-  if (isInternalWorkspacePath(requestedPath) || isInternalResolvedPath(spaceRoot, resolvedPath)) {
-    throw new Error('Access denied');
-  }
-}
-
 export async function listWorkspaceFiles(
   spaceRoot: string,
-  role: SpaceRole,
+  includeHidden: boolean,
   dirPath = '',
 ): Promise<FileNode[]> {
   const validation = dirPath ? validatePath(dirPath, spaceRoot) : { valid: true, resolvedPath: spaceRoot };
   if (!validation.valid) throw new Error('Access denied: path outside workspace');
   const targetDir = validation.resolvedPath!;
-  const showInternalFiles = hasPermission(role, 'files:read-internal');
-
   try {
     await fsPromises.access(targetDir);
   } catch {
@@ -86,7 +77,7 @@ export async function listWorkspaceFiles(
 
     for (const entry of entries) {
       const relativePath = basePath ? `${basePath}/${entry.name}` : entry.name;
-      if (!showInternalFiles && isInternalWorkspacePath(relativePath)) {
+      if (!includeHidden && isInternalWorkspacePath(relativePath)) {
         continue;
       }
 
@@ -95,7 +86,7 @@ export async function listWorkspaceFiles(
       try {
         const entryValidation = validatePath(relativePath, spaceRoot);
         if (!entryValidation.valid || !entryValidation.resolvedPath) continue;
-        if (!showInternalFiles && isInternalResolvedPath(spaceRoot, entryValidation.resolvedPath)) continue;
+        if (!includeHidden && isInternalResolvedPath(spaceRoot, entryValidation.resolvedPath)) continue;
         const stats = await fsPromises.stat(fullPath);
 
         if (stats.isDirectory()) {
@@ -131,20 +122,46 @@ function detectContentType(filePath: string): string {
   return mime.lookup(filePath) || 'text/plain';
 }
 
+export async function getWorkspacePathFacts(spaceRoot: string, requestedPath: string): Promise<WorkspacePathFacts> {
+  const canonicalRelativePath = requestedPath.replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+/g, '/');
+  const validation = canonicalRelativePath
+    ? validatePath(canonicalRelativePath, spaceRoot)
+    : { valid: true, resolvedPath: path.resolve(spaceRoot) };
+  if (!validation.valid || !validation.resolvedPath) {
+    return {
+      requestedPath,
+      canonicalRelativePath,
+      targetType: 'missing',
+      exists: false,
+      contained: false,
+      hidden: isInternalWorkspacePath(canonicalRelativePath),
+      symlinkEscaped: true,
+    };
+  }
+
+  const stats = await fsPromises.stat(validation.resolvedPath).catch(() => null);
+  const targetType = stats?.isDirectory() ? 'directory' : stats ? 'file' : 'missing';
+  return {
+    requestedPath,
+    canonicalRelativePath,
+    targetType,
+    exists: Boolean(stats),
+    contained: true,
+    hidden: isInternalWorkspacePath(canonicalRelativePath) || isInternalResolvedPath(spaceRoot, validation.resolvedPath),
+    symlinkEscaped: false,
+    ...(stats?.isFile() ? { size: stats.size, contentType: detectContentType(validation.resolvedPath) } : {}),
+  };
+}
+
 export async function readWorkspaceFile(
   spaceRoot: string,
   filePath: string,
-  role: SpaceRole,
 ): Promise<{ content: string; contentType: string }> {
   const validation = validatePath(filePath, spaceRoot);
   if (!validation.valid) throw new Error('Access denied: path outside workspace');
-  if (!hasPermission(role, 'files:read-internal') && isInternalWorkspacePath(filePath)) {
-    throw new Error('Access denied');
-  }
 
   const fullPath = validation.resolvedPath!;
   if (!fs.existsSync(fullPath)) throw new Error(`File not found: ${filePath}`);
-  assertCanReadPath(spaceRoot, filePath, fullPath, role);
 
   const stats = fs.statSync(fullPath);
   if (stats.isDirectory()) throw new Error('Cannot read directory as file');

@@ -6,6 +6,7 @@ vi.mock('@agentclientprotocol/sdk', () => ({
 
 vi.mock('@ai-spaces/shared', () => ({
   ACP_WORKSPACE_METHODS: {
+    RESOLVE_PATH: 'workspace/resolve_path',
     WRITE_FILE: 'workspace/write_file',
     DELETE_FILE: 'workspace/delete_file',
     RENAME: 'workspace/rename',
@@ -53,11 +54,6 @@ vi.mock('./chat-policy.js', () => ({
   formatWorkspaceSummary: () => 'summary',
   removeInternalFiles: (f: unknown) => f,
   REFUSAL_MESSAGE: 'refuse',
-}));
-
-vi.mock('./topic-context.js', () => ({
-  normalizeTopicPath: (value: string) => value,
-  buildTopicPromptContext: vi.fn(async () => 'topic context'),
 }));
 
 vi.mock('./workspace-ops.js', () => ({

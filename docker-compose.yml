@@ -78,6 +78,8 @@ services:
              npx tsx watch packages/server/src/index.ts &
              node_modules/.bin/vite packages/web --port 80 &
              wait"
+    labels:
+      - "dev.orbstack.dev.domain=dev.local.jesschadwick.com"
     environment:
       GATEWAY_URL: http://openclaw:19000
       GATEWAY_TOKEN: secret
@@ -92,7 +94,7 @@ services:
       # Google OAuth (optional - set via .env or docker-compose.override.yml)
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-      GOOGLE_OAUTH_REDIRECT_URI: ${GOOGLE_OAUTH_REDIRECT_URI:-http://localhost:3000/api/auth/google/callback}
+      GOOGLE_OAUTH_REDIRECT_URI: ${GOOGLE_OAUTH_REDIRECT_URI:-https://dev.local.jesschadwick.com/api/auth/google/callback}
     volumes:
       - dev-data:/data
       # Server source (tsx watch)

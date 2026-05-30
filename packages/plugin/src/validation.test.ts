@@ -78,7 +78,7 @@ describe('validatePath', () => {
       fs.unlinkSync(linkPath);
     });
 
-    it('should allow symlinks pointing outside space root as delegated content', () => {
+    it('should block symlinks pointing outside space root', () => {
       const outsideDir = path.join(tempDir, 'outside');
       fs.mkdirSync(outsideDir);
       fs.writeFileSync(path.join(outsideDir, 'secret.txt'), 'secret');
@@ -87,20 +87,20 @@ describe('validatePath', () => {
       fs.symlinkSync(path.join(outsideDir, 'secret.txt'), linkPath);
       
       const result = validatePath('escaped.txt', spaceRoot);
-      expect(result.valid).toBe(true);
-      expect(result.resolvedPath).toBe(fs.realpathSync(path.join(outsideDir, 'secret.txt')));
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe('Access denied');
       
       fs.unlinkSync(linkPath);
     });
 
-    it('should allow new files under a symlinked directory', () => {
+    it('should block new files under a symlinked directory outside space root', () => {
       const outsideDir = path.join(tempDir, 'outside');
       fs.mkdirSync(outsideDir);
       fs.symlinkSync(outsideDir, path.join(spaceRoot, 'linked'));
 
       const result = validatePath('linked/new.md', spaceRoot);
-      expect(result.valid).toBe(true);
-      expect(result.resolvedPath).toBe(path.join(fs.realpathSync(outsideDir), 'new.md'));
+      expect(result.valid).toBe(false);
+      expect(result.error).toBe('Access denied');
     });
 
     it('should block nested symlinks that escape a delegated target', () => {

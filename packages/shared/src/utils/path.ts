@@ -55,15 +55,10 @@ function realpathExistingSymlink(filePath: string): string | null {
   }
 }
 
-function isContainedInAny(filePath: string, containers: readonly string[]): boolean {
-  return containers.some(container => isPathContained(filePath, container));
-}
-
 function resolveWorkspacePath(resolvedLogicalPath: string, normalizedSpaceRoot: string): PathValidationResult {
   const realSpaceRoot = canonicalizeExistingPath(normalizedSpaceRoot);
   const relativePath = path.relative(normalizedSpaceRoot, resolvedLogicalPath);
   const segments = relativePath.split(path.sep).filter(Boolean);
-  const allowedRealRoots = new Set<string>([realSpaceRoot]);
   const visitedSymlinks = new Set<string>();
 
   let currentRealPath = realSpaceRoot;
@@ -82,7 +77,7 @@ function resolveWorkspacePath(resolvedLogicalPath: string, normalizedSpaceRoot: 
           return { valid: false, resolvedPath: null, error: 'Invalid path' };
         }
         const targetPath = path.join(currentRealPath, ...segments.slice(index));
-        return isContainedInAny(targetPath, [...allowedRealRoots])
+        return isPathContained(targetPath, realSpaceRoot)
           ? { valid: true, resolvedPath: targetPath }
           : { valid: false, resolvedPath: null, error: 'Access denied' };
       }
@@ -101,18 +96,14 @@ function resolveWorkspacePath(resolvedLogicalPath: string, normalizedSpaceRoot: 
       }
       visitedSymlinks.add(symlinkRealPath);
 
-      const allowedRoots = [...allowedRealRoots];
-      if (!isContainedInAny(symlinkRealPath, allowedRoots)) {
-        if (!isPathContained(currentRealPath, realSpaceRoot)) {
-          return { valid: false, resolvedPath: null, error: 'Access denied' };
-        }
-        allowedRealRoots.add(symlinkRealPath);
+      if (!isPathContained(symlinkRealPath, realSpaceRoot)) {
+        return { valid: false, resolvedPath: null, error: 'Access denied' };
       }
 
       currentRealPath = symlinkRealPath;
     }
 
-    return isContainedInAny(currentRealPath, [...allowedRealRoots])
+    return isPathContained(currentRealPath, realSpaceRoot)
       ? { valid: true, resolvedPath: currentRealPath }
       : { valid: false, resolvedPath: null, error: 'Access denied' };
   } catch {

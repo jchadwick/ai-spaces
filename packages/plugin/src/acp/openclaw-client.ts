@@ -84,7 +84,7 @@ interface ManagedSession {
  * Plugin-side ACP client to OpenClaw.
  *
  * OpenClaw is spawned as a subprocess (`openclaw acp`) and communicated with
- * via stdio. The client manages one ACP session per space and forwards
+ * via stdio. The client manages one ACP session per runtime session key and forwards
  * session/prompt calls, relaying session/update notifications back.
  *
  * OpenClaw handles: token streaming, cancellation, model failover.
@@ -93,7 +93,7 @@ interface ManagedSession {
 export class OpenClawAcpClient {
   private connection: ClientSideConnection | null = null;
   private subprocess: ChildProcess | null = null;
-  private sessions = new Map<string, ManagedSession>(); // spaceId → session
+  private sessions = new Map<string, ManagedSession>(); // runtime session key → session
   private sessionById = new Map<string, ManagedSession>(); // sessionId → session
   private updateHandlers = new Map<string, SessionUpdateHandler>(); // sessionId → handler
   private connectPromise: Promise<void> | null = null;
@@ -174,8 +174,8 @@ export class OpenClawAcpClient {
     this.updateHandlers.clear();
   }
 
-  async getOrCreateSession(spaceId: string, cwd: string): Promise<string> {
-    const existing = this.sessions.get(spaceId);
+  async getOrCreateSession(runtimeSessionKey: string, spaceId: string, cwd: string): Promise<string> {
+    const existing = this.sessions.get(runtimeSessionKey);
     if (existing) return existing.sessionId;
 
     // Primary path: use OpenClaw gateway chat-completions API for prompt execution.
@@ -183,7 +183,7 @@ export class OpenClawAcpClient {
     if ((process.env.AI_SPACES_USE_OPENCLAW_ACP ?? 'false') !== 'true') {
       const sessionId = crypto.randomUUID();
       const session: ManagedSession = { sessionId, spaceId, activeAbort: null };
-      this.sessions.set(spaceId, session);
+      this.sessions.set(runtimeSessionKey, session);
       this.sessionById.set(sessionId, session);
       log.info({ spaceId, sessionId }, 'created logical gateway session');
       return sessionId;
@@ -197,7 +197,7 @@ export class OpenClawAcpClient {
     });
 
     const session: ManagedSession = { sessionId, spaceId, activeAbort: null };
-    this.sessions.set(spaceId, session);
+    this.sessions.set(runtimeSessionKey, session);
     this.sessionById.set(sessionId, session);
 
     log.info({ spaceId, sessionId }, 'created new ACP session');
@@ -209,13 +209,14 @@ export class OpenClawAcpClient {
    * Returns the stopReason from OpenClaw's prompt response.
    */
   async forwardPrompt(
+    runtimeSessionKey: string,
     spaceId: string,
     prompt: { systemPrompt: string; userPrompt: string },
     onUpdate: SessionUpdateHandler,
     signal?: AbortSignal,
   ): Promise<string> {
-    const session = this.sessions.get(spaceId) ?? { sessionId: crypto.randomUUID(), spaceId, activeAbort: null };
-    this.sessions.set(spaceId, session);
+    const session = this.sessions.get(runtimeSessionKey) ?? { sessionId: crypto.randomUUID(), spaceId, activeAbort: null };
+    this.sessions.set(runtimeSessionKey, session);
 
     session.activeAbort?.abort();
     const abort = new AbortController();
@@ -272,21 +273,21 @@ export class OpenClawAcpClient {
    * Send cancel notification to OpenClaw for a space's active session.
    * cancel() is a fire-and-forget notification in ACP.
    */
-  cancelPrompt(spaceId: string): void {
-    const session = this.sessions.get(spaceId);
+  cancelPrompt(runtimeSessionKey: string): void {
+    const session = this.sessions.get(runtimeSessionKey);
     if (!session) return;
     session.activeAbort?.abort();
     // Note: connection.cancel() sends an ACP notification — don't await
     this.connection?.extNotification?.('session/cancel', { sessionId: session.sessionId });
   }
 
-  closeSession(spaceId: string): void {
-    const session = this.sessions.get(spaceId);
+  closeSession(runtimeSessionKey: string): void {
+    const session = this.sessions.get(runtimeSessionKey);
     if (!session) return;
     session.activeAbort?.abort();
     this.updateHandlers.delete(session.sessionId);
     this.sessionById.delete(session.sessionId);
-    this.sessions.delete(spaceId);
+    this.sessions.delete(runtimeSessionKey);
   }
 
   dispose(): void {

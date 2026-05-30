@@ -21,6 +21,7 @@ interface FileExplorerProps {
   role: SpaceRole;
   selectedFile: string | null;
   onFileSelect: (filePath: string | null) => void;
+  onTopicSelect: (topicPath: string) => void;
 }
 
 interface ContextMenuState {
@@ -35,6 +36,7 @@ function FileTreeNode({
   depth = 0,
   selectedFile,
   onFileSelect,
+  onTopicSelect,
   expandedFolders,
   toggleFolder,
   onLoadChildren,
@@ -54,6 +56,7 @@ function FileTreeNode({
   depth?: number;
   selectedFile: string | null;
   onFileSelect: (path: string) => void;
+  onTopicSelect: (path: string) => void;
   expandedFolders: Set<string>;
   toggleFolder: (path: string) => void;
   onLoadChildren: (dirPath: string) => void;
@@ -82,6 +85,7 @@ function FileTreeNode({
   const handleClick = () => {
     if (isRenaming) return;
     if (isDirectory) {
+      if (!isSpaceFolder) onTopicSelect(node.path);
       const expanding = !expandedFolders.has(node.path);
       toggleFolder(node.path);
       if (expanding && node.children === undefined) {
@@ -188,6 +192,7 @@ function FileTreeNode({
                 depth={depth + 1}
                 selectedFile={selectedFile}
                 onFileSelect={onFileSelect}
+                onTopicSelect={onTopicSelect}
                 expandedFolders={expandedFolders}
                 toggleFolder={toggleFolder}
                 onLoadChildren={onLoadChildren}
@@ -223,6 +228,7 @@ export default function FileExplorer({
   role,
   selectedFile,
   onFileSelect,
+  onTopicSelect,
 }: FileExplorerProps) {
   const apiFetch = useAPI();
   const { files, loading, error, refresh, loadChildren } = useFileTree(spaceId);
@@ -709,9 +715,9 @@ export default function FileExplorer({
         <div className="p-4 flex flex-col gap-1 flex-1 overflow-auto">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <span style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace", fontSize: 11, color: 'var(--t-inkDim)', textTransform: 'uppercase', letterSpacing: 1.4, fontWeight: 500 }}>
+              <button type="button" onClick={() => onTopicSelect('/')} style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace", fontSize: 11, color: 'var(--t-inkDim)', textTransform: 'uppercase', letterSpacing: 1.4, fontWeight: 500, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
                 Files
-              </span>
+              </button>
               {isViewer && (
                 <span style={{ fontSize: 11, color: 'var(--t-inkDim)', fontStyle: 'italic' }}>
                   (view only)
@@ -761,6 +767,7 @@ export default function FileExplorer({
                   node={node}
                   selectedFile={selectedFile}
                   onFileSelect={onFileSelect}
+                  onTopicSelect={onTopicSelect}
                   expandedFolders={expandedFolders}
                   toggleFolder={toggleFolder}
                   onLoadChildren={loadChildren}

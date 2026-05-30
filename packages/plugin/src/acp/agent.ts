@@ -3,7 +3,7 @@ import type { Agent, AgentSideConnection, InitializeRequest, InitializeResponse,
 import { PROTOCOL_VERSION } from '@agentclientprotocol/sdk';
 import type { SpaceRole, FileMetadataEntry } from '@ai-spaces/shared';
 import { ACP_WORKSPACE_METHODS, toSpaceRole } from '@ai-spaces/shared';
-import { getSpace, resolveSpaceRoot, listSpaces } from '../space-store.js';
+import { getSpace, resolveSpaceRoot } from '../space-store.js';
 import { getOrCreateSession, addMessageToSession, getSessionMessages } from '../chat-history.js';
 import { openClawAcpClient, type SessionUpdateParams } from './openclaw-client.js';
 import {
@@ -25,6 +25,7 @@ import {
   getWorkspaceMetadata,
   patchWorkspaceMetadata,
 } from './workspace-ops.js';
+import { buildTopicPromptContext, normalizeTopicPath } from './topic-context.js';
 import { logger as rootLogger } from '../logger.js';
 
 const log = rootLogger.child({ component: 'acp-agent' });
@@ -34,6 +35,7 @@ interface SessionState {
   spaceId: string;
   userId: string;
   role: SpaceRole;
+  topicPath: string;
   abort: AbortController | null;
 }
 
@@ -80,19 +82,18 @@ export class AISpacesAgent implements Agent {
 
   async newSession(params: NewSessionRequest): Promise<NewSessionResponse> {
     const sessionId = crypto.randomUUID();
-
-    // Resolve space from cwd — find a space whose root matches; fall back to this connection's space
-    const spaceId = this.resolveSpaceIdFromCwd(params.cwd ?? '') ?? this.spaceId;
+    const spaceId = this.spaceId;
+    const topicPath = normalizeTopicPath(params.cwd ?? '');
     const userId = (params as unknown as Record<string, string>).userId ?? 'unknown';
 
-    this.sessions.set(sessionId, { sessionId, spaceId, userId, role: this.role, abort: null });
+    this.sessions.set(sessionId, { sessionId, spaceId, userId, role: this.role, topicPath, abort: null });
 
     // Ensure an ACP session exists in OpenClaw for this space
     if (spaceId) {
       const space = getSpace(spaceId);
       if (space) {
         const spaceRoot = resolveSpaceRoot(space);
-        await openClawAcpClient.getOrCreateSession(spaceId, spaceRoot).catch((err) => {
+        await openClawAcpClient.getOrCreateSession(this.runtimeSessionKey(spaceId, topicPath), spaceId, spaceRoot).catch((err) => {
           log.warn({ err, spaceId }, 'could not create OpenClaw session — prompts will fail');
         });
       }
@@ -104,18 +105,19 @@ export class AISpacesAgent implements Agent {
 
   async loadSession(params: LoadSessionRequest): Promise<LoadSessionResponse> {
     const sessionId = params.sessionId;
-    const spaceId = this.resolveSpaceIdFromSession(sessionId) ?? this.spaceId;
+    const spaceId = this.spaceId;
+    const topicPath = normalizeTopicPath(params.cwd ?? '');
     const userId = (params as unknown as Record<string, string>).userId ?? 'unknown';
 
     // Re-register the session state
-    this.sessions.set(sessionId, { sessionId, spaceId, userId, role: this.role, abort: null });
+    this.sessions.set(sessionId, { sessionId, spaceId, userId, role: this.role, topicPath, abort: null });
 
     // Replay chat history — OpenClaw does not do this itself
     if (spaceId) {
       const space = getSpace(spaceId);
       if (space) {
         const spaceRoot = resolveSpaceRoot(space);
-        const history = getSessionMessages(spaceRoot, userId);
+        const history = getSessionMessages(spaceRoot, this.historyUserKey(userId, topicPath));
         for (const msg of history) {
           const updateType = msg.role === 'user' ? 'user_message_chunk' : 'agent_message_chunk';
           await this.conn.sessionUpdate({
@@ -152,8 +154,9 @@ export class AISpacesAgent implements Agent {
       const space = getSpace(state.spaceId);
       if (space) {
         const spaceRoot = resolveSpaceRoot(space);
-        const session = getOrCreateSession(spaceRoot, state.userId);
-        addMessageToSession(spaceRoot, state.userId, {
+        const historyUserKey = this.historyUserKey(state.userId, state.topicPath);
+        getOrCreateSession(spaceRoot, historyUserKey);
+        addMessageToSession(spaceRoot, historyUserKey, {
           id: crypto.randomUUID(),
           role: 'user',
           content: promptText,
@@ -169,7 +172,7 @@ export class AISpacesAgent implements Agent {
               content: { type: 'text', text: decision.message },
             } as unknown as SessionNotification['update'],
           });
-          addMessageToSession(spaceRoot, state.userId, {
+          addMessageToSession(spaceRoot, historyUserKey, {
             id: crypto.randomUUID(),
             role: 'assistant',
             content: decision.message,
@@ -189,7 +192,7 @@ export class AISpacesAgent implements Agent {
               content: { type: 'text', text: summary },
             } as unknown as SessionNotification['update'],
           });
-          addMessageToSession(spaceRoot, state.userId, {
+          addMessageToSession(spaceRoot, historyUserKey, {
             id: crypto.randomUUID(),
             role: 'assistant',
             content: summary,
@@ -199,12 +202,16 @@ export class AISpacesAgent implements Agent {
         }
 
         const space_ = getSpace(state.spaceId);
-        const systemPrompt = space_ ? buildChatSystemPrompt(space_.config) : REFUSAL_MESSAGE;
+        const topicContext = await buildTopicPromptContext(spaceRoot, state.topicPath, state.role);
+        const systemPrompt = space_
+          ? `${buildChatSystemPrompt(space_.config)}\n\n${topicContext}`
+          : REFUSAL_MESSAGE;
 
         let accumulated = '';
 
         try {
           const stopReason = await openClawAcpClient.forwardPrompt(
+            this.runtimeSessionKey(state.spaceId, state.topicPath),
             state.spaceId,
             {
               systemPrompt,
@@ -236,7 +243,7 @@ export class AISpacesAgent implements Agent {
           });
 
           // Store assistant message
-          addMessageToSession(spaceRoot, state.userId, {
+          addMessageToSession(spaceRoot, historyUserKey, {
             id: crypto.randomUUID(),
             role: 'assistant',
             content: sanitized,
@@ -268,7 +275,7 @@ export class AISpacesAgent implements Agent {
     const state = this.sessions.get(params.sessionId);
     if (!state) return;
     state.abort?.abort();
-    openClawAcpClient.cancelPrompt(state.spaceId);
+    openClawAcpClient.cancelPrompt(this.runtimeSessionKey(state.spaceId, state.topicPath));
   }
 
   // Extension method handler — routes workspace/* calls to file operations
@@ -355,20 +362,12 @@ export class AISpacesAgent implements Agent {
     }
   }
 
-  private resolveSpaceIdFromCwd(cwd: string): string | undefined {
-    if (!cwd) return listSpaces()[0]?.id;
-    // Find the space whose resolved root matches the cwd
-    for (const space of listSpaces()) {
-      const root = resolveSpaceRoot(space);
-      if (root === cwd || cwd.startsWith(root + '/') || cwd.startsWith(root + '\\')) {
-        return space.id;
-      }
-    }
-    return listSpaces()[0]?.id;
+  private runtimeSessionKey(spaceId: string, topicPath: string): string {
+    return `${spaceId}:${topicPath || '/'}`;
   }
 
-  private resolveSpaceIdFromSession(sessionId: string): string | undefined {
-    return this.sessions.get(sessionId)?.spaceId;
+  private historyUserKey(userId: string, topicPath: string): string {
+    return `${userId}:${topicPath || '/'}`;
   }
 
   private resolveEffectiveRole(requestedRole: unknown): SpaceRole {

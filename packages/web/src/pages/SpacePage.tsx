@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, type ComponentProps } from "react";
 import FileExplorer from "../components/FileExplorer";
 import FileEditor from "../components/FileEditor";
 import AIChatPane from "../components/AIChatPane";
@@ -12,6 +12,7 @@ import { useHeaderContent } from "@/contexts/HeaderContext";
 import type { SpaceRole } from "@ai-spaces/shared";
 import { useAPI } from "@/hooks/useAPI";
 import { ConnectionStatusProvider, type FileChangedPayload } from "@/contexts/ConnectionStatusContext";
+import { useConnectionStatus } from "@/contexts/ConnectionStatusContext";
 import { FileMetadataProvider } from "@/contexts/FileMetadataContext";
 import {
   SIDEBAR_LEFT_DEFAULT,
@@ -239,7 +240,7 @@ export default function SpacePage() {
               style={{ width: leftCollapsed ? 0 : leftWidth }}
             >
               <ErrorBoundary>
-                <FileExplorer
+                <TopicAwareFileExplorer
                   spaceId={spaceId}
                   role={userRole}
                   selectedFile={selectedFile}
@@ -314,4 +315,9 @@ export default function SpacePage() {
       />
     </ToastProvider>
   );
+}
+
+function TopicAwareFileExplorer(props: Omit<ComponentProps<typeof FileExplorer>, 'onTopicSelect'>) {
+  const { selectTopic } = useConnectionStatus();
+  return <FileExplorer {...props} onTopicSelect={(topicPath) => { void selectTopic(topicPath); }} />;
 }

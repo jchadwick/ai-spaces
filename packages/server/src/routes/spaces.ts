@@ -13,6 +13,11 @@ import { agentAdapter } from '../agent-adapter-instance.js';
 import type { SpaceRole, FileMetadataEntry } from '@ai-spaces/shared';
 import { SpaceConfigSchema } from '@ai-spaces/shared';
 import { getUserSpaceRole, getUserSpaceRoles } from '../db/queries.js';
+import { db } from '../db/connection.js';
+import { spaceTopics } from '../db/index.js';
+import { and, eq } from 'drizzle-orm';
+import * as crypto from 'node:crypto';
+import * as path from 'node:path';
 
 export interface SpaceVariables extends AuthVariables {
   spaceRole: SpaceRole;
@@ -77,6 +82,60 @@ spacesRouter.get('/:id', (c) => {
 
   const spaceRole = c.get('spaceRole');
   return c.json({ space, userRole: spaceRole });
+});
+
+function normalizeTopicPath(input: string): string {
+  const normalizedInput = input.replace(/\\/g, '/');
+  const segments = normalizedInput.split('/').filter(Boolean);
+  if (normalizedInput.includes('\0') || segments.includes('..') || segments.some((segment) => segment.startsWith('.'))) {
+    throw new Error('Invalid topic path');
+  }
+  const normalized = path.posix.normalize(`/${normalizedInput}`);
+  return normalized;
+}
+
+const topicSchema = z.object({
+  topicPath: z.string(),
+  acpSessionId: z.string().min(1),
+});
+
+spacesRouter.get('/:id/topics/session', (c) => {
+  const spaceId = c.req.param('id');
+  try {
+    const topicPath = normalizeTopicPath(c.req.query('path') ?? '/');
+    const topic = db.select().from(spaceTopics)
+      .where(and(eq(spaceTopics.spaceId, spaceId), eq(spaceTopics.topicPath, topicPath)))
+      .get();
+    return c.json({ topic: topic ?? null });
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 400);
+  }
+});
+
+// @ts-ignore -- tsgo TS2589: type instantiation depth limit on Hono+zValidator chains
+spacesRouter.put('/:id/topics/session', zValidator('json', topicSchema), (c) => {
+  const spaceId = c.req.param('id');
+  const { userId } = c.get('user');
+  const { acpSessionId } = c.req.valid('json');
+  try {
+    const topicPath = normalizeTopicPath(c.req.valid('json').topicPath);
+    const now = new Date().toISOString();
+    db.insert(spaceTopics).values({
+      id: crypto.randomUUID(),
+      spaceId,
+      topicPath,
+      acpSessionId,
+      createdByUserId: userId,
+      createdAt: now,
+      updatedAt: now,
+    }).onConflictDoUpdate({
+      target: [spaceTopics.spaceId, spaceTopics.topicPath],
+      set: { acpSessionId, updatedAt: now },
+    }).run();
+    return c.json({ topic: { spaceId, topicPath, acpSessionId } });
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, 400);
+  }
 });
 
 spacesRouter.get('/:id/metadata', async (c) => {

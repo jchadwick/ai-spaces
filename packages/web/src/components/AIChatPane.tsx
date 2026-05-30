@@ -205,7 +205,8 @@ export default function AIChatPane({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const prevMessagesLengthRef = useRef(0);
 
-  const { messages, sendMessage, isStreaming, status: connectionStatus, reconnectAttempt, reconnect } = useConnectionStatus();
+  const { messages, sendMessage, isStreaming, activeTopicPath, status: connectionStatus, reconnectAttempt, reconnect } = useConnectionStatus();
+  const topicSegments = activeTopicPath.split('/').filter(Boolean);
 
   const isOwner = hasPermission(role, 'space:manage');
   const isDisconnected = connectionStatus !== "connected" && connectionStatus !== "connecting";
@@ -264,6 +265,10 @@ export default function AIChatPane({
             />
           </div>
         </div>
+      </div>
+
+      <div style={{ padding: '7px 18px', borderBottom: '1px solid var(--t-hair)', fontSize: 11, color: 'var(--t-inkDim)', fontFamily: "'JetBrains Mono', monospace" }}>
+        topic: root{topicSegments.map((segment) => ` / ${segment}`).join('')}
       </div>
 
       {isStreaming && (

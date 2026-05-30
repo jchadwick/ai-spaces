@@ -72,6 +72,18 @@ export const spaceMembers = sqliteTable('space_members', {
   uniqueIndex('space_members_space_user_idx').on(table.spaceId, table.userId),
 ]);
 
+export const spaceTopics = sqliteTable('space_topics', {
+  id: text('id').primaryKey(),
+  spaceId: text('space_id').notNull().references(() => spaces.id, { onDelete: 'cascade' }),
+  topicPath: text('topic_path').notNull(),
+  acpSessionId: text('acp_session_id').notNull(),
+  createdByUserId: text('created_by_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: text('created_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at').notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex('space_topics_space_path_idx').on(table.spaceId, table.topicPath),
+]);
+
 export const inviteTokens = sqliteTable('invite_tokens', {
   id: text('id').primaryKey(),
   spaceId: text('space_id').notNull().references(() => spaces.id, { onDelete: 'cascade' }),
@@ -119,6 +131,8 @@ export type Space = typeof spaces.$inferSelect;
 export type NewSpace = typeof spaces.$inferInsert;
 export type SpaceMember = typeof spaceMembers.$inferSelect;
 export type NewSpaceMember = typeof spaceMembers.$inferInsert;
+export type SpaceTopic = typeof spaceTopics.$inferSelect;
+export type NewSpaceTopic = typeof spaceTopics.$inferInsert;
 export type InviteToken = typeof inviteTokens.$inferSelect;
 export type NewInviteToken = typeof inviteTokens.$inferInsert;
 export type ConfirmationNonce = typeof confirmationNonces.$inferSelect;

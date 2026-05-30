@@ -44,7 +44,7 @@ describe('workspace ops internal access', () => {
     expect(data.content).toBe('secret');
   });
 
-  it('lists and reads files under symlinked directories', async () => {
+  it('blocks listing and reads under symlinked directories outside the workspace', async () => {
     const externalDir = path.join(tempDir, 'brain', 'Vacations');
     fs.mkdirSync(externalDir, { recursive: true });
     fs.writeFileSync(path.join(externalDir, 'Maine.md'), '# Maine');
@@ -52,20 +52,17 @@ describe('workspace ops internal access', () => {
 
     const files = await listWorkspaceFiles(spaceRoot, 'viewer', '');
     const paths = JSON.stringify(files);
-    expect(paths).toContain('LinkedVacations');
-    expect(paths).toContain('LinkedVacations/Maine.md');
-
-    const data = await readWorkspaceFile(spaceRoot, 'LinkedVacations/Maine.md', 'viewer');
-    expect(data.content).toBe('# Maine');
+    expect(paths).not.toContain('LinkedVacations');
+    await expect(readWorkspaceFile(spaceRoot, 'LinkedVacations/Maine.md', 'viewer')).rejects.toThrow('Access denied');
   });
 
-  it('writes files under symlinked directories', async () => {
+  it('blocks writes under symlinked directories outside the workspace', async () => {
     const externalDir = path.join(tempDir, 'brain', 'Vacations');
     fs.mkdirSync(externalDir, { recursive: true });
     fs.symlinkSync(externalDir, path.join(spaceRoot, 'LinkedVacations'));
 
-    await writeWorkspaceFile(spaceRoot, 'LinkedVacations/New.md', '# New');
-    expect(fs.readFileSync(path.join(externalDir, 'New.md'), 'utf-8')).toBe('# New');
+    await expect(writeWorkspaceFile(spaceRoot, 'LinkedVacations/New.md', '# New')).rejects.toThrow('Access denied');
+    expect(fs.existsSync(path.join(externalDir, 'New.md'))).toBe(false);
   });
 
   it('blocks listing traversal outside the workspace', async () => {

@@ -55,6 +55,11 @@ vi.mock('./chat-policy.js', () => ({
   REFUSAL_MESSAGE: 'refuse',
 }));
 
+vi.mock('./topic-context.js', () => ({
+  normalizeTopicPath: (value: string) => value,
+  buildTopicPromptContext: vi.fn(async () => 'topic context'),
+}));
+
 vi.mock('./workspace-ops.js', () => ({
   listWorkspaceFiles: vi.fn(),
   readWorkspaceFile: vi.fn(),

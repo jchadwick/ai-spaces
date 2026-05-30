@@ -29,10 +29,11 @@ describe('OpenClawAcpClient prompt forwarding', () => {
 
     const { OpenClawAcpClient } = await import('./openclaw-client.js');
     const client = new OpenClawAcpClient();
-    await client.getOrCreateSession('space-1', '/tmp/workspace');
+    await client.getOrCreateSession('space-1:/', 'space-1', '/tmp/workspace');
 
     const updates: unknown[] = [];
     const result = await client.forwardPrompt(
+      'space-1',
       'space-1',
       { systemPrompt: 'sys', userPrompt: 'hi' },
       async (u) => { updates.push(u); },
@@ -52,9 +53,10 @@ describe('OpenClawAcpClient prompt forwarding', () => {
 
     const { OpenClawAcpClient } = await import('./openclaw-client.js');
     const client = new OpenClawAcpClient();
-    await client.getOrCreateSession('space-2', '/tmp/workspace');
+    await client.getOrCreateSession('space-2:/', 'space-2', '/tmp/workspace');
 
     await expect(client.forwardPrompt(
+      'space-2',
       'space-2',
       { systemPrompt: 'sys', userPrompt: 'hi' },
       async () => undefined,

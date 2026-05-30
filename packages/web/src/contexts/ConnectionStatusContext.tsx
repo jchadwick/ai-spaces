@@ -36,6 +36,8 @@ interface ConnectionStatusContextValue {
   clearReconnected: () => void;
   messages: ChatMessage[];
   isStreaming: boolean;
+  activeTopicPath: string;
+  selectTopic: (topicPath: string) => Promise<void>;
   sendMessage: (content: string) => void;
   writeFile: (path: string, content: string) => Promise<{ success: boolean; path?: string; modified?: string; error?: string }>;
   writeFileHttp: (spaceId: string, path: string, content: string) => Promise<{ success: boolean; path?: string; modified?: string; error?: string }>;
@@ -83,12 +85,14 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: str
   ]);
 }
 
-function getStoredSessionId(spaceId: string): string | null {
-  try { return sessionStorage.getItem(`acp-session:${spaceId}`); } catch { return null; }
+function normalizeTopicPath(topicPath: string): string {
+  const segments = topicPath.replace(/\\/g, '/').split('/').filter(Boolean);
+  if (segments.includes('..') || segments.some((segment) => segment.startsWith('.'))) throw new Error('Invalid topic path');
+  return segments.length > 0 ? `/${segments.join('/')}` : '/';
 }
 
-function storeSessionId(spaceId: string, sessionId: string): void {
-  try { sessionStorage.setItem(`acp-session:${spaceId}`, sessionId); } catch { /* ignore */ }
+function topicPathToCwd(topicPath: string): string {
+  return topicPath === '/' ? '' : topicPath.slice(1);
 }
 
 interface ConnectionStatusProviderProps {
@@ -108,6 +112,7 @@ export function ConnectionStatusProvider({
   const [status, setStatus] = useState<ConnectionStatus>('connecting');
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [activeTopicPath, setActiveTopicPath] = useState('/');
   const [wasReconnected, setWasReconnected] = useState(false);
   const [pendingPermission, setPendingPermission] = useState<{
     request: RequestPermissionRequest;
@@ -120,6 +125,7 @@ export function ConnectionStatusProvider({
 
   const connectionRef = useRef<ClientSideConnection | null>(null);
   const sessionIdRef = useRef<string | null>(null);
+  const activeTopicPathRef = useRef('/');
   const wsRef = useRef<WebSocket | null>(null);
   const streamMessageIdRef = useRef<string | null>(null);
   const onFileChangedRef = useRef(onFileChanged);
@@ -129,6 +135,28 @@ export function ConnectionStatusProvider({
   const wasReconnectingRef = useRef(false);
 
   useEffect(() => { onFileChangedRef.current = onFileChanged; }, [onFileChanged]);
+  useEffect(() => { activeTopicPathRef.current = activeTopicPath; }, [activeTopicPath]);
+
+  const fetchPersistedSessionId = useCallback(async (topicPath: string): Promise<string | null> => {
+    const response = await fetch(`/api/spaces/${spaceId}/topics/session?path=${encodeURIComponent(topicPath)}`, {
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+    });
+    if (!response.ok) throw new Error('Failed to load topic session');
+    const data = await response.json() as { topic: { acpSessionId: string } | null };
+    return data.topic?.acpSessionId ?? null;
+  }, [accessToken, spaceId]);
+
+  const persistSessionId = useCallback(async (topicPath: string, acpSessionId: string): Promise<void> => {
+    const response = await fetch(`/api/spaces/${spaceId}/topics/session`, {
+      method: 'PUT',
+      headers: {
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ topicPath, acpSessionId }),
+    });
+    if (!response.ok) throw new Error('Failed to persist topic session');
+  }, [accessToken, spaceId]);
 
   const clearReconnectTimeout = useCallback(() => {
     if (reconnectTimeoutRef.current) {
@@ -300,8 +328,8 @@ export function ConnectionStatusProvider({
         wsDebug('acp:initialize_ok', { spaceId });
         if (cancelled || wsRef.current !== ws) return;
 
-        // Try to resume existing session, fall back to new session
-        const storedSessionId = getStoredSessionId(spaceId);
+        const topicPath = activeTopicPathRef.current;
+        const storedSessionId = await fetchPersistedSessionId(topicPath);
         let sessionId: string;
 
         setMessages([]); // clear before history replay
@@ -310,7 +338,7 @@ export function ConnectionStatusProvider({
           try {
             wsDebug('acp:loadSession_start', { spaceId, storedSessionId });
             await withTimeout(
-              connection.loadSession({ sessionId: storedSessionId, cwd: '', mcpServers: [] }),
+              connection.loadSession({ sessionId: storedSessionId, cwd: topicPathToCwd(topicPath), mcpServers: [] }),
               12_000,
               'ACP loadSession',
             );
@@ -321,7 +349,7 @@ export function ConnectionStatusProvider({
             if (cancelled || wsRef.current !== ws) return;
             wsDebug('acp:newSession_start_after_load_fail', { spaceId });
             const result = await withTimeout(
-              connection.newSession({ cwd: '', mcpServers: [] }),
+              connection.newSession({ cwd: topicPathToCwd(topicPath), mcpServers: [] }),
               12_000,
               'ACP newSession (after load fail)',
             );
@@ -332,7 +360,7 @@ export function ConnectionStatusProvider({
         } else {
           wsDebug('acp:newSession_start', { spaceId });
           const result = await withTimeout(
-            connection.newSession({ cwd: '', mcpServers: [] }),
+            connection.newSession({ cwd: topicPathToCwd(topicPath), mcpServers: [] }),
             12_000,
             'ACP newSession',
           );
@@ -341,7 +369,7 @@ export function ConnectionStatusProvider({
           sessionId = result.sessionId;
         }
 
-        storeSessionId(spaceId, sessionId);
+        await persistSessionId(topicPath, sessionId);
         connectionRef.current = connection;
         sessionIdRef.current = sessionId;
 
@@ -391,7 +419,33 @@ export function ConnectionStatusProvider({
         ws.close(1000, 'effect cleanup');
       }
     };
-  }, [spaceId, accessToken, connectKey, clearReconnectTimeout, clearConnectTimeout]);
+  }, [spaceId, accessToken, connectKey, clearReconnectTimeout, clearConnectTimeout, fetchPersistedSessionId, persistSessionId]);
+
+  const selectTopic = useCallback(async (requestedTopicPath: string): Promise<void> => {
+    const connection = connectionRef.current;
+    if (!connection || status !== 'connected' || isStreaming) return;
+    const topicPath = normalizeTopicPath(requestedTopicPath);
+    if (topicPath === activeTopicPathRef.current) return;
+
+    setMessages([]);
+    const storedSessionId = await fetchPersistedSessionId(topicPath);
+    let sessionId = storedSessionId;
+    if (sessionId) {
+      try {
+        await connection.loadSession({ sessionId, cwd: topicPathToCwd(topicPath), mcpServers: [] });
+      } catch {
+        sessionId = null;
+      }
+    }
+    if (!sessionId) {
+      const result = await connection.newSession({ cwd: topicPathToCwd(topicPath), mcpServers: [] });
+      sessionId = result.sessionId;
+    }
+    await persistSessionId(topicPath, sessionId);
+    sessionIdRef.current = sessionId;
+    activeTopicPathRef.current = topicPath;
+    setActiveTopicPath(topicPath);
+  }, [fetchPersistedSessionId, isStreaming, persistSessionId, status]);
 
   const reconnect = useCallback(() => {
     clearReconnectTimeout();
@@ -486,6 +540,8 @@ export function ConnectionStatusProvider({
       clearReconnected,
       messages,
       isStreaming,
+      activeTopicPath,
+      selectTopic,
       sendMessage,
       writeFile,
       writeFileHttp,
@@ -499,6 +555,8 @@ export function ConnectionStatusProvider({
       clearReconnected,
       messages,
       isStreaming,
+      activeTopicPath,
+      selectTopic,
       sendMessage,
       writeFile,
       writeFileHttp,

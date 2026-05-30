@@ -21,7 +21,7 @@ export const config = {
   GATEWAY_TOKEN:      process.env.GATEWAY_TOKEN      ?? 'secret',
   // WEB_DIST default assumes project at ~/ai-spaces — set explicitly in production
   WEB_DIST:           process.env.WEB_DIST           ?? path.join(HOME, 'ai-spaces', 'packages', 'web', 'dist'),
-  INVITE_BASE_URL:    process.env.INVITE_BASE_URL    ?? 'http://localhost:5173',
+  BASE_URL:           process.env.BASE_URL           ?? 'http://localhost:5173',
   AI_SPACES_AGENT_BASE_URL: normalizeOptionalUrl(process.env.AI_SPACES_AGENT_BASE_URL, 'AI_SPACES_AGENT_BASE_URL'),
   AI_SPACES_PLUGIN_DIR: process.env.AI_SPACES_PLUGIN_DIR ?? path.join(AI_SPACES_DATA, 'plugins'),
   ALLOW_ORPHAN_COLLABORATORS: process.env.ALLOW_ORPHAN_COLLABORATORS === 'true',
@@ -44,11 +44,11 @@ export function getGoogleOAuthRedirectUri(): string {
   if (config.GOOGLE_OAUTH_REDIRECT_URI) {
     return config.GOOGLE_OAUTH_REDIRECT_URI;
   }
-  return `${config.INVITE_BASE_URL}/api/auth/google/callback`;
+  return `${config.BASE_URL}/api/auth/google/callback`;
 }
 
 export function getOAuthReturnOrigin(requestedOrigin: string | undefined): string {
-  const fallbackOrigin = new URL(config.INVITE_BASE_URL).origin;
+  const fallbackOrigin = new URL(config.BASE_URL).origin;
   if (!requestedOrigin) {
     return fallbackOrigin;
   }

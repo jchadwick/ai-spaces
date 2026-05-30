@@ -116,7 +116,7 @@ internalRouter.post('/invites', zValidator('json', CreateInviteBodySchema), asyn
     consumedAt: null,
   }).run();
 
-  const inviteUrl = `${config.INVITE_BASE_URL}/invite#token=${rawToken}`;
+  const inviteUrl = `${config.BASE_URL}/invite#token=${rawToken}`;
 
   return c.json({ inviteId, inviteUrl });
 });

@@ -106,7 +106,7 @@ confirmRouter.post('/confirm/redeem', authMiddleware, zValidator('json', redeemN
           read: 'false',
         }).run();
 
-        const inviteUrl = `${config.INVITE_BASE_URL}/invite#token=${rawToken}`;
+        const inviteUrl = `${config.BASE_URL}/invite#token=${rawToken}`;
         process.stderr.write(`\n[INVITE] Invite URL (deliver out-of-band):\n  ${inviteUrl}\n\n`);
         return { inviteId, inviteUrl };
       },

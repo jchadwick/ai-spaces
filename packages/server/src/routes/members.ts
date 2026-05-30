@@ -162,7 +162,7 @@ membersRouter.post('/:spaceId/invites', zValidator('json', createInviteSchema), 
   }).run();
 
   // rawToken returned to admin caller for out-of-band delivery — not stored in DB
-  const inviteUrl = `${config.INVITE_BASE_URL}/invite#token=${rawToken}`;
+  const inviteUrl = `${config.BASE_URL}/invite#token=${rawToken}`;
   process.stderr.write(`\n[INVITE] Invite URL (deliver out-of-band):\n  ${inviteUrl}\n\n`);
 
   return c.json({ inviteId, inviteUrl });

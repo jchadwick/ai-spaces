@@ -81,7 +81,7 @@ function injectBuildMetaTags(html: string, buildInfo: BuildInfo): string {
 const buildInfo = resolveBuildInfo();
 
 
-assertProductionHttps(config.INVITE_BASE_URL, 'INVITE_BASE_URL');
+assertProductionHttps(config.BASE_URL, 'BASE_URL');
 
 const app = new Hono();
 

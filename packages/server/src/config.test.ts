@@ -22,12 +22,12 @@ describe('getOAuthReturnOrigin', () => {
   it('falls back to the configured frontend for untrusted origins', () => {
     process.env.NODE_ENV = 'development';
 
-    expect(getOAuthReturnOrigin('https://example.com')).toBe(new URL(config.INVITE_BASE_URL).origin);
+    expect(getOAuthReturnOrigin('https://example.com')).toBe(new URL(config.BASE_URL).origin);
   });
 
   it('does not allow alternate localhost ports in production', () => {
     process.env.NODE_ENV = 'production';
 
-    expect(getOAuthReturnOrigin('http://localhost:3000')).toBe(new URL(config.INVITE_BASE_URL).origin);
+    expect(getOAuthReturnOrigin('http://localhost:3000')).toBe(new URL(config.BASE_URL).origin);
   });
 });

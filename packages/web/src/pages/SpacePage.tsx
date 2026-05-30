@@ -5,6 +5,7 @@ import FileEditor from "../components/FileEditor";
 import AIChatPane from "../components/AIChatPane";
 import ResizeHandle from "../components/ResizeHandle";
 import SpaceSettingsDialog from "../components/SpaceSettingsDialog";
+import SpaceSettingsEditor from "../components/SpaceSettingsEditor";
 import { ErrorBoundary } from "../components/errors";
 import { ToastProvider } from "../components/ui/toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -72,6 +73,13 @@ export default function SpacePage() {
   const setSelectedFile = useCallback((filePath: string | null) => {
     navigate(filePath ? `/space/${spaceId}/${filePath}` : `/space/${spaceId}`, { replace: true });
   }, [navigate, spaceId]);
+  const isSpaceSettings = selectedFile === "__space_settings__";
+  const handleSpaceSettingsSelect = useCallback(() => {
+    navigate(`/space/${spaceId}/__space_settings__`, { replace: true });
+  }, [navigate, spaceId]);
+  const handleConfigUpdated = useCallback((config: { name: string; description?: string }) => {
+    setSpace((prev) => prev ? { ...prev, config: { ...prev.config, ...config } } : prev);
+  }, []);
   const [editorRefreshKey, setEditorRefreshKey] = useState(0);
   const [leftWidth, setLeftWidth] = useState(SIDEBAR_LEFT_DEFAULT);
   const [rightWidth, setRightWidth] = useState(SIDEBAR_RIGHT_DEFAULT);
@@ -245,6 +253,7 @@ export default function SpacePage() {
                   role={userRole}
                   selectedFile={selectedFile}
                   onFileSelect={setSelectedFile}
+                  onSpaceSettingsSelect={handleSpaceSettingsSelect}
                 />
               </ErrorBoundary>
             </div>
@@ -260,25 +269,33 @@ export default function SpacePage() {
             />
             <div className="flex-1 min-w-0 flex flex-col overflow-hidden">
               <ErrorBoundary>
-                <FileEditor
-                  spaceId={spaceId}
-                  filePath={selectedFile ?? undefined}
-                  role={userRole}
-                  externalRefreshKey={editorRefreshKey}
-                  onFileModified={() => {
-                    const event = new CustomEvent("fileModified", {
-                      detail: {
-                        path: selectedFile ?? "",
-                        action: "modified",
-                        triggeredBy: "user",
-                      },
-                    });
-                    window.dispatchEvent(event);
-                  }}
-                  onFileRenamed={(_oldPath, newPath) => {
-                    setSelectedFile(newPath);
-                  }}
-                />
+                {isSpaceSettings && space ? (
+                  <SpaceSettingsEditor
+                    spaceId={spaceId!}
+                    spaceConfig={space.config}
+                    onConfigUpdated={handleConfigUpdated}
+                  />
+                ) : (
+                  <FileEditor
+                    spaceId={spaceId}
+                    filePath={selectedFile ?? undefined}
+                    role={userRole}
+                    externalRefreshKey={editorRefreshKey}
+                    onFileModified={() => {
+                      const event = new CustomEvent("fileModified", {
+                        detail: {
+                          path: selectedFile ?? "",
+                          action: "modified",
+                          triggeredBy: "user",
+                        },
+                      });
+                      window.dispatchEvent(event);
+                    }}
+                    onFileRenamed={(_oldPath, newPath) => {
+                      setSelectedFile(newPath);
+                    }}
+                  />
+                )}
               </ErrorBoundary>
             </div>
             <ResizeHandle
@@ -317,7 +334,7 @@ export default function SpacePage() {
   );
 }
 
-function TopicAwareFileExplorer(props: Omit<ComponentProps<typeof FileExplorer>, 'onTopicSelect' | 'promotedTopicPaths' | 'onPromoteTopic' | 'onArchiveTopic' | 'onPathDeleted' | 'onPathRenamed'>) {
+function TopicAwareFileExplorer(props: Omit<ComponentProps<typeof FileExplorer>, 'onTopicSelect' | 'promotedTopicPaths' | 'onPromoteTopic' | 'onArchiveTopic' | 'onPathDeleted' | 'onPathRenamed' | 'onSpaceSettingsSelect'> & { onSpaceSettingsSelect: () => void }) {
   const {
     activeTopicPath,
     promotedTopicPaths,

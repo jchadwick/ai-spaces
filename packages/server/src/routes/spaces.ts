@@ -400,6 +400,8 @@ spacesRouter.patch('/:id/directories/:dirPath{.*}', zValidator('json', renameDir
 });
 
 const patchConfigSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  description: z.string().max(500).optional(),
   notificationIgnorePatterns: z.array(z.string()).optional(),
 });
 

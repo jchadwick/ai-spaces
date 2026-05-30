@@ -4,7 +4,7 @@ import { zValidator } from '@hono/zod-validator';
 import * as crypto from 'crypto';
 import { eq, sql } from 'drizzle-orm';
 import { db } from '../db/connection.js';
-import { spaceMembers, inviteTokens, notifications } from '../db/index.js';
+import { spaceMembers, inviteTokens, notifications, users } from '../db/index.js';
 import { authMiddleware } from '../middleware/auth.js';
 import { getSpace } from '../space-store.js';
 import { config } from '../config.js';
@@ -15,7 +15,7 @@ export const membersRouter = new Hono<{ Variables: AuthVariables }>();
 
 membersRouter.use('*', authMiddleware);
 
-// GET /api/spaces/:spaceId/members — list members
+// GET /api/spaces/:spaceId/members — list members with user details
 membersRouter.get('/:spaceId/members', async (c) => {
   const user = c.get('user');
   const spaceId = c.req.param('spaceId');
@@ -25,7 +25,19 @@ membersRouter.get('/:spaceId/members', async (c) => {
 
   if (!getUserSpaceRole(user.userId, spaceId)) return c.json({ error: 'Forbidden' }, 403);
 
-  const members = db.select().from(spaceMembers)
+  const members = db
+    .select({
+      id: spaceMembers.id,
+      spaceId: spaceMembers.spaceId,
+      userId: spaceMembers.userId,
+      role: spaceMembers.role,
+      email: users.email,
+      displayName: users.displayName,
+      createdAt: spaceMembers.createdAt,
+      updatedAt: spaceMembers.updatedAt,
+    })
+    .from(spaceMembers)
+    .innerJoin(users, eq(users.id, spaceMembers.userId))
     .where(eq(spaceMembers.spaceId, spaceId))
     .all();
 

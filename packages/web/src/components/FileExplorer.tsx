@@ -22,6 +22,7 @@ interface FileExplorerProps {
   selectedFile: string | null;
   onFileSelect: (filePath: string | null) => void;
   onTopicSelect: (topicPath: string) => void;
+  onSpaceSettingsSelect: () => void;
   promotedTopicPaths: ReadonlySet<string>;
   onPromoteTopic: (topicPath: string, targetType: 'file' | 'directory') => Promise<void>;
   onArchiveTopic: (topicPath: string) => Promise<void>;
@@ -43,6 +44,7 @@ function FileTreeNode({
   selectedFolderPath,
   onFileSelect,
   onTopicSelect,
+  onSpaceSettingsSelect,
   expandedFolders,
   toggleFolder,
   onLoadChildren,
@@ -68,6 +70,7 @@ function FileTreeNode({
   selectedFolderPath: string | null;
   onFileSelect: (path: string) => void;
   onTopicSelect: (path: string) => void;
+  onSpaceSettingsSelect: () => void;
   expandedFolders: Set<string>;
   toggleFolder: (path: string) => void;
   onLoadChildren: (dirPath: string) => void;
@@ -100,6 +103,11 @@ function FileTreeNode({
 
   const handleClick = () => {
     if (isRenaming) return;
+    // .space folder opens Space Settings instead of expanding
+    if (isSpaceFolder) {
+      onSpaceSettingsSelect();
+      return;
+    }
     if (isDirectory) {
       const expanding = !expandedFolders.has(node.path);
       toggleFolder(node.path);
@@ -176,9 +184,14 @@ function FileTreeNode({
         onMouseEnter={(e) => { if (!isSelected && !isDragTarget) (e.currentTarget as HTMLElement).style.background = 'rgba(26,23,20,0.04)'; }}
         onMouseLeave={(e) => { if (!isSelected && !isDragTarget) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
       >
-        {isDirectory && (
+        {isDirectory && !isSpaceFolder && (
           <span className="material-symbols-outlined" style={{ fontSize: 16, color: isSelected ? 'var(--t-accent)' : 'var(--t-inkDim)' }}>
             {isExpanded ? "folder_open" : "folder"}
+          </span>
+        )}
+        {isSpaceFolder && (
+          <span className="material-symbols-outlined" style={{ fontSize: 16, color: isSelected ? 'var(--t-accent)' : 'var(--t-inkDim)' }}>
+            settings
           </span>
         )}
         {isTopic && (
@@ -202,13 +215,13 @@ function FileTreeNode({
             onBlur={onRenameCommit}
           />
         ) : (
-          <span style={{ fontWeight: isSelected ? 600 : 400, color: isSpaceFolder ? 'var(--t-inkDim)' : undefined }}>
-            {(!node.type || node.type === 'file') ? (getDisplayName(node.path) || node.name) : node.name}
+          <span style={{ fontWeight: isSelected ? 600 : 400, color: isSpaceFolder ? 'var(--t-inkMid)' : undefined }}>
+            {isSpaceFolder ? 'Space Settings' : ((!node.type || node.type === 'file') ? (getDisplayName(node.path) || node.name) : node.name)}
           </span>
         )}
       </button>
 
-      {isDirectory && isExpanded && node.children === undefined && (
+      {isDirectory && isExpanded && !isSpaceFolder && node.children === undefined && (
         <div
           style={{ fontSize: 12, color: 'var(--t-inkFaint)', fontStyle: 'italic', paddingTop: 2, paddingBottom: 2, paddingLeft: `${paddingLeft + 24}px` }}
         >
@@ -218,6 +231,7 @@ function FileTreeNode({
 
       {isDirectory &&
         isExpanded &&
+        !isSpaceFolder &&
         node.children &&
         node.children.length > 0 && (
           <div className="flex flex-col">
@@ -248,12 +262,13 @@ function FileTreeNode({
                 onFolderSelect={onFolderSelect}
                 onDragStart={onDragStart}
                 onDragEnd={onDragEnd}
+                onSpaceSettingsSelect={onSpaceSettingsSelect}
               />
             ))}
           </div>
         )}
 
-      {isDirectory && isExpanded && node.children?.length === 0 && (
+      {isDirectory && isExpanded && !isSpaceFolder && node.children?.length === 0 && (
         <div
           style={{ fontSize: 12, color: 'var(--t-inkFaint)', fontStyle: 'italic', paddingTop: 2, paddingBottom: 2, paddingLeft: `${paddingLeft + 24}px` }}
         >
@@ -270,6 +285,7 @@ export default function FileExplorer({
   selectedFile,
   onFileSelect,
   onTopicSelect,
+  onSpaceSettingsSelect,
   promotedTopicPaths,
   onPromoteTopic,
   onArchiveTopic,
@@ -956,7 +972,9 @@ export default function FileExplorer({
             </div>
           ) : (
             <div className="flex flex-col gap-0.5">
-              {files.map((node) => (
+              {files
+                .filter((node) => isOwner || node.name !== ".space")
+                .map((node) => (
                 <FileTreeNode
                   key={node.path}
                   node={node}
@@ -964,6 +982,7 @@ export default function FileExplorer({
                   selectedFolderPath={selectedFolderPath}
                   onFileSelect={onFileSelect}
                   onTopicSelect={onTopicSelect}
+                  onSpaceSettingsSelect={onSpaceSettingsSelect}
                   expandedFolders={expandedFolders}
                   toggleFolder={toggleFolder}
                   onLoadChildren={loadChildren}
@@ -1016,7 +1035,7 @@ export default function FileExplorer({
             boxShadow: "0 8px 24px rgba(25,28,30,0.06)",
           }}
         >
-          {contextMenu.node.type === "directory" && (
+          {contextMenu.node.type === "directory" && contextMenu.node.name !== ".space" && (
             <>
               <button
                 type="button"

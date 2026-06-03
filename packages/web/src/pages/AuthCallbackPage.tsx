@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  clearPendingInviteToken,
+  createBearerFetch,
+  isTerminalInviteError,
+  peekPendingInviteToken,
+  redeemInvite,
+} from '@/lib/invites';
 
 function AuthCallbackPage() {
   const [searchParams] = useSearchParams();
@@ -36,24 +43,30 @@ function AuthCallbackPage() {
         const user = await response.json();
         localStorage.setItem('auth_user', JSON.stringify(user));
 
-        // Clear any pending invite token and redirect to spaces
-        const pendingToken = sessionStorage.getItem('pendingInviteToken');
+        const pendingToken = peekPendingInviteToken();
         if (pendingToken) {
-          sessionStorage.removeItem('pendingInviteToken');
-          await fetch('/api/invites/redeem', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ token: pendingToken }),
-          });
+          try {
+            const invite = await redeemInvite(createBearerFetch(accessToken), pendingToken);
+            clearPendingInviteToken();
+            navigate(invite.spaceId ? `/space/${invite.spaceId}` : '/spaces', { replace: true });
+            return;
+          } catch (inviteError) {
+            if (isTerminalInviteError(inviteError)) {
+              clearPendingInviteToken();
+            }
+            const message = inviteError instanceof Error ? inviteError.message : 'Invite redemption failed';
+            setError(`Signed in, but the invite could not be accepted: ${message}`);
+            return;
+          }
         }
 
-        navigate('/spaces');
+        navigate('/spaces', { replace: true });
       } catch (err) {
         console.error('[AuthCallback] Error:', err);
         setError('Authentication failed');
         localStorage.removeItem('auth_access_token');
         localStorage.removeItem('auth_refresh_token');
+        localStorage.removeItem('auth_user');
         setTimeout(() => navigate('/login?error=Authentication failed'), 2000);
       }
     };
@@ -82,9 +95,6 @@ function AuthCallbackPage() {
                 error
               </span>
               <p className="text-body-md text-on-surface-variant">{error}</p>
-              <p className="text-body-sm text-on-surface-variant">
-                Redirecting to login...
-              </p>
             </div>
           ) : (
             <div className="space-y-md">

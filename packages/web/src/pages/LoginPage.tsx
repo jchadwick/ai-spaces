@@ -1,8 +1,15 @@
 import { useEffect, useId, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/contexts/AuthContext";
+import { getAccessToken, useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  clearPendingInviteToken,
+  createBearerFetch,
+  isTerminalInviteError,
+  peekPendingInviteToken,
+  redeemInvite,
+} from "@/lib/invites";
 
 interface AuthProviders {
   password: boolean;
@@ -50,18 +57,28 @@ function LoginPage() {
     try {
       await login(email, password);
 
-      const pendingToken = sessionStorage.getItem("pendingInviteToken");
+      const pendingToken = peekPendingInviteToken();
       if (pendingToken) {
-        sessionStorage.removeItem("pendingInviteToken"); // delete immediately after reading
-        await fetch("/api/invites/redeem", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ token: pendingToken }),
-        });
+        const accessToken = getAccessToken();
+        if (!accessToken) {
+          throw new Error("Signed in, but the invite could not be accepted: missing access token");
+        }
+
+        try {
+          const invite = await redeemInvite(createBearerFetch(accessToken), pendingToken);
+          clearPendingInviteToken();
+          navigate(invite.spaceId ? `/space/${invite.spaceId}` : "/spaces", { replace: true });
+          return;
+        } catch (inviteError) {
+          if (isTerminalInviteError(inviteError)) {
+            clearPendingInviteToken();
+          }
+          const message = inviteError instanceof Error ? inviteError.message : "Invite redemption failed";
+          throw new Error(`Signed in, but the invite could not be accepted: ${message}`);
+        }
       }
 
-      navigate("/spaces");
+      navigate("/spaces", { replace: true });
     } catch (err) {
       console.error("[LoginPage] Login error:", err);
       let message = "Login failed. Please try again.";

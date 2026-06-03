@@ -8,6 +8,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { useAPI } from "@/hooks/useAPI"
 import type { SpaceRole } from "@ai-spaces/shared"
 
 interface ShareSpaceDialogProps {
@@ -39,6 +40,7 @@ export default function ShareSpaceDialog({
   open,
   onOpenChange,
 }: ShareSpaceDialogProps) {
+  const apiFetch = useAPI()
   const [selectedRole, setSelectedRole] = useState<SpaceRole>("editor")
   const [isLoading, setIsLoading] = useState(false)
   const [inviteUrl, setInviteUrl] = useState<string | null>(null)
@@ -51,23 +53,26 @@ export default function ShareSpaceDialog({
     setInviteUrl(null)
 
     try {
-      const response = await fetch(`/api/spaces/${spaceId}/invites`, {
+      const response = await apiFetch(`/api/spaces/${spaceId}/invites`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("accessToken")}`,
         },
         body: JSON.stringify({ role: selectedRole }),
       })
 
       if (!response.ok) {
+        const data = await response.json().catch(() => ({})) as { error?: string }
         if (response.status === 403) {
           throw new Error("Only space owners can create invites")
         }
-        throw new Error("Failed to create invite")
+        throw new Error(data.error || "Failed to create invite")
       }
 
-      const data = await response.json()
+      const data = await response.json() as { inviteUrl?: string }
+      if (!data.inviteUrl) {
+        throw new Error("Failed to create invite")
+      }
       setInviteUrl(data.inviteUrl)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to create invite")

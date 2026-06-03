@@ -1,79 +1,86 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAPI } from "@/hooks/useAPI";
+import { useAuth } from "@/contexts/AuthContext";
+import {
+  clearPendingInviteToken,
+  isTerminalInviteError,
+  readInviteTokenFromHash,
+  redeemInvite,
+  savePendingInviteToken,
+  stripInviteHashFromUrl,
+} from "@/lib/invites";
+
+type InviteStatus = "loading" | "error" | "requiresAuth";
 
 export default function InvitePage() {
-  const [status, setStatus] = useState<'loading' | 'success' | 'error' | 'requiresAuth'>('loading');
-  const [error, setError] = useState<string | null>(null);
+  const { isLoading, isAuthenticated } = useAuth();
+  const apiFetch = useAPI();
   const navigate = useNavigate();
+  const processedRef = useRef(false);
+  const initialInviteToken = typeof window === "undefined" ? null : readInviteTokenFromHash(window.location.hash);
+
+  const [status, setStatus] = useState<InviteStatus>(initialInviteToken ? "loading" : "error");
+  const [error, setError] = useState<string | null>(initialInviteToken ? null : "Invalid invite link — no token found.");
+  const [inviteToken] = useState<string | null>(initialInviteToken);
 
   useEffect(() => {
-    // Read fragment THEN IMMEDIATELY strip it — security fix
-    const fragment = window.location.hash;
-    history.replaceState(null, '', window.location.pathname);
+    stripInviteHashFromUrl();
+  }, []);
 
-    const token = fragment.startsWith('#token=') ? fragment.slice(7) : null;
+  useEffect(() => {
+    if (!inviteToken || isLoading || processedRef.current) {
+      return;
+    }
+
+    processedRef.current = true;
 
     const run = async () => {
-      if (!token) {
-        setStatus('error');
-        setError('Invalid invite link — no token found.');
+      if (!isAuthenticated) {
+        savePendingInviteToken(inviteToken);
+        setStatus("requiresAuth");
         return;
       }
 
-      const res = await fetch('/api/invites/redeem', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ token }),
-      });
-
-      if (res.status === 401) {
-        // Store for post-login redemption — sessionStorage is tab-scoped
-        sessionStorage.setItem('pendingInviteToken', token);
-        setStatus('requiresAuth');
-        return;
+      try {
+        const result = await redeemInvite(apiFetch, inviteToken);
+        clearPendingInviteToken();
+        navigate(result.spaceId ? `/space/${result.spaceId}` : "/spaces", { replace: true });
+      } catch (err) {
+        if (isTerminalInviteError(err)) {
+          clearPendingInviteToken();
+        }
+        setStatus("error");
+        setError(err instanceof Error ? err.message : "Invite redemption failed");
       }
-
-      const data = await res.json() as { error?: string; spaceId?: string; role?: string };
-      if (!res.ok) throw new Error(data.error ?? 'Redemption failed');
-      setStatus('success');
-      setTimeout(() => navigate('/'), 2000);
     };
 
     run().catch((err: unknown) => {
-      setStatus('error');
-      setError(err instanceof Error ? err.message : 'Unknown error');
+      setStatus("error");
+      setError(err instanceof Error ? err.message : "Invite redemption failed");
     });
-  }, [navigate]);
+  }, [apiFetch, isAuthenticated, isLoading, inviteToken, navigate]);
 
-  if (status === 'loading') {
+  if (status === "loading" || isLoading) {
     return (
-      <div style={{ minHeight: '100vh', background: 'var(--t-bg)', color: 'var(--t-ink)', fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <p style={{ fontSize: 16, color: 'var(--t-inkMid)' }}>Validating invite...</p>
+      <div style={{ minHeight: "100vh", background: "var(--t-bg)", color: "var(--t-ink)", fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <p style={{ fontSize: 16, color: "var(--t-inkMid)" }}>Validating invite...</p>
       </div>
     );
   }
 
-  if (status === 'success') {
+  if (status === "requiresAuth") {
     return (
-      <div style={{ minHeight: '100vh', background: 'var(--t-bg)', color: 'var(--t-ink)', fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <p style={{ fontSize: 16, color: 'var(--t-agent)' }}>You have joined the space! Redirecting...</p>
-      </div>
-    );
-  }
-
-  if (status === 'requiresAuth') {
-    return (
-      <div style={{ minHeight: '100vh', background: 'var(--t-bg)', color: 'var(--t-ink)', fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif", display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-        <p style={{ fontSize: 16, color: 'var(--t-inkMid)' }}>Please log in to accept your invitation.</p>
-        <a href="/login" style={{ fontSize: 14, color: 'var(--t-accent)', textDecoration: 'underline' }}>Go to login</a>
+      <div style={{ minHeight: "100vh", background: "var(--t-bg)", color: "var(--t-ink)", fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
+        <p style={{ fontSize: 16, color: "var(--t-inkMid)" }}>Please log in to accept your invitation.</p>
+        <a href="/login" style={{ fontSize: 14, color: "var(--t-accent)", textDecoration: "underline" }}>Go to login</a>
       </div>
     );
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--t-bg)', color: 'var(--t-ink)', fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <p style={{ fontSize: 16, color: 'var(--t-accent)' }}>{error}</p>
+    <div style={{ minHeight: "100vh", background: "var(--t-bg)", color: "var(--t-ink)", fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <p style={{ fontSize: 16, color: "var(--t-accent)" }}>{error}</p>
     </div>
   );
 }

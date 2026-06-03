@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { ADMIN_EMAIL, ADMIN_PASSWORD } from '../helpers/auth.js';
-import { API_BASE, TEST_SPACE_ID } from '../helpers/constants.js';
+import { API_BASE } from '../helpers/constants.js';
+import { createOwnedSpace } from '../helpers/spaces.js';
 
 interface AuthData {
   accessToken: string;
@@ -38,9 +39,10 @@ test.describe('Space page', () => {
     );
   }
 
-  test('navigating to /space/:id loads space content', async ({ page }) => {
+  test('navigating to /space/:id loads space content', async ({ page, request }) => {
     await injectAuth(page, authData);
-    await page.goto(`/space/${TEST_SPACE_ID}`);
+    const { id: spaceId } = await createOwnedSpace(request);
+    await page.goto(`/space/${spaceId}`);
     await page.waitForLoadState('networkidle');
 
     // Should not redirect to login
@@ -58,6 +60,23 @@ test.describe('Space page', () => {
     expect(page.url()).not.toContain('/login');
     // Should show the error state — SpacePage renders "Error Loading Space" heading
     await expect(page.getByRole('heading', { name: 'Error Loading Space' })).toBeVisible({ timeout: 5000 });
+  });
+
+  test('owner can create an invite link from the share dialog', async ({ page, request }) => {
+    await injectAuth(page, authData);
+    const { id: spaceId } = await createOwnedSpace(request);
+    await page.goto(`/space/${spaceId}`);
+    await page.waitForLoadState('networkidle');
+
+    const shareButton = page.getByRole('button', { name: 'Share' });
+    await expect(shareButton).toBeVisible({ timeout: 5000 });
+    await shareButton.click();
+
+    await expect(page.getByRole('dialog', { name: 'Share Space' })).toBeVisible({ timeout: 5000 });
+    await page.getByRole('button', { name: 'Create Invite' }).click();
+
+    const inviteInput = page.locator('input[readonly]').last();
+    await expect(inviteInput).toHaveValue(/\/invite#token=/, { timeout: 5000 });
   });
 });
 

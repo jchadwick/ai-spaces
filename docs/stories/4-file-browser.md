@@ -161,13 +161,15 @@ interface FileNode {
 
 **Get File Tree**
 ```
-GET /spaces/{spaceId}/files?share={token}
+GET /api/spaces/{spaceId}/files
+Authorization: Bearer <access-token>
 Response: FileNode[]
 ```
 
 **Get File Content**
 ```
-GET /spaces/{spaceId}/files/{path}?share={token}
+GET /api/spaces/{spaceId}/files/{path}
+Authorization: Bearer <access-token>
 Response: {
   content: string,
   type: 'markdown' | 'text' | 'image' | 'binary',

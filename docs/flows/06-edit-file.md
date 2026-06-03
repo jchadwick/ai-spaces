@@ -350,7 +350,7 @@
 ### Test 1: Basic Edit
 ```bash
 # Connect as editor
-TOKEN=$(create_editor_token)
+ACCESS_TOKEN=$(login_as_editor_member)
 
 # Open file
 wscat -c "..."
@@ -369,7 +369,7 @@ wscat -c "..."
 ### Test 2: Viewer Cannot Edit
 ```bash
 # Connect as viewer
-TOKEN=$(create_viewer_token)
+ACCESS_TOKEN=$(login_as_viewer_member)
 
 # Attempt edit
 > {"type":"req","id":"1","method":"files.write","params":{"path":"Test.md","content":"..."}}

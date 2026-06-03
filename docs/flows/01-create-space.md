@@ -85,7 +85,7 @@ flowchart TD
     D --> E[Both spaces discovered independently]
 ```
 
-**Behavior:** Parent and child are independent spaces with separate configurations and share links.
+**Behavior:** Parent and child are independent spaces with separate configurations, memberships, and invites.
 
 ### EC2: Deleted Space
 
@@ -100,7 +100,7 @@ sequenceDiagram
     Gateway->>FileSystem: Rescan
     FileSystem-->>Gateway: .space not found
     Gateway->>Registry: Remove space from registry
-    Owner->>Gateway: Try existing share link
+    Owner->>Gateway: Try existing member access
     Gateway-->>Owner: Error: Space not found
 ```
 
@@ -118,8 +118,8 @@ sequenceDiagram
     Gateway->>FileSystem: Rescan
     Gateway->>Registry: New space "Travel" discovered
     Gateway->>Registry: Old space "Vacations" not found
-    Note right of Registry: Share links now invalid
-    Owner->>Gateway: Create new share for "Travel"
+    Note right of Registry: Existing memberships point to the old space record
+    Owner->>Gateway: Reconcile or recreate membership for "Travel"
 ```
 
 ---
@@ -161,6 +161,6 @@ sequenceDiagram
 ## Post-Conditions
 
 - Space appears in `openclaw spaces list`
-- Space ready for share link creation
+- Space ready for owner membership and collaborator invites
 - `.space/` directory exists in workspace
 - `spaces.json` valid and parseable

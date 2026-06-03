@@ -1,5 +1,7 @@
 # Flow: Revoke Share Link
 
+> Parked: anonymous/public share links are not part of the current active bet. Current access control is registered-user membership. Use member removal or role downgrade for the current product direction.
+
 **Actors:** Owner  
 **Trigger:** Owner wants to remove collaborator access
 

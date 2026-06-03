@@ -81,7 +81,7 @@ POST /api/spaces
 ## Space Registration
 
 **User Story**  
-The Spaces Service needs to register spaces so users can create share links.
+The Spaces Service needs to register spaces so owners can invite collaborators and manage membership.
 
 **Acceptance Checklist**
 
@@ -180,7 +180,7 @@ When `.space/` directory is removed, the space should be unregistered.
 
 * [ ] Agent calls `DELETE /api/spaces/{id}` to unregister
 * [ ] Spaces Service marks space as deleted
-* [ ] All active shares are invalidated
+* [ ] Membership and invite access for the deleted space is invalidated
 * [ ] Active sessions are disconnected
 
 **Examples**
@@ -193,7 +193,7 @@ curl -X DELETE https://spaces.example.com/api/spaces/550e8400-...
 {
   "success": true,
   "spaceId": "550e8400-...",
-  "sharesRevoked": 3,
+  "membershipsInvalidated": 3,
   "sessionsDisconnected": 1
 }
 ```

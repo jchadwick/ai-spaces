@@ -34,30 +34,28 @@ Prevent collaborators from accessing files outside their space to protect privat
 
 ---
 
-## Expired Link Handling
+## Expired Invite Handling
 
 **User Story**  
-Show clear feedback when share links expire so collaborators know next steps.
+Show clear feedback when invites expire so collaborators know next steps.
 
 **Acceptance Checklist**
 
-* [ ] Expired tokens rejected on validation
-* [ ] UI shows expiry date and contact suggestion
+* [ ] Expired invite tokens rejected during redemption
+* [ ] UI shows contact suggestion
 * [ ] No technical details (token, space ID, paths) exposed
-* [ ] Current operation completes before session disconnects
-* [ ] WebSocket sends expiry event before closing
+* [ ] No membership is created from an expired invite
 
 **Rules**
 
-* Check token expiry against current time before access
-* Allow active operations to finish before disconnecting
-* Show expiry date and next steps, never token value
+* Check invite expiry during atomic redemption
+* Show next steps, never token value
+* Account sessions remain independent of invite expiry after redemption
 
 **Examples**
 
-* Expired link opened → Show "This share link expired on April 8, 2026. Please contact the space owner."
-* Token expires mid-session → Complete operation, show warning on next action
-* WebSocket expiry event → `{"event": "session_expired", "payload": {"reason": "Share link has expired"}}`
+* Expired invite opened → Show "This invite has expired. Please contact the space owner."
+* Invite expires before login completes → redemption fails and no membership is created
 
 ---
 

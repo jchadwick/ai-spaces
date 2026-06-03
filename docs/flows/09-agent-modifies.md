@@ -371,8 +371,8 @@
 ### Test 1: Edit File as Editor
 ```bash
 # Connect as editor
-TOKEN=$(create_editor_token)
-wscat -c "ws://localhost:19000/spaces/Test/ws?share=$TOKEN"
+ACCESS_TOKEN=$(login_as_editor_member)
+wscat -H "Authorization: Bearer $ACCESS_TOKEN" -c "ws://localhost:3001/ws/spaces/$SPACE_ID"
 
 # Send chat message
 > {"type":"req","id":"1","method":"chat.send","params":{"message":"Add 'test note' to Test.md"}}
@@ -382,7 +382,7 @@ wscat -c "ws://localhost:19000/spaces/Test/ws?share=$TOKEN"
 ### Test 2: Edit File as Viewer
 ```bash
 # Connect as viewer
-TOKEN=$(create_viewer_token)
+ACCESS_TOKEN=$(login_as_viewer_member)
 
 # Send chat message
 > {"type":"req","id":"1","method":"chat.send","params":{"message":"Add 'test note' to Test.md"}}
@@ -392,7 +392,7 @@ TOKEN=$(create_viewer_token)
 ### Test 3: Path Escape
 ```bash
 # Connect as editor
-TOKEN=$(create_editor_token)
+ACCESS_TOKEN=$(login_as_editor_member)
 
 # Request outside-space file
 > {"type":"req","id":"1","method":"chat.send","params":{"message":"Read ../Private/secrets.md"}}

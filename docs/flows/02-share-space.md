@@ -1,7 +1,9 @@
-# Flow: Share Space
+# Flow: Invite Registered Collaborator
 
-**Actors:** Owner  
-**Trigger:** Owner wants to share space with collaborator
+**Actors:** Owner, registered collaborator
+**Trigger:** Owner wants to give another user access to a space
+
+Anonymous/public share links are parked. The current flow creates an invite token that must be redeemed by an authenticated user, producing a `space_members` record.
 
 ---
 
@@ -10,43 +12,39 @@
 ```mermaid
 sequenceDiagram
     participant Owner
-    participant CLI
-    participant System
-    participant Storage
-    
-    Owner->>CLI: openclaw spaces share create Vacations --role editor --expires 7d
-    CLI->>System: Validate space exists
-    System->>System: Validate role valid
-    System->>System: Validate duration valid
-    System->>System: Generate token (32 random bytes)
-    System->>Storage: Save to shares.json
-    Storage-->>System: Confirmed
-    System-->>CLI: Share created
-    CLI-->>Owner: Display share link
-    
-    Note right of Owner: ID: abc123<br/>Role: editor<br/>Expires: 2026-04-08<br/>URL: https://spaces.example.com/Vacations?share=...
-    
-    Owner->>Owner: Copy URL
-    Owner->>Owner: Send to collaborator
+    participant Browser
+    participant Server
+    participant DB
+    participant Collaborator
+
+    Owner->>Browser: Open space sharing controls
+    Browser->>Server: POST /api/spaces/{spaceId}/invites { role }
+    Server->>Server: Verify owner role
+    Server->>Server: Generate 32-byte token
+    Server->>DB: Store token hash, role, expiry
+    DB-->>Server: Invite stored
+    Server-->>Browser: Return /invite#token=...
+    Browser-->>Owner: Show invite URL
+    Owner->>Collaborator: Send invite URL out of band
 ```
 
 ---
 
 ## Error Paths
 
-### E1: Space Not Found
+### E1: Caller Is Not Owner
 
 ```mermaid
 sequenceDiagram
-    participant Owner
-    participant CLI
-    participant System
-    
-    Owner->>CLI: openclaw spaces share create NonExistent --role editor
-    CLI->>System: Validate space exists
-    System-->>CLI: Error: Space not found
-    CLI-->>Owner: Show error and available spaces
-    Note right of Owner: Error: Space 'NonExistent' not found<br/>Available spaces:<br/>- Vacations<br/>- Research/NewCar
+    participant User
+    participant Browser
+    participant Server
+
+    User->>Browser: Create invite
+    Browser->>Server: POST /api/spaces/{spaceId}/invites
+    Server->>Server: Resolve membership role
+    Server-->>Browser: 403 Forbidden
+    Browser-->>User: Show owner-only action error
 ```
 
 ### E2: Invalid Role
@@ -54,126 +52,58 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant Owner
-    participant CLI
-    participant System
-    
-    Owner->>CLI: openclaw spaces share create Vacations --role admin
-    CLI->>System: Validate role
-    System-->>CLI: Error: Invalid role
-    CLI-->>Owner: Show valid roles
-    Note right of Owner: Error: Invalid role 'admin'<br/>Valid roles: viewer, editor
+    participant Browser
+    participant Server
+
+    Owner->>Browser: Select unsupported role
+    Browser->>Server: POST /api/spaces/{spaceId}/invites
+    Server-->>Browser: 400 validation error
+    Browser-->>Owner: Show valid roles
 ```
 
-### E3: Invalid Duration
+### E3: Space Not Found
 
 ```mermaid
 sequenceDiagram
     participant Owner
-    participant CLI
-    participant System
-    
-    Owner->>CLI: openclaw spaces share create Vacations --expires 2weeks
-    CLI->>System: Validate duration
-    System-->>CLI: Error: Invalid duration
-    CLI-->>Owner: Show valid formats
-    Note right of Owner: Error: Invalid duration '2weeks'<br/>Valid formats: 1h, 24h, 7d, 30d, never
-```
+    participant Browser
+    participant Server
 
----
-
-## Edge Cases
-
-### EC1: Multiple Shares
-
-```mermaid
-sequenceDiagram
-    participant Owner
-    participant CLI
-    participant System
-    participant Storage
-    
-    Owner->>CLI: openclaw spaces share create Vacations --role editor --label "Leah"
-    System->>Storage: Save share-abc123
-    CLI-->>Owner: Share created: share-abc123
-    
-    Owner->>CLI: openclaw spaces share create Vacations --role viewer --label "Tom"
-    System->>Storage: Save share-xyz789
-    CLI-->>Owner: Share created: share-xyz789
-    
-    Owner->>CLI: openclaw spaces share list Vacations
-    CLI-->>Owner: Show both shares
-    Note right of Owner: ID: abc123, Role: editor, Label: Leah<br/>ID: xyz789, Role: viewer, Label: Tom
-```
-
-### EC2: No Expiry
-
-```mermaid
-sequenceDiagram
-    participant Owner
-    participant CLI
-    participant System
-    
-    Owner->>CLI: openclaw spaces share create Vacations --expires never
-    System->>System: Create share without expiry
-    CLI-->>Owner: Share created
-    Note right of Owner: Expires: never
-    Note right of Owner: Link valid indefinitely
-```
-
-### EC3: Token Collision
-
-```mermaid
-flowchart LR
-    A[Generate token] --> B{Collision check}
-    B -->|Collision detected| C[Regenerate]
-    C --> B
-    B -->|Unique| D[Return token]
-    
-    Note right of B: Collision probability: ~0<br/>32 bytes = 2^256 possibilities
+    Owner->>Browser: Create invite for missing space
+    Browser->>Server: POST /api/spaces/{spaceId}/invites
+    Server-->>Browser: 404 Space not found
+    Browser-->>Owner: Show missing space error
 ```
 
 ---
 
 ## Acceptance Tests
 
-### Test 1: Basic Creation
+### Test 1: Owner Creates Invite
 
-**Given** space "Vacations" exists  
-**When** owner runs `openclaw spaces share create Vacations --role editor`  
-**Then** output contains valid share URL  
-**And** URL matches format `https://spaces.example.com/Vacations?share=<token>`
+**Given** an authenticated owner belongs to a space
+**When** they create an editor invite
+**Then** the server stores only a token hash
+**And** the response includes an `/invite#token=...` URL
+**And** the raw token is not persisted
 
-### Test 2: Multiple Roles
+### Test 2: Non-Owner Cannot Invite
 
-**Given** space "Vacations" exists  
-**When** owner creates viewer share  
-**And** owner creates editor share  
-**Then** `openclaw spaces share list Vacations` shows both  
-**And** roles are correctly labeled
+**Given** an authenticated viewer or editor belongs to a space
+**When** they create an invite
+**Then** the server returns `403 Forbidden`
 
-### Test 3: Expiry
+### Test 3: Invite Role Is Preserved
 
-**Given** space "Vacations" exists  
-**When** owner creates share with `--expires 1h`  
-**And** waits 61 minutes  
-**Then** share link returns expired error
-
----
-
-## Timing
-
-| Step | Duration |
-|------|----------|
-| CLI command | < 1s |
-| Token generation | < 100ms |
-| Storage write | < 100ms |
-| Total | < 2s |
+**Given** an owner creates a viewer invite
+**When** the collaborator redeems it after login
+**Then** the collaborator is added as a viewer member
 
 ---
 
 ## Post-Conditions
 
-- Share link stored in `shares.json`
-- Token cryptographically random
-- Link ready to send to collaborator
-- Expiry timer started (if set)
+- Invite token hash stored in database
+- Invite has role and expiration
+- Raw invite URL displayed once for owner delivery
+- No anonymous access session is created

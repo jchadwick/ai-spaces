@@ -4,56 +4,43 @@
 
 ---
 
-## Token-Based Access
+## Registered User Access
 
 **User Story**
-Collaborators access a space using only a share link without creating an account.
+Collaborators access spaces through a registered user account. Invites are redeemed into durable membership and are not used as long-lived access credentials.
 
 **Acceptance Checklist**
 
-* [ ] Token extracted from URL `?share=` parameter
-* [ ] Token validated against shares.json
-* [ ] Valid tokens load Space UI with space info and share info (name, description, path, role, expiry)
-* [ ] Expired tokens show friendly error page with expiry date
-* [ ] Invalid/revoked tokens show generic invalid link error (don't reveal revocation status)
-* [ ] Wrong space token shows error indicating link is for different space
-* [ ] Missing token parameter shows "access required" error
-* [ ] Tokens are 32 bytes to prevent brute-forcing
-* [ ] Valid tokens create session stored in localStorage
+* [ ] Login accepts registered email/password credentials
+* [ ] Login returns access and refresh tokens plus user profile
+* [ ] Protected API routes require a valid bearer token
+* [ ] Expired access tokens can be refreshed with a valid refresh token
+* [ ] Invalid credentials return a generic authentication error
+* [ ] Unauthenticated web users are redirected to login before protected pages load
+* [ ] Space access requires authenticated membership in that space
+* [ ] Invite redemption requires authentication
 
 **Rules**
 
-* Tokens are single-purpose, revocable by owner, and have configurable expiry
-* No sensitive data embedded in tokens themselves
-* Error pages are clean, friendly, and branding-consistent
-* Revoked tokens return same error as invalid tokens (security)
+* Authentication proves user identity; membership proves space access.
+* Invite tokens are single-use and only convert into membership after login.
+* Server-side route checks must not trust client-side role state.
+* The web app talks only to the server; it never calls the agent runtime directly.
 
 **Examples**
 
-* `https://spaces.example.com/Vacations?share=3Kf7...` → Token extracted and validated
-* Valid token → Space UI loads with role and expiry displayed
-* Expired token → Error: "Share Link Expired" with expiry date
-* Invalid/revoked token → Error: "Invalid Link"
-* Wrong space token → Error: "This share link is for a different space"
-* No token → Error: "Access Required"
+* Valid login → Home page lists only spaces where the user is a member
+* User opens `/space/{spaceId}` without membership → `403 Forbidden`
+* User clicks invite while logged out → app asks them to log in, then redeems the invite
+* Expired invite → invite redemption fails and no membership is created
 
 **Technical Notes**
 
-```javascript
-validateAccess(spaceId, token):
-  share = shares.byToken.get(token)
-  if not share:
-    return { error: "invalid" }
-  if share.revoked:
-    return { error: "invalid" }
-  if share.spaceId != spaceId:
-    return { error: "wrong_space" }
-  if share.expires and share.expires < now():
-    return { error: "expired", expires: share.expires }
-  space = spaceManager.get(spaceId)
-  if not space:
-    return { error: "space_not_found" }
-  return { valid: true, share: share, space: space }
+```typescript
+login(email, password) -> { accessToken, refreshToken, user }
+GET /api/spaces with bearer token -> spaces where user has membership
+GET /api/spaces/:id with bearer token -> 403 unless membership exists
+POST /api/invites/redeem with bearer token -> creates space_members row
 ```
 
 ---
@@ -61,24 +48,22 @@ validateAccess(spaceId, token):
 ## Session Persistence
 
 **User Story**
-Collaborators maintain their session across browser refreshes and tab closings.
+Registered users remain signed in across browser refreshes and tab closings.
 
 **Acceptance Checklist**
 
-* [ ] Valid session stored in localStorage with spaceId, token, role, expires
-* [ ] Page refresh validates stored token with server before loading UI
-* [ ] Reopening URL without token parameter attempts localStorage session restore
-* [ ] Expired stored sessions are cleared from localStorage
-* [ ] "Leave Space" clears localStorage and disconnects WebSocket
-* [ ] Multiple spaces use separate localStorage keys (e.g., `space_session_Vacations`)
-* [ ] Session restore shows error page if token no longer valid
+* [ ] Access token, refresh token, and user profile are stored locally
+* [ ] App validates stored auth before loading protected UI
+* [ ] Expired access token triggers refresh and one retry
+* [ ] Failed refresh clears local auth and returns user to login
+* [ ] Logout clears local auth
+* [ ] Pending invite token is stored only in tab-scoped session storage
 
 **Rules**
 
-* LocalStorage sessions validated with server on restore
-* Expired sessions are cleared locally, not restored
-* WebSocket reconnects using stored token on page refresh
-* Content Security Policy mitigates XSS risks for stored tokens
+* Long-lived app access is account-based, not share-token-based.
+* WebSocket connections authenticate with the user's access token.
+* Invite tokens should be removed from the URL fragment immediately.
 
 **Examples**
 
@@ -89,23 +74,17 @@ Collaborators maintain their session across browser refreshes and tab closings.
 
 **Technical Notes**
 
-```javascript
-async function restoreSession(spaceId) {
-  const sessionKey = `space_session_${spaceId}`;
-  const session = JSON.parse(localStorage.getItem(sessionKey));
-  if (!session) return { valid: false, reason: 'no_session' };
-  if (session.expires && new Date(session.expires) < new Date()) {
-    localStorage.removeItem(sessionKey);
-    return { valid: false, reason: 'expired' };
-  }
-  const response = await fetch(`/spaces/${spaceId}/validate?share=${session.token}`);
-  const data = await response.json();
-  if (!data.valid) {
-    localStorage.removeItem(sessionKey);
-    return { valid: false, reason: data.reason };
-  }
-  return { valid: true, session: session };
-}
+```typescript
+restoreAuth():
+  read auth_access_token, auth_refresh_token, auth_user
+  validate access token with an authenticated server endpoint
+  if access token is expired, refresh once
+  if refresh fails, clear local auth and return to login
+
+redeemPendingInvite():
+  read pendingInviteToken from sessionStorage
+  POST /api/invites/redeem with bearer token
+  clear pendingInviteToken after success or terminal failure
 ```
 
 ---
@@ -113,24 +92,20 @@ async function restoreSession(spaceId) {
 ## Show Session Info
 
 **User Story**
-Collaborators see their access level and session expiry to understand their permissions.
+Collaborators see their space role so they understand what they can do.
 
 **Acceptance Checklist**
 
-* [ ] Role badge displays in UI header (Viewer, Editor, Admin with icons)
-* [ ] Expiry displays as relative time ("Expires in 5 days")
-* [ ] No expiry shows "No expiration"
-* [ ] Expiry < 24 hours shows warning icon
+* [ ] Role badge displays in UI header or space chrome
 * [ ] Viewer role disables edit buttons, shows "read-only" indicators
 * [ ] Editor role enables all interactions with no badges
-* [ ] Clicking role badge opens session info modal with space name, role, expiry, share ID
-* [ ] "Leave Space" in modal clears session and shows goodbye page
+* [ ] Owner role enables member, invite, and space settings actions
+* [ ] Role changes take effect after refresh or next space load
 
 **Rules**
 
-* Role badges use distinct colors: Viewer (gray), Editor (blue), Admin (purple)
-* Expiry displays use relative time format (hours/days)
-* Read-only indicators shown in chat input, file tree, and disabled edit buttons
+* Role is resolved server-side from membership for every protected request.
+* Client role display is informational and must not be an authorization boundary.
 
 **Examples**
 
@@ -174,7 +149,6 @@ function formatExpiry(expires: string | null): string {
 
 * Remember me / persistent login
 * Multi-device session management
-* Account creation from share link
 * Password-protected links
 * Cross-device session sync
 * Session timeout (idle timeout)

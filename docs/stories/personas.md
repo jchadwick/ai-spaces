@@ -31,11 +31,11 @@
 
 ## Secondary: Collaborator
 
-**Who:** A family member, friend, or colleague who receives a share link to access a space.
+**Who:** A family member, friend, or colleague who is invited to access a space with a registered account.
 
 **Demographics:**
 - Non-technical or less technical
-- Wants simplicity (no accounts, no software)
+- Wants simplicity and no agent-specific setup
 - Just needs to view/contribute
 
 **Goals:**
@@ -75,7 +75,7 @@ An owner who rarely uses CLI and prefers agent-first commands.
 
 **Needs:**
 - Agent creates spaces via conversation
-- Agent manages share links
+- Agent helps manage spaces and invites
 - Agent handles permissions
 
 **Accommodation:** Post-MVP agent-first features
@@ -84,11 +84,11 @@ An owner who rarely uses CLI and prefers agent-first commands.
 
 ## Role Permissions
 
-| Role | View Files | Edit Files | Chat with Agent | Create Share Links |
+| Role | View Files | Edit Files | Chat with Agent | Manage Invites |
 |------|-----------|------------|-----------------|-------------------|
 | Viewer | ✓ | ✗ | ✓ | ✗ |
 | Editor | ✓ | ✓ | ✓ | ✗ |
-| Admin | ✓ | ✓ | ✓ | ✓ |
+| Owner | ✓ | ✓ | ✓ | ✓ |
 
 **Default Roles:**
 - Family members: Editor
@@ -106,6 +106,6 @@ When designing features, ask:
 | Does it help Agent Owner share knowledge? | Yes | High |
 | Does it reduce burden on Collaborator? | Yes | High |
 | Does it maintain privacy/security? | Yes | Critical |
-| Does it require account creation? | No | Required |
+| Does it avoid agent-specific setup for collaborators? | Yes | Required |
 | Does it work on mobile? | Yes | Medium |
 | Does it work without installation? | Yes | Required |

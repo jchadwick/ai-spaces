@@ -55,7 +55,7 @@ AI Spaces is a **standalone service** that connects to your AI agent through a p
 
 | Component | Responsibility |
 |-----------|---------------|
-| **Spaces Service** | Users, auth, shares, permissions, real-time WebSocket, audit logs |
+| **Spaces Service** | Users, auth, memberships, invites, permissions, real-time WebSocket, audit logs |
 | **Agent Adapter** | File operations, scoped sessions, tool execution |
 | **Space UI** | Web interface for collaborators (React) |
 
@@ -64,7 +64,7 @@ AI Spaces is a **standalone service** that connects to your AI agent through a p
 | Data | Owner | Location |
 |------|-------|----------|
 | Users & Auth | Spaces Service | Database |
-| Spaces & Shares | Spaces Service | Database |
+| Spaces, Memberships & Invites | Spaces Service | Database |
 | Space Config | Agent | `.space/spaces.json` |
 | Files | Agent | Workspace |
 
@@ -72,17 +72,17 @@ AI Spaces is a **standalone service** that connects to your AI agent through a p
 ┌─────────────────────────────────────────────────────────────────┐
 │                        Spaces Service                           │
 │                                                                 │
-│  Owns: Users, Auth, Sessions, Shares, Permissions, Audit Log  │
+│  Owns: Users, Auth, Sessions, Memberships, Invites, Audit Log │
 │                                                                 │
 │  ┌──────────────┐  ┌──────────────┐  ┌─────────────────────┐  │
 │  │  REST API    │  │  WebSocket   │  │  Agent Adapters     │  │
 │  │              │  │              │  │                     │  │
 │  │  POST /spaces │  │  /ws/space/ │  │  OpenClaw (MVP)     │  │
-│  │  POST /shares │  │              │  │  Future Agents      │  │
+│  │ POST /invites │  │              │  │  Future Agents      │  │
 │  └──────────────┘  └──────────────┘  └─────────────────────┘  │
 │                                                                 │
 │  ┌─────────────────────────────────────────────────────────┐  │
-│  │  Database: users | spaces | shares | sessions | audit   │  │
+│  │  Database: users | spaces | members | invites | audit   │  │
 │  └─────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
                               │
@@ -134,27 +134,26 @@ POST /api/spaces
 }
 ```
 
-### 2. Create Share Links
+### 2. Invite Registered Collaborators
 
-Generate shareable links with specific permissions:
+Owners create invite links with a specific role. The invite must be redeemed by a logged-in registered user before it grants access.
 
 ```bash
-POST /api/spaces/{spaceId}/shares
+POST /api/spaces/{spaceId}/invites
 {
-  "role": "editor",
-  "expiresAt": "2026-05-01T00:00:00Z"
+  "role": "editor"
 }
 
 Response:
 {
-  "shareUrl": "https://spaces.example.com/s/abc123?t=Kf7Pq9Rz...",
-  "token": "Kf7Pq9Rz..."
+  "inviteId": "abc123",
+  "inviteUrl": "https://spaces.example.com/invite#token=Kf7Pq9Rz..."
 }
 ```
 
 ### 3. Collaborators Access
 
-Collaborators open the share URL and see:
+Collaborators log in, redeem the invite, and then see only spaces where they are members:
 
 - **File Browser**: Navigate files and folders in the space
 - **Markdown Editor**: View and edit documents
@@ -172,7 +171,7 @@ The agent only knows about files in that space — it can't see other spaces or 
 - `read`: View files and directory structure
 - `comment`: Chat with agent
 - `edit`: Modify files
-- `share`: Create/revoke share links
+- `share`: Create invites and manage members
 
 **Roles** (user-facing):
 
@@ -181,7 +180,7 @@ The agent only knows about files in that space — it can't see other spaces or 
 | Viewer | `read`, `comment` | View-only access |
 | Editor | `read`, `comment`, `edit` | Full collaboration |
 | Owner | `read`, `comment`, `edit`, `share` | Manage space|
-| Admin | `read`, `comment`, `edit`, `share` | Manage all spaces and shares |
+| Admin | `read`, `comment`, `edit`, `share` | Server-wide administration |
 
 ### Memory Isolation
 
@@ -304,4 +303,3 @@ docker rm $id
 - [Data Models](./docs/models/) - Schema definitions
 - [Security Model](./docs/security.md) - Security considerations
 - [OpenClaw Reference](./docs/openclaw-reference.md) - OpenClaw integration
-

@@ -1,5 +1,7 @@
 # Flow: Expired Link
 
+> Parked: anonymous/public share links are not part of the current active bet. Current invite tokens are single-use claims into registered membership; once redeemed, account session and membership determine access.
+
 **Actors:** Collaborator  
 **Trigger:** Collaborator accesses space with expired link
 

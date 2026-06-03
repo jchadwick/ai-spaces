@@ -20,16 +20,16 @@
 | Actor | Concern | Mitigation |
 |-------|---------|------------|
 | **Collaborator** | Access data they shouldn't | Path enforcement, role-based permissions |
-| **Compromised Share Link** | Link leaked to unauthorized person | Expiring links, revocation, audit logs |
+| **Compromised Invite Link** | Invite leaked before redemption | Single-use expiring invite tokens, registered-user redemption, audit logs |
 | **Malicious Prompt** | Prompt injection to extract private data | Scoped context only, no escape hatches |
-| **External Attacker** | Try to access spaces without valid link | Token validation, no public endpoints |
+| **External Attacker** | Try to access spaces without membership | JWT validation, membership checks, no direct web-to-agent path |
 
 ### Attack Surfaces
 
 | Surface | Risk | Mitigation |
 |---------|------|------------|
-| Share links | Guessable tokens | Cryptographically random, sufficiently long |
-| WebSocket connection | Unauthorized sessions | Validate token before session creation |
+| Invite links | Guessable or leaked tokens | Cryptographically random, sufficiently long, single-use, stored hashed |
+| WebSocket connection | Unauthorized sessions | Validate JWT and space membership before session creation |
 | Tool calls | Path traversal | Canonical paths, resolve and check prefix |
 | File operations | Symlink escape | Resolve symlinks before validation |
 
@@ -37,37 +37,39 @@
 
 ## Authentication Model
 
-### Share Links
+### Registered Users and Invites
 
-Share links are managed entirely by AI Spaces, NOT OpenClaw. This isolation is intentional:
+Authentication, membership, and invites are managed entirely by AI Spaces, not OpenClaw. This isolation is intentional:
 
-- Collaborators don't need OpenClaw accounts
-- OpenClaw knows nothing about collaborator identities
-- AI Spaces maintains its own token database
-- Links are short-lived and revocable
+- Collaborators do not need OpenClaw accounts
+- OpenClaw does not own collaborator identity or authorization
+- AI Spaces stores users, roles, memberships, and invite hashes
+- Invites are short-lived, single-use claims into registered membership
 
-### How Share Links Work
+### How Registered Invites Work
 
 1. Owner creates a space and defines who can access it
-2. Owner generates a share link with role and expiration
-3. Link is stored in AI Spaces' data (not OpenClaw config)
-4. Collaborator opens link in browser
-5. Space UI connects to Gateway with share token
-6. Plugin validates token and creates scoped session
-7. All subsequent operations are scoped to that space
+2. Owner generates an invite with role and expiration
+3. AI Spaces stores only a hash of the invite token
+4. Collaborator opens the invite link in browser
+5. Collaborator logs in or registers
+6. Invite redemption creates or updates a `space_members` row
+7. Space UI and WebSocket calls use the collaborator's authenticated session
+8. All subsequent operations are scoped to that user's role in that space
 
 ### Role Permissions
 
-| Action | Editor | Viewer |
-|--------|--------|--------|
-| Browse files in space | ✓ | ✓ |
-| Read files | ✓ | ✓ |
-| Write files | ✓ | ✗ |
-| Delete files | ✓ | ✗ |
-| Chat with agent | ✓ | ✓ |
-| View agent responses | ✓ | ✓ |
-| Invite others | ✗ | ✗ |
-| Modify space config | ✗ | ✗ |
+| Action | Owner | Editor | Viewer |
+|--------|-------|--------|--------|
+| Browse files in space | ✓ | ✓ | ✓ |
+| Read files | ✓ | ✓ | ✓ |
+| Write files | ✓ | ✓ | ✗ |
+| Delete files | ✓ | ✓ | ✗ |
+| Chat with agent | ✓ | ✓ | ✓ |
+| View agent responses | ✓ | ✓ | ✓ |
+| Invite others | ✓ | ✗ | ✗ |
+| Manage members | ✓ | ✗ | ✗ |
+| Modify space config | ✓ | ✗ | ✗ |
 
 ---
 
@@ -146,7 +148,7 @@ Tool hooks intercept each call:
 Each collaborator gets a unique session key scoped to the space:
 
 ```
-space:<spaceId>:<agentId>:<collaboratorId>
+space:<spaceId>:<agentId>:<userId>
 ```
 
 ### Properties
@@ -166,12 +168,13 @@ space:<spaceId>:<agentId>:<collaboratorId>
 
 | Event | Fields |
 |-------|--------|
-| Share link created | timestamp, spaceId, role, expires |
-| Share link accessed | timestamp, shareToken, spaceId, remoteIP |
-| Share link revoked | timestamp, spaceId, shareId |
-| File read | timestamp, shareToken, spaceId, path |
-| File written | timestamp, shareToken, spaceId, path |
-| Tool call blocked | timestamp, shareToken, spaceId, toolName, reason |
+| Invite created | timestamp, spaceId, ownerUserId, role, expires |
+| Invite redeemed | timestamp, spaceId, inviteId, userId, role |
+| Member role changed | timestamp, spaceId, actorUserId, targetUserId, role |
+| Member removed | timestamp, spaceId, actorUserId, targetUserId |
+| File read | timestamp, userId, spaceId, path |
+| File written | timestamp, userId, spaceId, path |
+| Tool call blocked | timestamp, userId, spaceId, toolName, reason |
 
 ---
 
@@ -198,16 +201,17 @@ Appropriate rate limits should be configured for:
 ### For Space Owners
 
 - [ ] Review collaborators list regularly
-- [ ] Revoke share links when no longer needed
+- [ ] Avoid sending invites to public channels
 - [ ] Use viewer role when edit is not required
 - [ ] Keep private data outside space directories
 - [ ] Don't put credentials in space documents
-- [ ] Set reasonable expiration times on share links
+- [ ] Set reasonable expiration times on invites
 
 ### For Developers
 
 - [ ] All paths validated and resolved before file operations
-- [ ] All share tokens validated before session creation
+- [ ] All protected routes validate JWT and membership before returning space data
+- [ ] Invite tokens are stored hashed, single-use, and expired
 - [ ] All inputs sanitized before rendering
 - [ ] All tool calls intercepted for scoped contexts
 - [ ] No secrets in logs
@@ -224,20 +228,20 @@ Appropriate rate limits should be configured for:
 
 ## Incident Response
 
-### If a Share Link is Compromised
+### If an Invite Link is Compromised
 
-1. **Revoke immediately**
-2. Generate new link
-3. Audit logs for unauthorized access
+1. If not redeemed, expire or delete the invite immediately
+2. If redeemed by the wrong user, remove that membership immediately
+3. Audit file, chat, and member-change activity for the affected space
 4. Check if files were modified unexpectedly
-5. Notify collaborators with new link
+5. Generate a new invite for the intended collaborator
 
 ### If a Scoped Context Escapes
 
-1. Revoke all share links for the space
+1. Disable new invites for the space
 2. Check audit logs for what was accessed
 3. Fix the isolation bug
-4. Alert all space owners with active shares
+4. Rotate affected sessions and notify affected members
 
 ---
 

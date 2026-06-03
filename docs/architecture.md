@@ -21,14 +21,15 @@ Related operational docs:
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                           Spaces Service                                 │
 │                                                                          │
-│  Owns: Users, Auth, Sessions, Shares, Permissions, Space Metadata      │
+│  Owns: Users, Auth, Sessions, Memberships, Invites, Space Metadata     │
 │                                                                          │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐                │
 │  │  REST API    │  │  WebSocket   │  │   Database   │                │
 │  │              │  │              │  │              │                │
-│  │  /api/spaces │  │  /ws/space/  │  │  users      │                │
-│  │  /api/shares │  │              │  │  spaces     │                │
-│  │              │  │              │  │  shares     │                │
+│  │  /api/spaces │  │  /ws/spaces/ │  │  users      │                │
+│  │ /api/invites │  │              │  │  spaces     │                │
+│  │ /api/members │  │              │  │  members    │                │
+│  │              │  │              │  │  invites    │                │
 │  └──────────────┘  └──────────────┘  │  sessions   │                │
 │                                      └──────────────┘                │
 └───────────────────────┬─────────────────────────────────────────────┘
@@ -149,18 +150,26 @@ CREATE TABLE spaces (
     updated_at TIMESTAMP
 );
 
--- Shares
-CREATE TABLE shares (
+-- Memberships
+CREATE TABLE space_members (
     id UUID PRIMARY KEY,
-    token TEXT UNIQUE NOT NULL,
     space_id UUID REFERENCES spaces(id),
     user_id UUID REFERENCES users(id),
-    role TEXT NOT NULL, -- 'viewer', 'editor', 'owner', 'admin'
-    permissions TEXT[],
-    label TEXT,
-    expires_at TIMESTAMP,
+    role TEXT NOT NULL, -- 'viewer', 'editor', 'owner'
     created_at TIMESTAMP,
-    revoked_at TIMESTAMP
+    updated_at TIMESTAMP
+);
+
+-- Invite tokens
+CREATE TABLE invite_tokens (
+    id UUID PRIMARY KEY,
+    space_id UUID REFERENCES spaces(id),
+    token_hash TEXT UNIQUE NOT NULL,
+    role TEXT NOT NULL, -- 'viewer', 'editor', 'owner'
+    recipient_user_id UUID REFERENCES users(id),
+    expires_at TIMESTAMP NOT NULL,
+    consumed_at TIMESTAMP,
+    created_at TIMESTAMP
 );
 ```
 
@@ -199,23 +208,23 @@ workspace/Vacations/
 |------|-------------|-------------|--------------|
 | `viewer` | `read`, `comment` | View-only access | MVP |
 | `editor` | `read`, `comment`, `edit` | Modify files | MVP |
-| `owner` | `read`, `comment`, `edit`, `share` | Manage shares, full control | MVP |
-| `admin` | All + server admin | AI Spaces administrator | Post-MVP |
+| `owner` | `read`, `comment`, `edit`, `share` | Manage members and invites, full control | MVP |
+| `admin` | All + server admin | AI Spaces administrator | MVP |
 
 ### Permission Definitions
 
 - **`read`**: View files and directory structure
 - **`comment`**: Chat with agent
 - **`edit`**: Modify files
-- **`share`**: Create/revoke share links
+- **`share`**: Create invites and manage members
 - **`admin`**: Manage all spaces, users, server configuration
 
 ### Role Assignment
 
 - Space creator → `owner` role
-- Share links have a single role
-- Users can have different roles per space (Post-MVP)
-- Anonymous users get role from share link
+- Invites have a single role that becomes the user's membership role on redemption
+- Users can have different roles per space
+- Anonymous/public link role assignment is parked for later
 
 ---
 
@@ -250,40 +259,43 @@ GET /api/spaces/{spaceId}/config
 DELETE /api/spaces/{spaceId}
 ```
 
-### Shares
+### Invites and Members
 
 ```bash
-# Create share link
-POST /api/spaces/{spaceId}/shares
+# Create invite
+POST /api/spaces/{spaceId}/invites
 {
-  "role": "editor",
-  "expiresAt": "2026-04-08T00:00:00Z",
-  "label": "Leah's vacation link"
+  "role": "editor"
 }
 
 # Response
 {
-  "shareId": "550e8400-...",
-  "token": "Kf7Pq9Rz...",
-  "spaceId": "550e8400-...",
-  "role": "editor",
-  "permissions": ["read", "comment", "edit"],
-  "shareUrl": "https://spaces.example.com/s/550e8400-...?t=Kf7Pq9Rz...",
-  "expiresAt": "2026-04-08T00:00:00Z"
+  "inviteId": "550e8400-...",
+  "inviteUrl": "https://spaces.example.com/invite#token=Kf7Pq9Rz..."
 }
 
-# List shares
-GET /api/spaces/{spaceId}/shares
+# Redeem invite as authenticated user
+POST /api/invites/redeem
+{
+  "token": "Kf7Pq9Rz..."
+}
 
-# Revoke share
-DELETE /api/spaces/{spaceId}/shares/{shareId}
+# List members
+GET /api/spaces/{spaceId}/members
+
+# Update member role
+PATCH /api/spaces/{spaceId}/members/{userId}
+{
+  "role": "viewer"
+}
 ```
 
 ### Files
 
 ```bash
-# Via WebSocket
-WS /ws/space/{spaceId}?t={token}
+# Via authenticated WebSocket
+WS /ws/spaces/{spaceId}
+Authorization: Bearer <access-token>
 
 # List files
 { "type": "req", "id": "1", "method": "files.list", "params": { "path": "" } }
@@ -434,8 +446,9 @@ And load:
 | Feature | Implementation |
 |---------|---------------|
 | Space creation | API + agent adapter |
-| Share links | Token-based, anonymous |
-| Auth | No user accounts |
+| Registered users | Email/password login with refresh |
+| Invites | Single-use token redeemed into membership |
+| Membership | Per-space roles resolved server-side |
 | File operations | Via agent adapter |
 | Chat | Scoped sessions |
 | Agent support | OpenClaw only |
@@ -444,8 +457,8 @@ And load:
 
 | Feature | Implementation |
 |---------|---------------|
-| User accounts | OAuth + multiple providers |
-| Admin role | Server administration |
+| Anonymous share links | Public token access |
+| OAuth expansion | Additional identity providers |
 | Multiple agents | Separate agent adapter service |
 | Real-time collab | Yjs CRDT |
 | Chat history | Database persistence |
@@ -458,7 +471,7 @@ And load:
 2. **Agent Adapter maintains mapping** - spaceId → agent + location
 3. **Config lives in workspace** - `.space/spaces.json` is authoritative
 4. **Multiple auth providers per user** - email, Google, GitHub, etc.
-5. **Roles: viewer, editor, owner, admin** - owner manages shares, admin is server-wide
+5. **Roles: viewer, editor, owner, admin** - owner manages members/invites, admin is server-wide
 
 ---
 

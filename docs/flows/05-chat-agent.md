@@ -214,7 +214,7 @@
 [Client reconnects]
    |
    | 3. Attempt reconnect
-   |    Use stored token from localStorage
+   |    Use current authenticated user access token
    |
    v
 [Reconnected]
@@ -356,7 +356,7 @@
 ### Test 1: Basic Chat
 ```bash
 # Connect WebSocket
-wscat -c "ws://localhost:19000/spaces/Test/ws?share=$TOKEN"
+wscat -H "Authorization: Bearer $ACCESS_TOKEN" -c "ws://localhost:3001/ws/spaces/$SPACE_ID"
 
 # Send message
 > {"type":"req","id":"1","method":"chat.send","params":{"message":"Hello"}}

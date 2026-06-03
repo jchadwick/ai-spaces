@@ -1,202 +1,133 @@
-# Specification: Share Links
+# Specification: Registered-User Invites and Membership
 
-**Epic:** 2 - Share Links
+**Epic:** 2 - Invites and Membership
+
+Anonymous/public share links are not part of the current active bet. The current model is: an owner creates an invite token, a collaborator logs in or registers, the collaborator redeems the invite, and the server records space membership. All subsequent access is based on the authenticated user's membership and role.
 
 ---
 
-## Create Share Link
+## Create Invite
 
 **User Story**  
-Generate a shareable link for a space to send to collaborators.
+As a space owner, I want to create an invite for a registered collaborator so they can join the space with a specific role.
 
 **Acceptance Checklist**
 
-* [ ] Agent calls `POST /api/spaces/{spaceId}/shares` to create share link
-* [ ] Request specifies `role` (viewer, editor, admin)
-* [ ] Request optionally specifies `expiresAt` (ISO 8601 datetime)
-* [ ] Request optionally specifies `label` for tracking
-* [ ] Token is 32 bytes cryptographically random, base64url encoded
-* [ ] URL format: `https://spaces.example.com/s/{spaceId}?t={token}`
-* [ ] Spaces Service creates share record in database
-* [ ] Returns share URL and token
+* [ ] Owner calls `POST /api/spaces/{spaceId}/invites`
+* [ ] Request specifies `role` (`viewer`, `editor`, or `owner`)
+* [ ] Server requires the caller to be an owner of the space
+* [ ] Server generates a 32-byte random token and stores only its SHA-256 hash
+* [ ] Server stores the invite expiration
+* [ ] Response returns a one-time invite URL using the fragment format `/invite#token={rawToken}`
+* [ ] Raw invite token is never persisted in the database
 
 **Rules**
 
-* Token uses `crypto.randomBytes(32)` for cryptographic randomness
-* URL includes space ID as path component, token as query parameter
-* Multiple shares allowed per space (each with unique token)
-* Permissions derived from role
+* Invite tokens are a delivery mechanism, not an access session.
+* Redeeming an invite converts it into durable space membership for the authenticated user.
+* Invite URLs may be delivered out of band; the app should not depend on anonymous link access.
+* Tokens are single-use and expire.
 
-**Examples**
+**Example**
 
 ```bash
-# Create editor share (7-day expiry)
-curl -X POST https://spaces.example.com/api/spaces/550e8400-.../shares \
+curl -X POST https://spaces.example.com/api/spaces/550e8400-.../invites \
+  -H "Authorization: Bearer <owner-jwt>" \
   -H "Content-Type: application/json" \
-  -d '{
-    "role": "editor",
-    "expiresAt": "2026-04-08T00:00:00Z",
-    "label": "Leah\'s vacation link"
-  }'
-
-# Response
-{
-  "shareId": "550e8400-e29b-41d4-a716-446655440001",
-  "spaceId": "550e8400-e29b-41d4-a716-446655440000",
-  "token": "Kf7Pq9RzT2mYvNcX5bS8wA1eF4gH6jK",
-  "role": "editor",
-  "permissions": ["read", "comment", "edit"],
-  "shareUrl": "https://spaces.example.com/s/550e8400-...?t=Kf7Pq9Rz...",
-  "label": "Leah's vacation link",
-  "expiresAt": "2026-04-08T00:00:00Z",
-  "createdAt": "2026-04-01T12:00:00Z"
-}
+  -d '{ "role": "editor" }'
 ```
-
----
-
-## List Share Links
-
-**User Story**  
-View all active share links for a space to track who has access.
-
-**Acceptance Checklist**
-
-* [ ] Agent calls `GET /api/spaces/{spaceId}/shares` to list shares
-* [ ] Optional filter: `?includeExpired=true` to show expired shares
-* [ ] Returns array of share metadata (token excluded for security)
-* [ ] Each share includes id, role, label, expiresAt, createdAt, revokedAt
-* [ ] Expired shares marked with `expired: true`
-
-**Examples**
-
-```bash
-# List shares
-curl https://spaces.example.com/api/spaces/550e8400-.../shares
-
-# Response
-{
-  "shares": [
-    {
-      "shareId": "550e8400-...-001",
-      "role": "editor",
-      "label": "Leah's vacation link",
-      "expiresAt": "2026-04-08T00:00:00Z",
-      "createdAt": "2026-04-01T12:00:00Z",
-      "revokedAt": null,
-      "expired": false
-    },
-    {
-      "shareId": "550e8400-...-002",
-      "role": "viewer",
-      "label": "Tom's research link",
-      "expiresAt": null,
-      "createdAt": "2026-04-01T14:30:00Z",
-      "revokedAt": null,
-      "expired": false
-    }
-  ]
-}
-```
-
----
-
-## Revoke Share Link
-
-**User Story**  
-Revoke a share link to control access to spaces.
-
-**Acceptance Checklist**
-
-* [ ] Agent calls `DELETE /api/spaces/{spaceId}/shares/{shareId}` to revoke
-* [ ] Spaces Service marks share as revoked in database
-* [ ] Active WebSocket sessions using that share are disconnected
-* [ ] Sessions receive WebSocket event with reason before disconnection
-* [ ] Revoked tokens are invalid for new connections immediately
-
-**Rules**
-
-* Share is marked as revoked, not deleted (for audit trail)
-* Revocation stores `revokedAt` timestamp
-* Already revoked shares return success (idempotent)
-
-**Examples**
-
-```bash
-# Revoke share
-curl -X DELETE https://spaces.example.com/api/spaces/550e8400-.../shares/550e8400-...-001
-
-# Response
-{
-  "success": true,
-  "shareId": "550e8400-...-001",
-  "sessionsDisconnected": 1
-}
-```
-
-**WebSocket Event Sent to Sessions**
 
 ```json
 {
-  "type": "event",
-  "event": "revoked",
-  "payload": {
-    "reason": "Share link has been revoked by owner"
-  }
+  "inviteId": "550e8400-e29b-41d4-a716-446655440001",
+  "inviteUrl": "https://spaces.example.com/invite#token=64-char-hex-token"
 }
 ```
 
 ---
 
-## Share Link Validation
+## Redeem Invite
 
 **User Story**  
-Spaces Service validates share links when collaborators access spaces.
+As a collaborator, I want to accept an invite after logging in so the space appears in my account.
 
 **Acceptance Checklist**
 
-* [ ] Token extracted from URL: `/s/{spaceId}?t={token}`
-* [ ] Spaces Service looks up share by token in database
-* [ ] Validates: token exists, not revoked, not expired, space matches
-* [ ] Valid tokens return space metadata and permissions
-* [ ] Invalid/expired/revoked tokens return appropriate error
+* [ ] Invite page reads the token from the URL fragment and immediately removes it from the address bar
+* [ ] If the collaborator is not authenticated, the token is stored in tab-scoped session storage until login
+* [ ] Authenticated collaborator calls `POST /api/invites/redeem`
+* [ ] Server validates token hash, expiration, and single-use state atomically
+* [ ] Server creates or updates `space_members` for the authenticated user
+* [ ] Server records who redeemed the invite
+* [ ] UI routes the collaborator to the space list or joined space after success
 
-**Validation Logic**
+**Rules**
 
-```typescript
-function validateShare(token: string, spaceId: string): ValidationResult {
-  const share = await db.shares.findByToken(token);
-  
-  if (!share) {
-    return { valid: false, error: 'invalid_token' };
-  }
-  
-  if (share.revokedAt) {
-    return { valid: false, error: 'revoked' };
-  }
-  
-  if (share.expiresAt && share.expiresAt < new Date()) {
-    return { valid: false, error: 'expired', expiresAt: share.expiresAt };
-  }
-  
-  if (share.spaceId !== spaceId) {
-    return { valid: false, error: 'wrong_space' };
-  }
-  
-  return {
-    valid: true,
-    share: {
-      id: share.id,
-      role: share.role,
-      permissions: share.permissions,
-      spaceId: share.spaceId
-    }
-  };
+* A valid invite does not grant access until redeemed by an authenticated user.
+* Consumed, expired, or invalid invites all fail without exposing sensitive details.
+* If the user already belongs to the space, redemption may update their role to the invite role.
+
+**Example**
+
+```bash
+curl -X POST https://spaces.example.com/api/invites/redeem \
+  -H "Authorization: Bearer <collaborator-jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{ "token": "64-char-hex-token" }'
+```
+
+```json
+{
+  "success": true,
+  "spaceId": "550e8400-e29b-41d4-a716-446655440000",
+  "role": "editor"
 }
 ```
 
 ---
 
-## Open Questions
+## List Members
 
-None - stories are consistent with architecture.
+**User Story**  
+As a space member, I want to see who has access to the space.
+
+**Acceptance Checklist**
+
+* [ ] Member calls `GET /api/spaces/{spaceId}/members`
+* [ ] Server requires the caller to be a member of the space
+* [ ] Response includes member email, display name, role, and membership timestamps
+* [ ] Raw invite tokens are never returned
+
+---
+
+## Manage Members
+
+**User Story**  
+As a space owner, I want to add, remove, or change member roles.
+
+**Acceptance Checklist**
+
+* [ ] Owner can add a registered user with `POST /api/spaces/{spaceId}/members`
+* [ ] Owner can update roles with `PATCH /api/spaces/{spaceId}/members/{userId}`
+* [ ] Owner can remove users with `DELETE /api/spaces/{spaceId}/members/{userId}`
+* [ ] Non-owners receive `403 Forbidden`
+* [ ] Server prevents demoting or removing the last owner
+
+**Roles**
+
+| Role | Permissions |
+| --- | --- |
+| `viewer` | Browse files and chat, no file writes |
+| `editor` | Browse, chat, create, edit, rename, and delete files |
+| `owner` | Editor permissions plus member, invite, and space config management |
+
+---
+
+## Out of Scope
+
+* Anonymous/public share links
+* Anonymous access sessions
+* Password-protected public links
+* Cross-device invite claiming before login
+* Invite email delivery
+* Bulk member administration

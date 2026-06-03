@@ -24,7 +24,7 @@ Collaborators interact with the agent through a real-time chat sidebar to get an
 
 **Rules**
 
-* WebSocket connection at `wss://spaces.example.com/spaces/${spaceId}/ws?share=${token}`
+* WebSocket connection at `wss://spaces.example.com/ws/spaces/${spaceId}` with the user's bearer token
 * Messages sent via `chat.send` method
 * Viewer role cannot send messages (Post-MVP)
 * Chat history persistence, search, copy, export are Post-MVP
@@ -117,13 +117,13 @@ Collaborators can view previous conversations to refer back to discussions.
 * [ ] Sessions grouped by date with date header: "April 1, 2026"
 * [ ] "Clear Conversation" shows prompt and deletes current session messages
 * [ ] Agent loads history into context for reference
-* [ ] Each share token creates isolated session
+* [ ] Each registered user creates an isolated session scoped to the space
 * [ ] History visible only to that session (not across collaborators)
 
 **Rules**
 
 * Storage path: `<space-root>/.space/chat-history.json`
-* History includes session ID, started timestamp, token hash, messages
+* History includes session ID, started timestamp, user ID, messages
 * Owner can view all history
 * Collaborators see their own sessions only
 * Search history, export, delete specific messages, history sync are Post-MVP
@@ -132,7 +132,7 @@ Collaborators can view previous conversations to refer back to discussions.
 
 * User closes space, reopens → sees previous messages, scroll at bottom
 * User: "What did we decide last time?" → Agent: "In our last conversation on March 30, you decided on Portland for the coastal option..."
-* Two collaborators with different tokens → each sees only their own session history
+* Two collaborators with different user accounts → each sees only their own session history
 
 ---
 
@@ -171,5 +171,5 @@ Editors can request the agent to update space files, with changes persisted and 
 ## Open Questions
 
 * **Connection Retry Strategy:** What happens if WebSocket disconnects during stream? Resume from last chunk or restart entire response?
-* **History Visibility:** Should collaborators see each other's chat history? Currently designed as no (isolated sessions per token).
+* **History Visibility:** Should collaborators see each other's chat history? Currently designed as no (isolated sessions per user).
 * **Concurrent Edit Timeout:** How long should agent wait for user to save before giving up on modification?

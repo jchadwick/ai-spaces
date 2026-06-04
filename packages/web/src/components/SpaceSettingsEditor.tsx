@@ -333,7 +333,6 @@ export default function SpaceSettingsEditor({
             );
           })}
         </div>
-
         {/* Tab Content */}
         {activeTab === "general" && (
           <section>

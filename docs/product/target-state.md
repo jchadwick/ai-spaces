@@ -4,16 +4,25 @@ This document is the mutable source of truth for where the project is trying to 
 
 ## Durable Vision
 
-AI Spaces lets an agent owner safely share a bounded portion of an agent-owned workspace with collaborators through a browser, without exposing private workspace context.
+AI Spaces lets an agent owner safely share bounded, goal-centered workspaces from an agent-owned file system with collaborators through a browser, without exposing private workspace context.
+
+## Product Model
+
+A **Space** is the security and administration boundary. It maps to an agent and workspace folder, owns membership, invites, roles, and raw file access, and provides the containment boundary that keeps private agent context out of collaborator workflows.
+
+A **Room** is the primary collaboration workspace. A room is a promoted file or folder inside a space, organized around a goal such as planning a vacation, buying a car, managing a household, or organizing tax documents. The room goal is primary. Opening and editing the files that support that goal is a close second. Chatting with the room to query, create, and edit those files is a third close second.
+
+The product should treat spaces as backstage containers and rooms as the frontstage user experience. Collaborators should usually start by choosing a room, not by browsing a raw space root.
 
 ## Current Active Bet
 
-An authenticated owner can create or identify a shareable space, invite another registered user, and prove that the invited user can browse, edit, and chat only within that space through the server-mediated web app.
+An authenticated owner can create or identify a shareable space, invite another registered user, and prove that the invited user can browse, edit, and chat only within that space through the server-mediated web app. The near-term UX direction is promoted rooms: goal-centered workspaces inside spaces where collaboration actually happens.
 
 ## Success Evidence
 
 - A local demo shows two registered users completing the owner-to-collaborator loop end to end.
 - The owner can create an invite, the collaborator can accept it after login, and the collaborator appears as a space member with the intended role.
+- The collaborator can enter a promoted room as the primary work surface for a specific goal.
 - The collaborator can browse and edit files permitted by their role.
 - The web app communicates only with the server, never directly with the agent runtime.
 - Scoped chat and file access are constrained to the shared space.

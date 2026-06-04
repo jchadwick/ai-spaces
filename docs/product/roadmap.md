@@ -11,8 +11,9 @@ See `docs/product/target-state.md`.
 1. Prove the registered owner-to-registered collaborator invite loop.
 2. Prove member-scoped space listing, file browsing, and role-based file editing.
 3. Prove scoped chat cannot escape the invited space for a non-owner registered user.
-4. Harden the repeatable local demo from a clean Docker dev environment.
-5. Reassess whether file metadata UX is still the next highest-leverage step after the registered-user demo works.
+4. Reframe the core collaborator UX around promoted rooms as goal-centered workspaces inside spaces.
+5. Harden the repeatable local demo from a clean Docker dev environment.
+6. Reassess whether file metadata UX is still the next highest-leverage step after the registered-user demo works.
 
 ## Current Backlog Notes
 
@@ -20,6 +21,7 @@ See `docs/product/target-state.md`.
 - `aa-ff5e Fix registered-user invite UI flow`: first implementation target because invite creation/redemption is likely the demo blocker.
 - `aa-1072 Add invite redemption and membership e2e coverage`: prove the owner-to-collaborator loop.
 - `aa-2062 Prove non-owner scoped file and chat boundaries`: prove privacy and role constraints for registered collaborators.
+- Promoted Rooms UX: next product direction after the access loop is proven; rooms are goal-centered workspaces where files and chat support the goal.
 - `aa-7a13 File Metadata UX`: likely polish unless it becomes necessary for collaborator comprehension in the active demo.
 
 ## Parking Lot

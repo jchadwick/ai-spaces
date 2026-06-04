@@ -60,6 +60,14 @@ Non-technical user receiving an invite. Wants to view and contribute without age
 
 ## Key Concepts
 
+### Spaces And Rooms
+
+A **Space** is the security and administration boundary. It maps to one agent workspace folder and owns invites, membership, roles, and raw file access.
+
+A **Room** is the primary collaboration workspace. A room is a promoted file or folder inside a space, centered on a goal such as planning a vacation, buying a car, managing a household, or organizing tax documents.
+
+The room goal comes first. Opening and editing files that support the goal is a close second. Chatting with the room to query, create, and edit is a third close second. In the product UX, collaborators should usually choose a room before they browse a raw space file tree.
+
 ### Permissions vs Roles
 
 **Permissions** (system-level):

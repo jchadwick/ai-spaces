@@ -3,6 +3,7 @@ import 'dotenv/config';
 
 const HOME = process.env.HOME ?? '';
 const AI_SPACES_DATA = process.env.AI_SPACES_DATA ?? path.join(HOME, '.ai-spaces');
+const DEFAULT_BASE_URL = 'http://localhost:5173';
 
 function required(name: string): string {
   const value = process.env[name];
@@ -21,7 +22,7 @@ export const config = {
   GATEWAY_TOKEN:      process.env.GATEWAY_TOKEN      ?? 'secret',
   // WEB_DIST default assumes project at ~/ai-spaces — set explicitly in production
   WEB_DIST:           process.env.WEB_DIST           ?? path.join(HOME, 'ai-spaces', 'packages', 'web', 'dist'),
-  BASE_URL:           process.env.BASE_URL           ?? 'http://localhost:5173',
+  BASE_URL:           resolveBaseUrl(process.env.BASE_URL),
   AI_SPACES_AGENT_BASE_URL: normalizeOptionalUrl(process.env.AI_SPACES_AGENT_BASE_URL, 'AI_SPACES_AGENT_BASE_URL'),
   AI_SPACES_PLUGIN_DIR: process.env.AI_SPACES_PLUGIN_DIR ?? path.join(AI_SPACES_DATA, 'plugins'),
   ALLOW_ORPHAN_COLLABORATORS: process.env.ALLOW_ORPHAN_COLLABORATORS === 'true',
@@ -100,6 +101,15 @@ export function normalizeServerUrl(value: string, name: string): string {
 
 function normalizeOptionalUrl(value: string | undefined, name: string): string | undefined {
   return value ? normalizeServerUrl(value, name) : undefined;
+}
+
+function resolveBaseUrl(value: string | undefined): string {
+  const candidate = value ?? DEFAULT_BASE_URL;
+  try {
+    return new URL(candidate).toString().replace(/\/$/, '');
+  } catch {
+    return DEFAULT_BASE_URL;
+  }
 }
 
 export function assertProductionHttps(url: string, name: string): void {

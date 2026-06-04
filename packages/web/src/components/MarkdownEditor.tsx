@@ -295,8 +295,8 @@ export default function MarkdownEditor({
 
   if (!spaceId || !filePath) {
     return (
-      <section className="flex-1 flex flex-col bg-surface-container-lowest items-center justify-center">
-        <div className="flex flex-col items-center gap-3 text-on-surface-variant">
+      <section className="flex-1 flex flex-col bg-t-bg-raised items-center justify-center">
+        <div className="flex flex-col items-center gap-3 text-t-ink-dim">
           <span className="material-symbols-outlined text-4xl">draft</span>
           <p className="text-body-md">Select a file to preview</p>
         </div>
@@ -306,24 +306,24 @@ export default function MarkdownEditor({
 
   if (loading) {
     return (
-      <section className="flex-1 flex flex-col bg-surface-container-lowest overflow-hidden">
-        <header className="flex-shrink-0 px-6 py-4 bg-surface-container-lowest border-b border-outline-variant/20">
+      <section className="flex-1 flex flex-col bg-t-bg-raised overflow-hidden">
+        <header className="flex-shrink-0 px-6 py-4 bg-t-bg-raised border-b border-t-hair/20">
           <div className="flex items-center gap-3">
-            <div className="w-6 h-6 rounded bg-surface-container animate-pulse"></div>
+            <div className="w-6 h-6 rounded bg-t-bg-well animate-pulse"></div>
             <div className="flex flex-col gap-1">
-              <div className="h-4 w-24 bg-surface-container animate-pulse rounded"></div>
-              <div className="h-2 w-32 bg-surface-container animate-pulse rounded"></div>
+              <div className="h-4 w-24 bg-t-bg-well animate-pulse rounded"></div>
+              <div className="h-2 w-32 bg-t-bg-well animate-pulse rounded"></div>
             </div>
           </div>
         </header>
         <div className="flex-1 p-8">
           <div className="space-y-4">
-            <div className="h-8 w-3/4 bg-surface-container animate-pulse rounded"></div>
-            <div className="h-4 w-full bg-surface-container animate-pulse rounded"></div>
-            <div className="h-4 w-5/6 bg-surface-container animate-pulse rounded"></div>
-            <div className="h-4 w-2/3 bg-surface-container animate-pulse rounded"></div>
-            <div className="h-32 w-full bg-surface-container animate-pulse rounded"></div>
-            <div className="h-4 w-4/5 bg-surface-container animate-pulse rounded"></div>
+            <div className="h-8 w-3/4 bg-t-bg-well animate-pulse rounded"></div>
+            <div className="h-4 w-full bg-t-bg-well animate-pulse rounded"></div>
+            <div className="h-4 w-5/6 bg-t-bg-well animate-pulse rounded"></div>
+            <div className="h-4 w-2/3 bg-t-bg-well animate-pulse rounded"></div>
+            <div className="h-32 w-full bg-t-bg-well animate-pulse rounded"></div>
+            <div className="h-4 w-4/5 bg-t-bg-well animate-pulse rounded"></div>
           </div>
         </div>
       </section>
@@ -332,15 +332,15 @@ export default function MarkdownEditor({
 
   if (error) {
     return (
-      <section className="flex-1 flex flex-col bg-surface-container-lowest items-center justify-center p-8">
-        <div className="bg-error-container/10 rounded-xl p-lg ">
-          <div className="flex items-center gap-sm text-error">
+      <section className="flex-1 flex flex-col bg-t-bg-raised items-center justify-center p-8">
+        <div className="bg-destructive/10 rounded-xl p-lg ">
+          <div className="flex items-center gap-sm text-destructive">
             <span className="material-symbols-outlined">error</span>
             <span className="text-body-md font-medium">
               Failed to load file
             </span>
           </div>
-          <p className="text-body-sm text-on-surface-variant mt-xs">{error}</p>
+          <p className="text-body-sm text-t-ink-dim mt-xs">{error}</p>
         </div>
       </section>
     );
@@ -348,8 +348,8 @@ export default function MarkdownEditor({
 
   if (!fileInfo) {
     return (
-      <section className="flex-1 flex flex-col bg-surface-container-lowest items-center justify-center">
-        <div className="flex flex-col items-center gap-3 text-on-surface-variant">
+      <section className="flex-1 flex flex-col bg-t-bg-raised items-center justify-center">
+        <div className="flex flex-col items-center gap-3 text-t-ink-dim">
           <span className="material-symbols-outlined text-4xl">
             folder_open
           </span>
@@ -361,15 +361,15 @@ export default function MarkdownEditor({
 
   if (showDraftPrompt && draftData) {
     return (
-      <section className="flex-1 flex flex-col bg-surface-container-lowest items-center justify-center p-8">
-        <div className="bg-surface-container rounded-xl p-lg  shadow-lg">
-          <div className="flex items-center gap-sm text-on-surface">
+      <section className="flex-1 flex flex-col bg-t-bg-raised items-center justify-center p-8">
+        <div className="bg-t-bg-well rounded-xl p-lg  shadow-lg">
+          <div className="flex items-center gap-sm text-t-ink">
             <span className="material-symbols-outlined">draft</span>
             <span className="text-body-md font-medium">
               Unsaved changes found
             </span>
           </div>
-          <p className="text-body-sm text-on-surface-variant mt-sm">
+          <p className="text-body-sm text-t-ink-dim mt-sm">
             You have unsaved changes from{" "}
             {formatRelativeTime(draftData.savedAt)}. Would you like to restore
             them?
@@ -378,14 +378,14 @@ export default function MarkdownEditor({
             <button
               type="button"
               onClick={handleRestoreDraft}
-              className="flex-1 bg-primary text-on-primary py-2 px-4 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+              className="flex-1 bg-primary text-primary-foreground py-2 px-4 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
             >
               Restore
             </button>
             <button
               type="button"
               onClick={handleDiscardDraft}
-              className="flex-1 bg-surface-container-high text-on-surface py-2 px-4 rounded-lg text-sm font-medium hover:bg-surface-container-highest transition-colors"
+              className="flex-1 bg-t-bg-well text-t-ink py-2 px-4 rounded-lg text-sm font-medium hover:bg-t-bg-alt transition-colors"
             >
               Discard
             </button>
@@ -397,18 +397,18 @@ export default function MarkdownEditor({
 
   if (fileInfo.type === "image" && content) {
     return (
-      <section className="flex-1 flex flex-col bg-surface-container-lowest overflow-hidden">
-        <header className="flex-shrink-0 px-6 py-4 bg-surface-container-lowest border-b border-outline-variant/20">
+      <section className="flex-1 flex flex-col bg-t-bg-raised overflow-hidden">
+        <header className="flex-shrink-0 px-6 py-4 bg-t-bg-raised border-b border-t-hair/20">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <span className="material-symbols-outlined text-primary text-xl">
+              <span className="material-symbols-outlined text-t-ink text-xl">
                 {getFileIcon(fileInfo.type)}
               </span>
               <div className="flex flex-col">
-                <h2 className="text-title-sm font-medium text-on-surface">
+                <h2 className="text-title-sm font-medium text-t-ink">
                   {fileInfo.name}
                 </h2>
-                <span className="text-label-sm text-on-surface-variant uppercase tracking-wider">
+                <span className="text-label-sm text-t-ink-dim uppercase tracking-wider">
                   {getFileTypeLabel(fileInfo.type)}
                   {fileInfo.modifiedAt &&
                     ` • Modified ${formatRelativeTime(fileInfo.modifiedAt)}`}
@@ -431,18 +431,18 @@ export default function MarkdownEditor({
 
   if (fileInfo.type === "binary") {
     return (
-      <section className="flex-1 flex flex-col bg-surface-container-lowest overflow-hidden">
-        <header className="flex-shrink-0 px-6 py-4 bg-surface-container-lowest border-b border-outline-variant/20">
+      <section className="flex-1 flex flex-col bg-t-bg-raised overflow-hidden">
+        <header className="flex-shrink-0 px-6 py-4 bg-t-bg-raised border-b border-t-hair/20">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <span className="material-symbols-outlined text-primary text-xl">
+              <span className="material-symbols-outlined text-t-ink text-xl">
                 {getFileIcon(fileInfo.type)}
               </span>
               <div className="flex flex-col">
-                <h2 className="text-title-sm font-medium text-on-surface">
+                <h2 className="text-title-sm font-medium text-t-ink">
                   {fileInfo.name}
                 </h2>
-                <span className="text-label-sm text-on-surface-variant uppercase tracking-wider">
+                <span className="text-label-sm text-t-ink-dim uppercase tracking-wider">
                   {getFileTypeLabel(fileInfo.type)}
                   {fileInfo.modifiedAt &&
                     ` • Modified ${formatRelativeTime(fileInfo.modifiedAt)}`}
@@ -453,12 +453,12 @@ export default function MarkdownEditor({
         </header>
 
         <div className="flex-1 overflow-y-auto custom-scrollbar flex items-center justify-center p-8">
-          <div className="flex flex-col items-center gap-4 text-on-surface-variant">
+          <div className="flex flex-col items-center gap-4 text-t-ink-dim">
             <span className="material-symbols-outlined text-5xl">
               hide_source
             </span>
             <p className="text-body-md">Cannot preview binary file</p>
-            <p className="text-body-sm text-on-surface-variant/70">
+            <p className="text-body-sm text-t-ink-dim/70">
               This file type cannot be displayed in the editor.
             </p>
           </div>
@@ -472,7 +472,7 @@ export default function MarkdownEditor({
 
   if (editMode && (isMarkdown || isText)) {
     return (
-      <section className="flex-1 flex flex-col bg-surface-container-lowest overflow-hidden">
+      <section className="flex-1 flex flex-col bg-t-bg-raised overflow-hidden">
         {showConcurrentWarning && (
           <div className="bg-warning-container border-b border-warning text-on-warning-container px-4 py-2 flex items-center gap-2">
             <span className="material-symbols-outlined text-sm">warning</span>
@@ -489,30 +489,30 @@ export default function MarkdownEditor({
             </button>
           </div>
         )}
-        <header className="flex-shrink-0 px-6 py-4 bg-surface-container-lowest border-b border-outline-variant/20">
+        <header className="flex-shrink-0 px-6 py-4 bg-t-bg-raised border-b border-t-hair/20">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <span className="material-symbols-outlined text-primary text-xl">
+              <span className="material-symbols-outlined text-t-ink text-xl">
                 {getFileIcon(fileInfo.type)}
               </span>
               <div className="flex flex-col">
-                <h2 className="text-title-sm font-medium text-on-surface">
+                <h2 className="text-title-sm font-medium text-t-ink">
                   {fileInfo.name}
                 </h2>
-                <span className="text-label-sm text-on-surface-variant uppercase tracking-wider">
+                <span className="text-label-sm text-t-ink-dim uppercase tracking-wider">
                   Editing
                 </span>
               </div>
             </div>
             <div className="flex items-center gap-2">
               {saveError && (
-                <span className="text-error text-sm">{saveError}</span>
+                <span className="text-destructive text-sm">{saveError}</span>
               )}
               <button
                 type="button"
                 onClick={handleCancel}
                 disabled={isSaving}
-                className="px-4 py-2 bg-surface-container-high text-on-surface rounded-lg text-sm font-medium hover:bg-surface-container-highest transition-colors disabled:opacity-50"
+                className="px-4 py-2 bg-t-bg-well text-t-ink rounded-lg text-sm font-medium hover:bg-t-bg-alt transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -520,11 +520,11 @@ export default function MarkdownEditor({
                 type="button"
                 onClick={handleSave}
                 disabled={isSaving}
-                className="px-4 py-2 bg-primary text-on-primary rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-2"
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-2"
               >
                 {isSaving ? (
                   <>
-                    <div className="w-4 h-4 border-2 border-on-primary/30 border-t-on-primary rounded-full animate-spin"></div>
+                    <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin"></div>
                     Saving...
                   </>
                 ) : (
@@ -543,8 +543,8 @@ export default function MarkdownEditor({
         <div className="flex-1 overflow-hidden">
           {isMarkdown ? (
             <div className="h-full flex">
-              <div className="flex-1 flex flex-col border-r border-outline-variant/20">
-                <div className="px-4 py-2 bg-surface-container text-xs text-on-surface-variant uppercase tracking-wider font-medium border-b border-outline-variant/20">
+              <div className="flex-1 flex flex-col border-r border-t-hair/20">
+                <div className="px-4 py-2 bg-t-bg-well text-xs text-t-ink-dim uppercase tracking-wider font-medium border-b border-t-hair/20">
                   Edit
                 </div>
                 <div className="flex-1 overflow-hidden">
@@ -559,11 +559,11 @@ export default function MarkdownEditor({
                 </div>
               </div>
               <div className="flex-1 flex flex-col overflow-hidden">
-                <div className="px-4 py-2 bg-surface-container text-xs text-on-surface-variant uppercase tracking-wider font-medium border-b border-outline-variant/20">
+                <div className="px-4 py-2 bg-t-bg-well text-xs text-t-ink-dim uppercase tracking-wider font-medium border-b border-t-hair/20">
                   Preview
                 </div>
                 <div className="flex-1 overflow-y-auto custom-scrollbar">
-                  <article className="prose prose-slate max-w-none prose-img:rounded-lg prose-headings:font-display prose-headings:font-semibold prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl prose-p:text-on-surface prose-a:text-primary prose-code:font-mono prose-code:bg-surface-container prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-pre:bg-surface-container-low prose-pre:font-mono p-8">
+                  <article className="prose prose-slate max-w-none prose-img:rounded-lg prose-headings:font-sans prose-headings:font-semibold prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl prose-p:text-t-ink prose-a:text-t-accent prose-code:font-mono prose-code:bg-t-bg-well prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-pre:bg-t-bg-well prose-pre:font-mono p-8">
                     <ReactMarkdown
                       remarkPlugins={[remarkGfm]}
                       rehypePlugins={[rehypeHighlight, rehypeRaw]}
@@ -589,7 +589,7 @@ export default function MarkdownEditor({
               <textarea
                 value={editContent}
                 onChange={(e) => setEditContent(e.target.value)}
-                className="w-full h-full font-mono text-sm text-on-surface bg-surface-container-low border border-outline-variant/20 rounded-lg p-4 resize-none focus:outline-none focus:ring-2 focus:ring-primary"
+                className="w-full h-full font-mono text-sm text-t-ink bg-t-bg-well border border-t-hair/20 rounded-lg p-4 resize-none focus:outline-none focus:ring-2 focus:ring-primary"
                 spellCheck={false}
               />
             </div>
@@ -600,11 +600,11 @@ export default function MarkdownEditor({
   }
 
   return (
-    <section className="flex-1 flex flex-col bg-surface-container-lowest overflow-hidden">
-      <header className="flex-shrink-0 px-6 py-4 bg-surface-container-lowest border-b border-outline-variant/20">
+    <section className="flex-1 flex flex-col bg-t-bg-raised overflow-hidden">
+      <header className="flex-shrink-0 px-6 py-4 bg-t-bg-raised border-b border-t-hair/20">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-primary text-xl">
+            <span className="material-symbols-outlined text-t-ink text-xl">
               {getFileIcon(fileInfo.type)}
             </span>
             <div className="flex flex-col">
@@ -619,17 +619,17 @@ export default function MarkdownEditor({
                     if (e.key === "Escape") handleCancelRename();
                   }}
                   onBlur={handleCancelRename}
-                  className="text-title-sm font-medium text-on-surface bg-transparent border-b border-primary outline-none w-48"
+                  className="text-title-sm font-medium text-t-ink bg-transparent border-b border-primary outline-none w-48"
                 />
               ) : (
                 <h2
-                  className={`text-title-sm font-medium text-on-surface ${canEdit ? "cursor-pointer hover:underline" : ""}`}
+                  className={`text-title-sm font-medium text-t-ink ${canEdit ? "cursor-pointer hover:underline" : ""}`}
                   onClick={canEdit ? handleStartRename : undefined}
                 >
                   {fileInfo.name}
                 </h2>
               )}
-              <span className="text-label-sm text-on-surface-variant uppercase tracking-wider">
+              <span className="text-label-sm text-t-ink-dim uppercase tracking-wider">
                 {getFileTypeLabel(fileInfo.type)}
                 {fileInfo.modifiedAt &&
                   ` • Modified ${formatRelativeTime(fileInfo.modifiedAt)}`}
@@ -641,7 +641,7 @@ export default function MarkdownEditor({
             <button
               type="button"
               onClick={handleEnterEditMode}
-              className="px-4 py-2 bg-surface-container-high text-on-surface rounded-lg text-sm font-medium hover:bg-surface-container-highest transition-colors flex items-center gap-2"
+              className="px-4 py-2 bg-t-bg-well text-t-ink rounded-lg text-sm font-medium hover:bg-t-bg-alt transition-colors flex items-center gap-2"
             >
               <span className="material-symbols-outlined text-sm">edit</span>
               Edit
@@ -666,7 +666,7 @@ function ContentRenderer({ fileInfo, content }: ContentRendererProps) {
   if (content === null) {
     return (
       <div className="flex-1 flex items-center justify-center p-8">
-        <div className="flex flex-col items-center gap-3 text-on-surface-variant">
+        <div className="flex flex-col items-center gap-3 text-t-ink-dim">
           <span className="material-symbols-outlined text-4xl">
             description
           </span>
@@ -677,7 +677,7 @@ function ContentRenderer({ fileInfo, content }: ContentRendererProps) {
   }
 
   const markdownClasses =
-    "prose prose-slate max-w-none prose-img:rounded-lg prose-headings:font-display prose-headings:font-semibold prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl prose-p:text-on-surface prose-a:text-primary prose-code:font-mono prose-code:bg-surface-container prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-pre:bg-surface-container-low prose-pre:font-mono";
+    "prose prose-slate max-w-none prose-img:rounded-lg prose-headings:font-sans prose-headings:font-semibold prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl prose-p:text-t-ink prose-a:text-t-accent prose-code:font-mono prose-code:bg-t-bg-well prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-pre:bg-t-bg-well prose-pre:font-mono";
 
   if (fileInfo.type === "markdown") {
     return (
@@ -706,7 +706,7 @@ function ContentRenderer({ fileInfo, content }: ContentRendererProps) {
 
   return (
     <div className="p-8">
-      <pre className="font-mono text-body-sm text-on-surface bg-surface-container-low p-lg rounded-lg overflow-x-auto whitespace-pre-wrap">
+      <pre className="font-mono text-body-sm text-t-ink bg-t-bg-well p-lg rounded-lg overflow-x-auto whitespace-pre-wrap">
         {content}
       </pre>
     </div>

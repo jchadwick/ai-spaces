@@ -37,18 +37,18 @@ export class WebSocketErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       if (this.props.showInline) {
         return (
-          <div className="p-4 bg-error-container/10 rounded-lg">
-            <div className="flex items-center gap-sm text-error mb-sm">
+          <div className="p-4 bg-destructive/10 rounded-lg">
+            <div className="flex items-center gap-sm text-destructive mb-sm">
               <span className="material-symbols-outlined">link_off</span>
               <span className="text-body-md font-medium">Chat disconnected</span>
             </div>
-            <p className="text-body-sm text-on-surface-variant mb-sm">
+            <p className="text-body-sm text-t-ink-dim mb-sm">
               Lost connection to the AI chat.
             </p>
             <button
               type="button"
               onClick={this.handleRetry}
-              className="text-body-sm text-primary hover:underline"
+              className="text-body-sm text-t-accent hover:underline"
             >
               Reconnect
             </button>

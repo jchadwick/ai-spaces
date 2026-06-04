@@ -134,7 +134,7 @@ function FileTreeNode({
     paddingTop: 5,
     paddingBottom: 5,
     background: isDragTarget
-      ? 'rgba(194,65,12,0.08)'
+      ? 'color-mix(in srgb, var(--t-accent) 8%, transparent)'
       : isSelected
         ? 'var(--t-accentSoft)'
         : 'transparent',
@@ -143,7 +143,7 @@ function FileTreeNode({
       : isSelected
         ? 'var(--t-accentInk)'
         : 'var(--t-inkMid)',
-    borderLeft: isSelected ? '2px solid #C2410C' : '2px solid transparent',
+    borderLeft: isSelected ? '2px solid var(--t-accent)' : '2px solid transparent',
     fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif",
     fontSize: 14,
     fontStyle: isHidden && !isSpaceFolder ? 'italic' : 'normal',
@@ -154,7 +154,7 @@ function FileTreeNode({
     alignItems: 'center',
     gap: 4,
     textAlign: 'left',
-    outline: isDragTarget ? '1px solid rgba(194,65,12,0.3)' : 'none',
+    outline: isDragTarget ? '1px solid color-mix(in srgb, var(--t-accent) 30%, transparent)' : 'none',
     transition: 'background 0.1s',
     borderRadius: isSelected ? 0 : 4,
   };
@@ -203,7 +203,7 @@ function FileTreeNode({
         {isRenaming ? (
           <input
             autoFocus
-            style={{ fontSize: 14, background: 'var(--t-bgRaised)', border: '1px solid #E2DBCD', borderRadius: 4, padding: '0 4px', flex: 1, outline: 'none', color: 'var(--t-ink)', fontFamily: "'Inter Tight', sans-serif" }}
+            style={{ fontSize: 14, background: 'var(--t-bgRaised)', border: '1px solid var(--t-hair)', borderRadius: 4, padding: '0 4px', flex: 1, outline: 'none', color: 'var(--t-ink)', fontFamily: "'Inter Tight', sans-serif" }}
             value={renameValue}
             onChange={(e) => onRenameChange(e.target.value)}
             onClick={(e) => e.stopPropagation()}
@@ -905,7 +905,7 @@ export default function FileExplorer({
     return (
       <aside className="w-full h-full flex flex-col" style={{ background: 'var(--t-bgAlt)' }}>
         <div className="p-4">
-          <div style={{ background: 'rgba(194,65,12,0.08)', borderRadius: 8, padding: 12, color: 'var(--t-accent)', fontSize: 14 }}>
+          <div style={{ background: 'color-mix(in srgb, var(--t-accent) 8%, transparent)', borderRadius: 8, padding: 12, color: 'var(--t-accent)', fontSize: 14 }}>
             {error}
           </div>
         </div>
@@ -917,7 +917,7 @@ export default function FileExplorer({
     <>
       <aside
         className="w-full h-full flex flex-col relative transition-colors"
-        style={{ background: isDragOver ? 'rgba(194,65,12,0.03)' : 'var(--t-bgAlt)' }}
+        style={{ background: isDragOver ? 'color-mix(in srgb, var(--t-accent) 3%, transparent)' : 'var(--t-bgAlt)' }}
         onDragEnter={handleDragEnter}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -1009,7 +1009,7 @@ export default function FileExplorer({
 
         {isDragOver && !isViewer && (
           <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-10">
-            <div className="absolute inset-2 rounded-lg" style={{ border: '2px dashed rgba(194,65,12,0.4)', background: 'rgba(251,228,213,0.5)' }} />
+            <div className="absolute inset-2 rounded-lg" style={{ border: '2px dashed color-mix(in srgb, var(--t-accent) 40%, transparent)', background: 'color-mix(in srgb, var(--t-accentSoft) 50%, transparent)' }} />
             {!dragOverFolder && (
               <div className="relative flex flex-col items-center gap-1.5" style={{ color: 'var(--t-accent)' }}>
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -1039,7 +1039,7 @@ export default function FileExplorer({
             <>
               <button
                 type="button"
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-on-surface hover:bg-surface-container-lowest/80 transition-colors text-left"
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-t-ink hover:bg-t-bg-raised/80 transition-colors text-left"
                 onClick={() => startNewFileInFolder(contextMenu.node)}
               >
                 <span className="material-symbols-outlined text-base">
@@ -1049,7 +1049,7 @@ export default function FileExplorer({
               </button>
               <button
                 type="button"
-                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-on-surface hover:bg-surface-container-lowest/80 transition-colors text-left"
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-t-ink hover:bg-t-bg-raised/80 transition-colors text-left"
                 onClick={() => startNewFolderInFolder(contextMenu.node)}
               >
                 <span className="material-symbols-outlined text-base">
@@ -1062,7 +1062,7 @@ export default function FileExplorer({
           {isOwner && (
             <button
               type="button"
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-on-surface hover:bg-surface-container-lowest/80 transition-colors text-left"
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-t-ink hover:bg-t-bg-raised/80 transition-colors text-left"
               onClick={() => promotedTopicPaths.has(contextMenu.node.path)
                 ? void handleArchiveTopic(contextMenu.node)
                 : void handlePromoteTopic(contextMenu.node)}
@@ -1075,7 +1075,7 @@ export default function FileExplorer({
           )}
           <button
             type="button"
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-on-surface hover:bg-surface-container-lowest/80 transition-colors text-left"
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-t-ink hover:bg-t-bg-raised/80 transition-colors text-left"
             onClick={() => startRename(contextMenu.node)}
           >
             <span className="material-symbols-outlined text-base">
@@ -1085,7 +1085,7 @@ export default function FileExplorer({
           </button>
           <button
             type="button"
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-error hover:bg-error/5 transition-colors text-left"
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-destructive/5 transition-colors text-left"
             onClick={() => startDelete(contextMenu.node)}
           >
             <span className="material-symbols-outlined text-base">delete</span>
@@ -1208,14 +1208,14 @@ export default function FileExplorer({
               Delete {deleteTarget?.type === "directory" ? "Folder" : "File"}
             </DialogTitle>
           </DialogHeader>
-          <div className="py-2 text-sm text-on-surface-variant">
+          <div className="py-2 text-sm text-t-ink-dim">
             Are you sure you want to delete{" "}
-            <span className="font-semibold text-on-surface">
+            <span className="font-semibold text-t-ink">
               "{deleteTarget?.name}"
             </span>
             ?
             {deleteTarget?.type === "directory" && (
-              <span className="block mt-1 text-error/80">
+              <span className="block mt-1 text-destructive/80">
                 This will delete the folder and all its contents.
               </span>
             )}

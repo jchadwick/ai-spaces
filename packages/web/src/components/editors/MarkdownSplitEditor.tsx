@@ -13,7 +13,7 @@ import type { EditorProps } from './types'
 const MermaidDiagram = lazy(() => import('./MermaidDiagram'))
 
 const markdownClasses =
-  'prose prose-slate max-w-none prose-img:rounded-lg prose-headings:font-display prose-headings:font-semibold prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl prose-p:text-on-surface prose-a:text-primary prose-code:font-mono prose-code:bg-surface-container prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-pre:bg-surface-container-low prose-pre:font-mono'
+  'prose prose-slate max-w-none prose-img:rounded-lg prose-headings:font-sans prose-headings:font-semibold prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl prose-p:text-t-ink prose-a:text-t-accent prose-code:font-mono prose-code:bg-t-bg-well prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-pre:bg-t-bg-well prose-pre:font-mono'
 
 export default function MarkdownSplitEditor({ content, onChange }: EditorProps) {
   return (

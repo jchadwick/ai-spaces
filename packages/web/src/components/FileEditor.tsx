@@ -227,8 +227,8 @@ export default function FileEditor({
 
   if (!spaceId || !filePath) {
     return (
-      <section className="flex-1 flex flex-col bg-surface-container-lowest items-center justify-center">
-        <div className="flex flex-col items-center gap-3 text-on-surface-variant">
+      <section className="flex-1 flex flex-col bg-t-bg-raised items-center justify-center">
+        <div className="flex flex-col items-center gap-3 text-t-ink-dim">
           <span className="material-symbols-outlined text-4xl">draft</span>
           <p className="text-body-md">Select a file to preview</p>
         </div>
@@ -238,23 +238,23 @@ export default function FileEditor({
 
   if (loading) {
     return (
-      <section className="flex-1 flex flex-col bg-surface-container-lowest overflow-hidden">
-        <header className="flex-shrink-0 px-6 py-4 bg-surface-container-lowest border-b border-outline-variant/20">
+      <section className="flex-1 flex flex-col bg-t-bg-raised overflow-hidden">
+        <header className="flex-shrink-0 px-6 py-4 bg-t-bg-raised border-b border-t-hair/20">
           <div className="flex items-center gap-3">
-            <div className="w-6 h-6 rounded bg-surface-container animate-pulse"></div>
+            <div className="w-6 h-6 rounded bg-t-bg-well animate-pulse"></div>
             <div className="flex flex-col gap-1">
-              <div className="h-4 w-24 bg-surface-container animate-pulse rounded"></div>
-              <div className="h-2 w-32 bg-surface-container animate-pulse rounded"></div>
+              <div className="h-4 w-24 bg-t-bg-well animate-pulse rounded"></div>
+              <div className="h-2 w-32 bg-t-bg-well animate-pulse rounded"></div>
             </div>
           </div>
         </header>
         <div className="flex-1 p-8">
           <div className="space-y-4">
-            <div className="h-8 w-3/4 bg-surface-container animate-pulse rounded"></div>
-            <div className="h-4 w-full bg-surface-container animate-pulse rounded"></div>
-            <div className="h-4 w-5/6 bg-surface-container animate-pulse rounded"></div>
-            <div className="h-4 w-2/3 bg-surface-container animate-pulse rounded"></div>
-            <div className="h-32 w-full bg-surface-container animate-pulse rounded"></div>
+            <div className="h-8 w-3/4 bg-t-bg-well animate-pulse rounded"></div>
+            <div className="h-4 w-full bg-t-bg-well animate-pulse rounded"></div>
+            <div className="h-4 w-5/6 bg-t-bg-well animate-pulse rounded"></div>
+            <div className="h-4 w-2/3 bg-t-bg-well animate-pulse rounded"></div>
+            <div className="h-32 w-full bg-t-bg-well animate-pulse rounded"></div>
           </div>
         </div>
       </section>
@@ -263,13 +263,13 @@ export default function FileEditor({
 
   if (error) {
     return (
-      <section className="flex-1 flex flex-col bg-surface-container-lowest items-center justify-center p-8">
-        <div className="bg-error-container/10 rounded-xl p-lg">
-          <div className="flex items-center gap-sm text-error">
+      <section className="flex-1 flex flex-col bg-t-bg-raised items-center justify-center p-8">
+        <div className="bg-destructive/10 rounded-xl p-lg">
+          <div className="flex items-center gap-sm text-destructive">
             <span className="material-symbols-outlined">error</span>
             <span className="text-body-md font-medium">Failed to load file</span>
           </div>
-          <p className="text-body-sm text-on-surface-variant mt-xs">{error}</p>
+          <p className="text-body-sm text-t-ink-dim mt-xs">{error}</p>
         </div>
       </section>
     )
@@ -277,8 +277,8 @@ export default function FileEditor({
 
   if (!fileInfo) {
     return (
-      <section className="flex-1 flex flex-col bg-surface-container-lowest items-center justify-center">
-        <div className="flex flex-col items-center gap-3 text-on-surface-variant">
+      <section className="flex-1 flex flex-col bg-t-bg-raised items-center justify-center">
+        <div className="flex flex-col items-center gap-3 text-t-ink-dim">
           <span className="material-symbols-outlined text-4xl">folder_open</span>
           <p className="text-body-md">File not found</p>
         </div>
@@ -288,22 +288,22 @@ export default function FileEditor({
 
   if (showDraftPrompt && draftData) {
     return (
-      <section className="flex-1 flex flex-col bg-surface-container-lowest items-center justify-center p-8">
-        <div className="bg-surface-container rounded-xl p-lg shadow-lg">
-          <div className="flex items-center gap-sm text-on-surface">
+      <section className="flex-1 flex flex-col bg-t-bg-raised items-center justify-center p-8">
+        <div className="bg-t-bg-well rounded-xl p-lg shadow-lg">
+          <div className="flex items-center gap-sm text-t-ink">
             <span className="material-symbols-outlined">draft</span>
             <span className="text-body-md font-medium">Unsaved changes found</span>
           </div>
-          <p className="text-body-sm text-on-surface-variant mt-sm">
+          <p className="text-body-sm text-t-ink-dim mt-sm">
             You have unsaved changes from {formatRelativeTime(draftData.savedAt)}. Would you like to restore them?
           </p>
           <div className="flex gap-sm mt-md">
             <button type="button" onClick={handleRestoreDraft}
-              className="flex-1 bg-primary text-on-primary py-2 px-4 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
+              className="flex-1 bg-primary text-primary-foreground py-2 px-4 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
               Restore
             </button>
             <button type="button" onClick={handleDiscardDraft}
-              className="flex-1 bg-surface-container-high text-on-surface py-2 px-4 rounded-lg text-sm font-medium hover:bg-surface-container-highest transition-colors">
+              className="flex-1 bg-t-bg-well text-t-ink py-2 px-4 rounded-lg text-sm font-medium hover:bg-t-bg-alt transition-colors">
               Discard
             </button>
           </div>
@@ -323,7 +323,7 @@ export default function FileEditor({
 
   if (editMode && Editor) {
     return (
-      <section className="flex-1 flex flex-col bg-surface-container-lowest overflow-hidden">
+      <section className="flex-1 flex flex-col bg-t-bg-raised overflow-hidden">
         {isWsDisconnected && (
           <div style={{ background: 'transparent', borderBottom: '1px solid var(--t-hair)', padding: '5px 16px', display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--t-inkDim)', display: 'inline-block', flexShrink: 0 }} />
@@ -343,25 +343,25 @@ export default function FileEditor({
             </button>
           </div>
         )}
-        <header className="flex-shrink-0 px-6 py-4 bg-surface-container-lowest border-b border-outline-variant/20">
+        <header className="flex-shrink-0 px-6 py-4 bg-t-bg-raised border-b border-t-hair/20">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <span className="material-symbols-outlined text-primary text-xl">{getContentTypeIcon(fileInfo.type)}</span>
+              <span className="material-symbols-outlined text-t-ink text-xl">{getContentTypeIcon(fileInfo.type)}</span>
               <div className="flex flex-col">
-                <h2 className="text-title-sm font-medium text-on-surface">{displayName || fileInfo.name}</h2>
-                <span className="text-label-sm text-on-surface-variant uppercase tracking-wider">Editing</span>
+                <h2 className="text-title-sm font-medium text-t-ink">{displayName || fileInfo.name}</h2>
+                <span className="text-label-sm text-t-ink-dim uppercase tracking-wider">Editing</span>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {saveError && <span className="text-error text-sm">{saveError}</span>}
+              {saveError && <span className="text-destructive text-sm">{saveError}</span>}
               <button type="button" onClick={handleCancel} disabled={isSaving}
-                className="px-4 py-2 bg-surface-container-high text-on-surface rounded-lg text-sm font-medium hover:bg-surface-container-highest transition-colors disabled:opacity-50">
+                className="px-4 py-2 bg-t-bg-well text-t-ink rounded-lg text-sm font-medium hover:bg-t-bg-alt transition-colors disabled:opacity-50">
                 Cancel
               </button>
               <button type="button" onClick={handleSave} disabled={isSaving}
-                className="px-4 py-2 bg-primary text-on-primary rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-2">
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-2">
                 {isSaving ? (
-                  <><div className="w-4 h-4 border-2 border-on-primary/30 border-t-on-primary rounded-full animate-spin"></div>Saving...</>
+                  <><div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin"></div>Saving...</>
                 ) : (
                   <><span className="material-symbols-outlined text-sm">save</span>Save</>
                 )}
@@ -370,7 +370,7 @@ export default function FileEditor({
           </div>
         </header>
         <div className="flex-1 overflow-hidden">
-          <Suspense fallback={<div className="flex-1 animate-pulse bg-surface-container" />}>
+          <Suspense fallback={<div className="flex-1 animate-pulse bg-t-bg-well" />}>
             <Editor content={editContent} onChange={setEditContent} />
           </Suspense>
         </div>
@@ -381,7 +381,7 @@ export default function FileEditor({
   // ── View mode ────────────────────────────────────────────────────────────────
 
   return (
-    <section className="flex-1 flex flex-col bg-surface-container-lowest overflow-hidden">
+    <section className="flex-1 flex flex-col bg-t-bg-raised overflow-hidden">
       {isWsDisconnected && (
         <div style={{ background: 'transparent', borderBottom: '1px solid var(--t-hair)', padding: '5px 16px', display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--t-inkDim)', display: 'inline-block', flexShrink: 0 }} />
@@ -390,10 +390,10 @@ export default function FileEditor({
           </span>
         </div>
       )}
-      <header className="flex-shrink-0 px-6 py-4 bg-surface-container-lowest border-b border-outline-variant/20">
+      <header className="flex-shrink-0 px-6 py-4 bg-t-bg-raised border-b border-t-hair/20">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-primary text-xl">{getContentTypeIcon(fileInfo.type)}</span>
+            <span className="material-symbols-outlined text-t-ink text-xl">{getContentTypeIcon(fileInfo.type)}</span>
             <div className="flex flex-col">
               {renamingFile ? (
                 <input
@@ -403,17 +403,17 @@ export default function FileEditor({
                   onChange={(e) => setRenameValue(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter') handleCommitRename(); if (e.key === 'Escape') handleCancelRename() }}
                   onBlur={handleCancelRename}
-                  className="text-title-sm font-medium text-on-surface bg-transparent border-b border-primary outline-none w-48"
+                  className="text-title-sm font-medium text-t-ink bg-transparent border-b border-primary outline-none w-48"
                 />
               ) : (
                 <h2
-                  className={`text-title-sm font-medium text-on-surface ${canEdit ? 'cursor-pointer hover:underline' : ''}`}
+                  className={`text-title-sm font-medium text-t-ink ${canEdit ? 'cursor-pointer hover:underline' : ''}`}
                   onClick={canEdit ? handleStartRename : undefined}
                 >
                   {displayName}
                 </h2>
               )}
-              <span className="text-label-sm text-on-surface-variant font-mono tracking-tight">
+              <span className="text-label-sm text-t-ink-dim font-mono tracking-tight">
                 {filePath}
               </span>
               {meta.summary && (
@@ -436,7 +436,7 @@ export default function FileEditor({
             )}
             {canEditThisFile && (
               <button type="button" onClick={handleEnterEditMode}
-                className="px-4 py-2 bg-surface-container-high text-on-surface rounded-lg text-sm font-medium hover:bg-surface-container-highest transition-colors flex items-center gap-2">
+                className="px-4 py-2 bg-t-bg-well text-t-ink rounded-lg text-sm font-medium hover:bg-t-bg-alt transition-colors flex items-center gap-2">
                 <span className="material-symbols-outlined text-sm">edit</span>
                 Edit
               </button>
@@ -453,11 +453,11 @@ export default function FileEditor({
         />
       )}
       <div className="flex-1 overflow-y-auto custom-scrollbar">
-        <Suspense fallback={<div className="flex-1 animate-pulse bg-surface-container" />}>
+        <Suspense fallback={<div className="flex-1 animate-pulse bg-t-bg-well" />}>
           {Viewer ? (
             <Viewer content={content} fileInfo={fileInfo} />
           ) : (
-            <div className="flex items-center justify-center p-8 text-on-surface-variant">
+            <div className="flex items-center justify-center p-8 text-t-ink-dim">
               <p className="text-body-md">No viewer available for this file type.</p>
             </div>
           )}

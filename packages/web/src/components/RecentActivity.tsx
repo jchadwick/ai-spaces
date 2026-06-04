@@ -51,15 +51,15 @@ function AuditEntryItem({ entry }: { entry: AuditEntry }) {
         {icon}
       </span>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-on-surface truncate">
+        <p className="text-sm font-medium text-t-ink truncate">
           {label}
         </p>
         {entry.spaceId && (
-          <p className="text-xs text-on-surface-variant truncate">
+          <p className="text-xs text-t-ink-dim truncate">
             Space: {entry.spaceId.slice(0, 8)}...
           </p>
         )}
-        <p className="text-xs text-on-surface-variant/70">
+        <p className="text-xs text-t-ink-dim/70">
           {formatTime(entry.timestamp)}
         </p>
       </div>
@@ -89,10 +89,10 @@ export default function RecentActivity({ spaceId, className, maxEntries = 20 }: 
   return (
     <div className={cn("flex flex-col h-full", className)}>
       <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-200 dark:border-slate-800">
-        <span className="material-symbols-outlined text-lg text-on-surface-variant" style={{ fontVariationSettings: "'FILL' 1" }}>
+        <span className="material-symbols-outlined text-lg text-t-ink-dim" style={{ fontVariationSettings: "'FILL' 1" }}>
           history
         </span>
-        <h3 className="text-sm font-semibold text-on-surface">Recent Activity</h3>
+        <h3 className="text-sm font-semibold text-t-ink">Recent Activity</h3>
       </div>
       
       <ScrollArea className="flex-1">
@@ -100,7 +100,7 @@ export default function RecentActivity({ spaceId, className, maxEntries = 20 }: 
         
         {error && (
           <div className="p-4 text-center">
-            <p className="text-sm text-error">{error}</p>
+            <p className="text-sm text-destructive">{error}</p>
           </div>
         )}
         
@@ -109,7 +109,7 @@ export default function RecentActivity({ spaceId, className, maxEntries = 20 }: 
             <span className="material-symbols-outlined text-3xl text-slate-300 dark:text-slate-600 mb-2">
               inbox
             </span>
-            <p className="text-sm text-on-surface-variant">No recent activity</p>
+            <p className="text-sm text-t-ink-dim">No recent activity</p>
           </div>
         )}
         

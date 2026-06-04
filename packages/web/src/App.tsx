@@ -3,7 +3,6 @@ import { ErrorBoundary } from './components/errors'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { HeaderProvider } from './contexts/HeaderContext'
 import { ToastProvider } from './components/ui/toast'
-import { ThemeProvider } from './contexts/ThemeContext'
 import AdminRoute from './components/AdminRoute'
 import Header from './components/Header'
 import HomePage from './pages/HomePage'
@@ -21,7 +20,7 @@ function AuthenticatedLayout() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-surface flex items-center justify-center">
+      <div className="min-h-screen bg-t-bg flex items-center justify-center">
         <div className="animate-spin rounded-full w-8 h-8 border-2 border-primary border-t-transparent" />
       </div>
     )
@@ -48,7 +47,6 @@ function AuthenticatedLayout() {
 
 function App() {
   return (
-    <ThemeProvider>
     <ErrorBoundary>
       <AuthProvider>
         <HeaderProvider>
@@ -79,7 +77,6 @@ function App() {
         </HeaderProvider>
       </AuthProvider>
     </ErrorBoundary>
-    </ThemeProvider>
   )
 }
 

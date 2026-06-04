@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import ThemePicker from './ThemePicker'
 import AgentGlyph from './AgentGlyph'
 import { useAuth } from '@/contexts/AuthContext'
 import { useHeader } from '@/contexts/HeaderContext'
@@ -153,7 +152,7 @@ export default function Header() {
           <div style={{ width: 22, height: 22, borderRadius: 6, background: 'var(--t-ink)', display: 'grid', placeItems: 'center', flexShrink: 0 }}>
             <AgentGlyph size={12} color="var(--t-bg)" />
           </div>
-          <span style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 21, fontWeight: 400, letterSpacing: -0.3, fontStyle: 'italic', color: 'var(--t-ink)', lineHeight: 1 }}>Spaces</span>
+          <span style={{ fontSize: 18, fontWeight: 700, letterSpacing: 0, color: 'var(--t-ink)', lineHeight: 1 }}>Spaces</span>
         </Link>
       </div>
 
@@ -188,7 +187,6 @@ export default function Header() {
           <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--t-agent)', display: 'inline-block' }} />
           live
         </div>
-        <ThemePicker />
         <ProfileMenu />
       </div>
     </header>

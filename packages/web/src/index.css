@@ -7,45 +7,7 @@
 
 @theme {
   --font-family-ui: 'Inter Tight', 'Inter', system-ui, sans-serif;
-  --font-family-display: 'Instrument Serif', Georgia, serif;
   --font-family-mono: 'JetBrains Mono', ui-monospace, monospace;
-
-  --color-surface: #F6F3EE;
-  --color-surface-dim: #EFEAE2;
-  --color-surface-container-lowest: #FBFAF7;
-  --color-surface-container-low: #EFEAE2;
-  --color-surface-container: #E9E3D8;
-  --color-surface-container-high: #E2DBCD;
-  --color-surface-container-highest: #D6CFC4;
-
-  --color-primary: #C2410C;
-  --color-primary-container: #E05520;
-  --color-on-primary: #FFFFFF;
-  --color-on-primary-container: #7C2D12;
-
-  --color-secondary: #5A5147;
-  --color-secondary-container: #E9E3D8;
-  --color-on-secondary-container: #1A1714;
-
-  --color-tertiary: #3F6B4F;
-  --color-tertiary-container: #E4ECDF;
-  --color-on-tertiary-container: #1F3A29;
-
-  --color-error: #ba1a1a;
-  --color-error-container: #ffdad6;
-
-  --color-on-surface: #1A1714;
-  --color-on-surface-variant: #5A5147;
-  --color-outline: #8A7F72;
-  --color-outline-variant: #E2DBCD;
-
-  --color-agent: #3F6B4F;
-  --color-agent-soft: #E4ECDF;
-  --color-agent-ink: #1F3A29;
-  --color-ink-faint: #B8AE9F;
-  --color-ink-dim: #8A7F72;
-  --color-ink-mid: #5A5147;
-  --color-hair: #E2DBCD;
 
   --text-display-lg: 3.5rem;
   --text-display-md: 2.5rem;
@@ -89,9 +51,7 @@ html {
 
 @theme inline {
   --font-sans: 'Inter Tight', 'Inter', system-ui, sans-serif;
-  --font-heading: 'Instrument Serif', Georgia, serif;
 
-  /* Design token color extensions */
   --color-t-bg: var(--t-bg);
   --color-t-bg-alt: var(--t-bgAlt);
   --color-t-bg-raised: var(--t-bgRaised);
@@ -157,6 +117,8 @@ html {
 }
 
 :root {
+  color-scheme: light;
+
   --rooms-ink: #1f1f1d;
   --rooms-ink-soft: #3a3a37;
   --rooms-paper: #ffffff;
@@ -168,14 +130,21 @@ html {
   --rooms-muted-2: #b4afa4;
   --rooms-boundary: #9747ff;
   --rooms-boundary-soft: #f2ebff;
+  --rooms-boundary-line: #dccbff;
   --rooms-error: #d64545;
+  --rooms-error-soft: #fdecec;
+  --rooms-error-line: #f3c3c3;
   --rooms-success: #1c7a55;
+  --rooms-success-soft: #eef6f1;
   --rooms-space-0: #1cac78;
   --rooms-space-1: #5265b1;
   --rooms-space-2: #c98a2b;
   --rooms-space-3: #b5546b;
+  --rooms-avatar-0: #e9e5dc;
+  --rooms-avatar-1: #e4e7f0;
+  --rooms-avatar-2: #efe6d6;
+  --rooms-avatar-3: #efe1e5;
 
-  /* Design token defaults (paper palette — overridden at runtime by ThemeContext) */
   --t-bg: var(--rooms-paper-2);
   --t-bgAlt: var(--rooms-paper-3);
   --t-bgRaised: var(--rooms-paper);
@@ -190,7 +159,7 @@ html {
   --t-accentInk: var(--rooms-ink);
   --t-agent: var(--rooms-boundary);
   --t-agentSoft: var(--rooms-boundary-soft);
-  --t-agentInk: #6d28c4;
+  --t-agentInk: var(--rooms-boundary);
 
   --background: var(--rooms-paper-2);
   --foreground: var(--rooms-ink);
@@ -199,14 +168,14 @@ html {
   --popover: var(--rooms-paper);
   --popover-foreground: var(--rooms-ink);
   --primary: var(--rooms-ink);
-  --primary-foreground: #FFFFFF;
+  --primary-foreground: var(--rooms-paper);
   --secondary: var(--rooms-paper-3);
   --secondary-foreground: var(--rooms-ink);
   --muted: var(--rooms-paper-3);
   --muted-foreground: var(--rooms-muted);
   --accent: var(--rooms-paper-3);
   --accent-foreground: var(--rooms-ink);
-  --destructive: #9F1239;
+  --destructive: var(--rooms-error);
   --border: var(--rooms-line);
   --input: var(--rooms-line-strong);
   --ring: var(--rooms-boundary);
@@ -219,53 +188,11 @@ html {
   --sidebar: var(--rooms-paper-3);
   --sidebar-foreground: var(--rooms-ink);
   --sidebar-primary: var(--rooms-boundary);
-  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-primary-foreground: var(--rooms-paper);
   --sidebar-accent: var(--rooms-paper);
   --sidebar-accent-foreground: var(--rooms-ink);
   --sidebar-border: var(--rooms-line);
   --sidebar-ring: var(--rooms-boundary);
-
-  --color-agent: #3F6B4F;
-  --color-agent-soft: #E4ECDF;
-  --color-agent-ink: #1F3A29;
-  --color-ink-faint: #B8AE9F;
-  --color-ink-dim: #8A7F72;
-  --color-ink-mid: #5A5147;
-  --color-hair: #E2DBCD;
-}
-
-.dark {
-  --background: #1A1714;
-  --foreground: #F6F3EE;
-  --card: #221E1A;
-  --card-foreground: #F6F3EE;
-  --popover: #221E1A;
-  --popover-foreground: #F6F3EE;
-  --primary: #F97316;
-  --primary-foreground: #FFFFFF;
-  --secondary: #2E2823;
-  --secondary-foreground: #F6F3EE;
-  --muted: #15120F;
-  --muted-foreground: #8A7F72;
-  --accent: #2E2823;
-  --accent-foreground: #F6F3EE;
-  --destructive: #FB7185;
-  --border: #2E2823;
-  --input: #2E2823;
-  --ring: #F97316;
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: #15120F;
-  --sidebar-foreground: #F6F3EE;
-  --sidebar-primary: #F97316;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #2E2823;
-  --sidebar-accent-foreground: #F6F3EE;
-  --sidebar-border: #2E2823;
-  --sidebar-ring: #F97316;
 }
 
 @layer base {
@@ -283,8 +210,8 @@ html {
 .rooms-shell {
   height: 100%;
   display: flex;
-  background: var(--rooms-paper-2);
-  color: var(--rooms-ink);
+  background: var(--t-bg);
+  color: var(--t-ink);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   letter-spacing: 0;
 }
@@ -349,7 +276,7 @@ html {
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #E2DBCD;
+  background: var(--t-hair);
   border-radius: 10px;
 }
 
@@ -411,15 +338,6 @@ html {
     .lg\:max-w-2xl { max-width: 42rem; }
     .lg\:max-w-3xl { max-width: 48rem; }
   }
-}
-
-/* Font families */
-.font-headline {
-  font-family: 'Instrument Serif', Georgia, serif;
-}
-
-.font-body {
-  font-family: 'Inter Tight', 'Inter', system-ui, sans-serif;
 }
 
 .font-mono {

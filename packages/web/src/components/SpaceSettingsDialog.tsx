@@ -99,11 +99,11 @@ export default function SpaceSettingsDialog({
             {DEFAULT_PATTERNS.map((pattern) => (
               <div
                 key={pattern}
-                className="flex items-center gap-2 px-3 py-1.5 rounded bg-t-bgWell text-sm font-mono text-t-inkMid"
+                className="flex items-center gap-2 px-3 py-1.5 rounded bg-t-bg-well text-sm font-mono text-t-ink-mid"
               >
-                <span className="material-symbols-outlined text-sm text-t-inkFaint">lock</span>
+                <span className="material-symbols-outlined text-sm text-t-ink-faint">lock</span>
                 <span className="flex-1">{pattern}</span>
-                <span className="text-t-inkFaint text-xs">default</span>
+                <span className="text-t-ink-faint text-xs">default</span>
               </div>
             ))}
             {patterns
@@ -111,13 +111,13 @@ export default function SpaceSettingsDialog({
               .map((pattern) => (
                 <div
                   key={pattern}
-                  className="flex items-center gap-2 px-3 py-1.5 rounded bg-t-bgWell text-sm font-mono text-t-inkMid"
+                  className="flex items-center gap-2 px-3 py-1.5 rounded bg-t-bg-well text-sm font-mono text-t-ink-mid"
                 >
                   <span className="flex-1">{pattern}</span>
                   <button
                     type="button"
                     onClick={() => handleRemovePattern(pattern)}
-                    className="text-t-inkFaint hover:text-t-accent transition-colors"
+                    className="text-t-ink-faint hover:text-t-accent transition-colors"
                   >
                     <span className="material-symbols-outlined text-sm">close</span>
                   </button>

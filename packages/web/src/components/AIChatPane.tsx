@@ -83,7 +83,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
     <div style={{ alignSelf: 'flex-start', width: '100%', background: 'var(--t-agentSoft)', border: '1px solid var(--t-agent)', borderColor: 'color-mix(in srgb, var(--t-agent) 30%, transparent)', padding: '12px 14px', borderRadius: '2px 14px 14px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
         <AgentGlyph size={12} color="var(--t-agent)" />
-        <span style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 13, fontStyle: 'italic', color: 'var(--t-agent)', letterSpacing: -0.1 }}>agent</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--t-agent)', letterSpacing: 0, textTransform: 'uppercase' }}>agent</span>
         {message.timestamp && (
           <span style={{ marginLeft: 'auto', fontFamily: "'JetBrains Mono', monospace", fontSize: 10, color: 'var(--t-inkFaint)' }}>
             {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -133,7 +133,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
             <pre style={{ margin: '8px 0', overflowX: 'auto' }}>{children}</pre>
           ),
           strong: ({ children }) => (
-            <strong style={{ fontWeight: 600, color: '#1A1714' }}>{children}</strong>
+            <strong style={{ fontWeight: 600, color: 'var(--t-ink)' }}>{children}</strong>
           ),
           em: ({ children }) => <em style={{ fontStyle: 'italic' }}>{children}</em>,
           blockquote: ({ children }) => (
@@ -176,7 +176,7 @@ function TypingIndicator() {
     <div style={{ alignSelf: 'flex-start', width: '100%', background: 'var(--t-agentSoft)', border: '1px solid var(--t-agent)', borderColor: 'color-mix(in srgb, var(--t-agent) 30%, transparent)', padding: '12px 14px', borderRadius: '2px 14px 14px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
         <AgentGlyph size={12} color="var(--t-agent)" />
-        <span style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 13, fontStyle: 'italic', color: 'var(--t-agent)' }}>agent</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--t-agent)', letterSpacing: 0, textTransform: 'uppercase' }}>agent</span>
       </div>
       <div style={{ display: 'flex', gap: 4 }}>
         <span
@@ -242,7 +242,7 @@ export default function AIChatPane({
       <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--t-hair)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <AgentGlyph size={14} color="var(--t-agent)" />
-          <span style={{ fontFamily: "'Instrument Serif', Georgia, serif", fontSize: 16, fontStyle: 'italic', letterSpacing: -0.2, color: 'var(--t-agent)' }}>agent</span>
+          <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: 0, color: 'var(--t-agent)', textTransform: 'uppercase' }}>agent</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {isOwner && spaceId && (
@@ -334,9 +334,9 @@ export default function AIChatPane({
               <button
                 type="submit"
                 disabled={!inputValue.trim() || isStreaming || isDisconnected}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: 'var(--t-accent)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: !inputValue.trim() || isStreaming || isDisconnected ? 'not-allowed' : 'pointer', opacity: !inputValue.trim() || isStreaming || isDisconnected ? 0.5 : 1, fontFamily: "'Inter Tight', sans-serif" }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', background: 'var(--t-accent)', color: 'var(--t-bgRaised)', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 500, cursor: !inputValue.trim() || isStreaming || isDisconnected ? 'not-allowed' : 'pointer', opacity: !inputValue.trim() || isStreaming || isDisconnected ? 0.5 : 1, fontFamily: "'Inter Tight', sans-serif" }}
               >
-                <AgentGlyph size={11} color="#fff" /> {isStreaming ? 'Thinking...' : 'Send'}
+                <AgentGlyph size={11} color="var(--t-bgRaised)" /> {isStreaming ? 'Thinking...' : 'Send'}
               </button>
             </div>
           </div>

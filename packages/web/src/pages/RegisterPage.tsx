@@ -73,33 +73,33 @@ function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-surface font-ui text-on-surface flex flex-col">
-      <header className="bg-surface-container-lowest border-b border-outline-variant/20 px-xl py-lg">
+    <div className="min-h-screen bg-t-bg font-sans text-t-ink flex flex-col">
+      <header className="bg-t-bg-raised border-b border-t-hair/20 px-xl py-lg">
         <div className="max-w-6xl mx-auto flex items-center gap-md">
-          <span className="material-symbols-outlined text-primary text-2xl">
+          <span className="material-symbols-outlined text-t-ink text-2xl">
             workspaces
           </span>
-          <h1 className="font-display text-title-lg text-on-surface">
+          <h1 className="font-sans text-title-lg text-t-ink">
             AI Spaces
           </h1>
         </div>
       </header>
 
       <main className="flex-1 flex items-center justify-center px-lg py-xl">
-        <div className="bg-surface-container-lowest rounded-2xl p-2xl shadow-ambient">
+        <div className="bg-t-bg-raised rounded-2xl p-2xl shadow-ambient">
           <div className="text-center mb-xl">
-            <h2 className="font-display text-title-lg text-on-surface mb-sm">
+            <h2 className="font-sans text-title-lg text-t-ink mb-sm">
               Create Account
             </h2>
-            <p className="text-body-md text-on-surface-variant">
+            <p className="text-body-md text-t-ink-dim">
               Sign up to access your spaces
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-lg">
             {error && (
-              <div className="bg-error-container/10 border border-error/20 rounded-xl p-md">
-                <div className="flex items-center gap-sm text-error">
+              <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-md">
+                <div className="flex items-center gap-sm text-destructive">
                   <span className="material-symbols-outlined">error</span>
                   <span className="text-body-sm font-medium">{error}</span>
                 </div>
@@ -109,7 +109,7 @@ function RegisterPage() {
             <div className="space-y-sm">
               <label
                 htmlFor={emailId}
-                className="block text-body-sm font-medium text-on-surface"
+                className="block text-body-sm font-medium text-t-ink"
               >
                 Email
               </label>
@@ -128,9 +128,9 @@ function RegisterPage() {
             <div className="space-y-sm">
               <label
                 htmlFor={displayNameId}
-                className="block text-body-sm font-medium text-on-surface"
+                className="block text-body-sm font-medium text-t-ink"
               >
-                Display Name <span className="text-on-surface-variant font-normal">(optional)</span>
+                Display Name <span className="text-t-ink-dim font-normal">(optional)</span>
               </label>
               <Input
                 id={displayNameId}
@@ -146,7 +146,7 @@ function RegisterPage() {
             <div className="space-y-sm">
               <label
                 htmlFor={passwordId}
-                className="block text-body-sm font-medium text-on-surface"
+                className="block text-body-sm font-medium text-t-ink"
               >
                 Password
               </label>
@@ -165,7 +165,7 @@ function RegisterPage() {
             <div className="space-y-sm">
               <label
                 htmlFor={confirmPasswordId}
-                className="block text-body-sm font-medium text-on-surface"
+                className="block text-body-sm font-medium text-t-ink"
               >
                 Confirm Password
               </label>
@@ -188,7 +188,7 @@ function RegisterPage() {
             >
               {isSubmitting ? (
                 <span className="flex items-center justify-center gap-sm">
-                  <div className="animate-spin rounded-full w-4 h-4 border-2 border-primary-foreground border-t-transparent"></div>
+                  <div className="animate-spin rounded-full w-4 h-4 border-2 border-t-primary-foreground border-t-transparent"></div>
                   Creating account...
                 </span>
               ) : (
@@ -197,9 +197,9 @@ function RegisterPage() {
             </Button>
           </form>
 
-          <p className="text-center text-body-sm text-on-surface-variant mt-lg">
+          <p className="text-center text-body-sm text-t-ink-dim mt-lg">
             Already have an account?{" "}
-            <Link to="/login" className="text-primary hover:underline">
+            <Link to="/login" className="text-t-accent hover:underline">
               Sign in instead
             </Link>
           </p>

@@ -18,8 +18,8 @@ function BaseErrorCard({ title, description, icon, onRetry, retryLabel = 'Try Ag
         <CardHeader className="text-center pb-0">
           {icon && (
             <div className="flex justify-center mb-md">
-              <div className="w-14 h-14 rounded-full bg-error-container flex items-center justify-center">
-                <span className="material-symbols-outlined text-error text-2xl">{icon}</span>
+              <div className="w-14 h-14 rounded-full bg-destructive/10 flex items-center justify-center">
+                <span className="material-symbols-outlined text-destructive text-2xl">{icon}</span>
               </div>
             </div>
           )}

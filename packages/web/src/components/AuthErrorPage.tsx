@@ -72,12 +72,12 @@ export default function AuthErrorPage({ type, expiresAt, spaceName }: AuthErrorP
   const content = getErrorContent(type)
 
   return (
-    <div className="min-h-screen bg-surface font-ui text-on-surface flex items-center justify-center p-lg">
+    <div className="min-h-screen bg-t-bg font-sans text-t-ink flex items-center justify-center p-lg">
       <Card className="max-w-[28rem] w-full shadow-elevated">
         <CardHeader className="text-center pb-0">
           <div className="flex justify-center mb-md">
-            <div className="w-16 h-16 rounded-full bg-error-container flex items-center justify-center">
-              <span className="material-symbols-outlined text-error text-3xl">{content.icon}</span>
+            <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center">
+              <span className="material-symbols-outlined text-destructive text-3xl">{content.icon}</span>
             </div>
           </div>
           <CardTitle className="text-title-lg">{content.title}</CardTitle>
@@ -88,32 +88,32 @@ export default function AuthErrorPage({ type, expiresAt, spaceName }: AuthErrorP
         
         <CardContent className="pt-md">
           {content.showExpiry && expiresAt && (
-            <div className="bg-surface-container-high rounded-lg p-md mb-md">
-              <div className="flex items-center gap-sm text-on-surface-variant">
+            <div className="bg-t-bg-well rounded-lg p-md mb-md">
+              <div className="flex items-center gap-sm text-t-ink-dim">
                 <span className="material-symbols-outlined text-lg">event_busy</span>
                 <div>
-                  <p className="text-label-sm text-on-surface-variant">Expired on</p>
-                  <p className="text-body-md font-medium text-error">{formatExpiry(expiresAt)}</p>
+                  <p className="text-label-sm text-t-ink-dim">Expired on</p>
+                  <p className="text-body-md font-medium text-destructive">{formatExpiry(expiresAt)}</p>
                 </div>
               </div>
             </div>
           )}
 
           {spaceName && (
-            <div className="bg-surface-container-high rounded-lg p-md mb-md">
-              <div className="flex items-center gap-sm text-on-surface-variant">
+            <div className="bg-t-bg-well rounded-lg p-md mb-md">
+              <div className="flex items-center gap-sm text-t-ink-dim">
                 <span className="material-symbols-outlined text-lg">workspaces</span>
                 <div>
-                  <p className="text-label-sm text-on-surface-variant">Space</p>
-                  <p className="text-body-md font-medium text-on-surface">{spaceName}</p>
+                  <p className="text-label-sm text-t-ink-dim">Space</p>
+                  <p className="text-body-md font-medium text-t-ink">{spaceName}</p>
                 </div>
               </div>
             </div>
           )}
 
           {content.showContact && (
-            <div className="bg-surface-container-high rounded-lg p-md mb-md">
-              <p className="text-body-sm text-on-surface-variant">
+            <div className="bg-t-bg-well rounded-lg p-md mb-md">
+              <p className="text-body-sm text-t-ink-dim">
                 Contact the space owner for a new share link if you need continued access.
               </p>
             </div>

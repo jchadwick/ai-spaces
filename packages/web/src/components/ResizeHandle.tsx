@@ -68,19 +68,19 @@ export default function ResizeHandle({
     >
       {/* Handle track */}
       <div
-        className="absolute inset-y-0 w-0.5 bg-outline-variant/40 group-hover:bg-primary/50 transition-colors duration-150"
+        className="absolute inset-y-0 w-0.5 bg-t-hair/40 group-hover:bg-primary/50 transition-colors duration-150"
         style={{ [side === 'left' ? 'right' : 'left']: '3px' }}
       />
 
       {/* Collapse/expand button */}
       <button
         type="button"
-        className="absolute z-20 w-5 h-5 rounded-full bg-surface-container-high border border-outline-variant/30 shadow-sm flex items-center justify-center hover:bg-primary hover:border-primary"
+        className="absolute z-20 w-5 h-5 rounded-full bg-t-bg-well border border-t-hair/30 shadow-sm flex items-center justify-center hover:bg-primary hover:border-primary"
         onClick={collapsed ? onExpand : onCollapse}
         onMouseDown={e => e.stopPropagation()}
         title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
       >
-        <span className="material-symbols-outlined text-on-surface-variant" style={{ fontSize: '12px' }}>
+        <span className="material-symbols-outlined text-t-ink-dim" style={{ fontSize: '12px' }}>
           {collapsed ? expandIcon : collapseIcon}
         </span>
       </button>

@@ -99,40 +99,40 @@ function LoginPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-surface flex items-center justify-center">
+      <div className="min-h-screen bg-t-bg flex items-center justify-center">
         <div className="animate-spin rounded-full w-8 h-8 border-2 border-primary border-t-transparent"></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-surface font-ui text-on-surface flex flex-col">
-      <header className="bg-surface-container-lowest border-b border-outline-variant/20 px-xl py-lg">
+    <div className="min-h-screen bg-t-bg font-sans text-t-ink flex flex-col">
+      <header className="bg-t-bg-raised border-b border-t-hair/20 px-xl py-lg">
         <div className="max-w-6xl mx-auto flex items-center gap-md">
-          <span className="material-symbols-outlined text-primary text-2xl">
+          <span className="material-symbols-outlined text-t-ink text-2xl">
             workspaces
           </span>
-          <h1 className="font-display text-title-lg text-on-surface">
+          <h1 className="font-sans text-title-lg text-t-ink">
             AI Spaces
           </h1>
         </div>
       </header>
 
       <main className="flex-1 flex items-center justify-center px-lg py-xl">
-        <div className="bg-surface-container-lowest rounded-2xl p-2xl shadow-ambient">
+        <div className="bg-t-bg-raised rounded-2xl p-2xl shadow-ambient">
           <div className="text-center mb-xl">
-            <h2 className="font-display text-title-lg text-on-surface mb-sm">
+            <h2 className="font-sans text-title-lg text-t-ink mb-sm">
               Sign In
             </h2>
-            <p className="text-body-md text-on-surface-variant">
+            <p className="text-body-md text-t-ink-dim">
               Enter your credentials to access your spaces
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-lg">
             {error && (
-              <div className="bg-error-container/10 border border-error/20 rounded-xl p-md">
-                <div className="flex items-center gap-sm text-error">
+              <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-md">
+                <div className="flex items-center gap-sm text-destructive">
                   <span className="material-symbols-outlined">error</span>
                   <span className="text-body-sm font-medium">{error}</span>
                 </div>
@@ -171,10 +171,10 @@ function LoginPage() {
 
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-outline-variant/30"></div>
+                    <div className="w-full border-t border-t-hair/30"></div>
                   </div>
                   <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-surface-container-lowest px-md text-on-surface-variant">
+                    <span className="bg-t-bg-raised px-md text-t-ink-dim">
                       Or continue with
                     </span>
                   </div>
@@ -185,7 +185,7 @@ function LoginPage() {
             <div className="space-y-sm">
               <label
                 htmlFor={emailId}
-                className="block text-body-sm font-medium text-on-surface"
+                className="block text-body-sm font-medium text-t-ink"
               >
                 Email
               </label>
@@ -204,7 +204,7 @@ function LoginPage() {
             <div className="space-y-sm">
               <label
                 htmlFor={passwordId}
-                className="block text-body-sm font-medium text-on-surface"
+                className="block text-body-sm font-medium text-t-ink"
               >
                 Password
               </label>
@@ -227,7 +227,7 @@ function LoginPage() {
             >
               {isSubmitting ? (
                 <span className="flex items-center justify-center gap-sm">
-                  <div className="animate-spin rounded-full w-4 h-4 border-2 border-primary-foreground border-t-transparent"></div>
+                  <div className="animate-spin rounded-full w-4 h-4 border-2 border-t-primary-foreground border-t-transparent"></div>
                   Signing in...
                 </span>
               ) : (

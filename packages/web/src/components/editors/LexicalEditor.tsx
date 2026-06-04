@@ -37,7 +37,7 @@ const RICH_THEME = {
     italic: 'italic',
     strikethrough: 'line-through',
     underline: 'underline',
-    code: 'font-mono bg-surface-container rounded px-1 text-sm',
+    code: 'font-mono bg-t-bg-well rounded px-1 text-sm',
   },
   list: {
     nested: { listitem: 'ml-4' },
@@ -45,9 +45,9 @@ const RICH_THEME = {
     ul: 'list-disc ml-6 my-2',
     listitem: 'my-0.5',
   },
-  link: 'text-primary underline cursor-pointer',
-  code: 'block font-mono bg-surface-container rounded p-3 my-2 text-sm overflow-x-auto whitespace-pre',
-  quote: 'border-l-4 border-primary/40 pl-4 my-2 italic text-on-surface-variant',
+  link: 'text-t-accent underline cursor-pointer',
+  code: 'block font-mono bg-t-bg-well rounded p-3 my-2 text-sm overflow-x-auto whitespace-pre',
+  quote: 'border-l-4 border-primary/40 pl-4 my-2 italic text-t-ink-dim',
   paragraph: 'my-1',
 }
 
@@ -93,14 +93,14 @@ export default function LexicalEditor({ content, onChange, format }: LexicalEdit
   )
 
   const placeholder = (
-    <div className="absolute top-0 left-0 text-on-surface-variant pointer-events-none opacity-40 select-none">
+    <div className="absolute top-0 left-0 text-t-ink-dim pointer-events-none opacity-40 select-none">
       Start writing…
     </div>
   )
 
   return (
     <LexicalComposer initialConfig={initialConfig}>
-      <div className="relative h-full overflow-y-auto p-6 text-on-surface leading-relaxed">
+      <div className="relative h-full overflow-y-auto p-6 text-t-ink leading-relaxed">
         {isMarkdown ? (
           <RichTextPlugin
             contentEditable={<ContentEditable className="min-h-full outline-none" />}

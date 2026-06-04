@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "typecheck": "tsgo -p tsconfig.app.json --noEmit && tsgo -p tsconfig.node.json --noEmit",
-    "lint": "eslint .",
+    "lint": "node scripts/enforce-theme.mjs && eslint .",
     "preview": "vite preview"
   },
   "dependencies": {

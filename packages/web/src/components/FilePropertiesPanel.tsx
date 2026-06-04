@@ -156,7 +156,7 @@ export function FilePropertiesPanel({ spaceId, filePath, fileInfo, onClose }: Fi
           type="button"
           onClick={handleSave}
           disabled={saving}
-          style={{ background: 'var(--t-accent)', border: 'none', borderRadius: 6, padding: '5px 14px', fontSize: 13, color: '#fff', cursor: 'pointer', fontWeight: 500 }}
+          style={{ background: 'var(--t-accent)', border: 'none', borderRadius: 6, padding: '5px 14px', fontSize: 13, color: 'var(--t-bgRaised)', cursor: 'pointer', fontWeight: 500 }}
         >
           {saving ? 'Saving…' : 'Save'}
         </button>

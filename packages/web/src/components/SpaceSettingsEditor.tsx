@@ -274,8 +274,8 @@ export default function SpaceSettingsEditor({
         <div className="flex items-center justify-between mb-6">
           <h1
             style={{
-              fontFamily: "'Instrument Serif', serif",
-              fontStyle: "italic",
+              fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif",
+              fontWeight: 700,
               fontSize: 28,
               color: "var(--t-ink)",
               margin: 0,
@@ -556,7 +556,7 @@ export default function SpaceSettingsEditor({
                             key={user.id}
                             type="button"
                             onClick={() => handleAddMember(user)}
-                            className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-t-bgWell transition-colors"
+                            className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-t-bg-well transition-colors"
                             style={{ fontSize: 14 }}
                           >
                             <span

@@ -130,11 +130,11 @@ function Button({
   style?: CSSProperties
 }) {
   const palette = {
-    primary: { background: 'var(--rooms-ink)', color: '#fff', border: '1.5px solid var(--rooms-ink)' },
+    primary: { background: 'var(--rooms-ink)', color: 'var(--rooms-paper)', border: '1.5px solid var(--rooms-ink)' },
     outline: { background: 'var(--rooms-paper)', color: 'var(--rooms-ink)', border: '1.5px solid var(--rooms-line-strong)' },
     ghost: { background: 'transparent', color: 'var(--rooms-ink-soft)', border: '1.5px solid transparent' },
-    boundary: { background: 'var(--rooms-boundary)', color: '#fff', border: '1.5px solid var(--rooms-boundary)' },
-    danger: { background: '#fdecec', color: 'var(--rooms-error)', border: '1.5px solid #f3c3c3' },
+    boundary: { background: 'var(--rooms-boundary)', color: 'var(--rooms-paper)', border: '1.5px solid var(--rooms-boundary)' },
+    danger: { background: 'var(--rooms-error-soft)', color: 'var(--rooms-error)', border: '1.5px solid var(--rooms-error-line)' },
   }[variant]
   return (
     <button
@@ -190,7 +190,7 @@ function IconButton({
         borderRadius: 9,
         border: `1.5px solid ${active ? 'var(--rooms-ink)' : 'transparent'}`,
         background: active ? 'var(--rooms-ink)' : 'transparent',
-        color: active ? '#fff' : 'var(--rooms-ink-soft)',
+        color: active ? 'var(--rooms-paper)' : 'var(--rooms-ink-soft)',
         cursor: 'pointer',
         display: 'inline-flex',
         alignItems: 'center',
@@ -214,9 +214,9 @@ function Chip({
 }) {
   const palette = {
     neutral: { bg: 'var(--rooms-paper-3)', fg: 'var(--rooms-ink-soft)', bd: 'transparent' },
-    promoted: { bg: '#eef6f1', fg: 'var(--rooms-success)', bd: 'transparent' },
+    promoted: { bg: 'var(--rooms-success-soft)', fg: 'var(--rooms-success)', bd: 'transparent' },
     restricted: { bg: 'transparent', fg: 'var(--rooms-muted-2)', bd: 'var(--rooms-line)' },
-    boundary: { bg: 'var(--rooms-boundary-soft)', fg: '#6d28c4', bd: 'transparent' },
+    boundary: { bg: 'var(--rooms-boundary-soft)', fg: 'var(--rooms-boundary)', bd: 'transparent' },
   }[tone]
   return (
     <span
@@ -241,7 +241,7 @@ function Chip({
 }
 
 function Avatar({ label, size = 30, index = 0 }: { label: string; size?: number; index?: number }) {
-  const tints = ['#e9e5dc', '#e4e7f0', '#efe6d6', '#efe1e5']
+  const tints = ['var(--rooms-avatar-0)', 'var(--rooms-avatar-1)', 'var(--rooms-avatar-2)', 'var(--rooms-avatar-3)']
   return (
     <span
       title={label}
@@ -400,7 +400,7 @@ function Rail({
         type="button"
         title="Rooms home"
         onClick={onHome}
-        style={{ width: 44, height: 44, borderRadius: 13, cursor: 'pointer', flexShrink: 0, background: 'var(--rooms-ink)', color: '#fff', border: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: view === 'home' && !activeSpaceId ? '0 0 0 3px var(--rooms-paper-3), 0 0 0 4.5px var(--rooms-ink)' : 'none' }}
+        style={{ width: 44, height: 44, borderRadius: 13, cursor: 'pointer', flexShrink: 0, background: 'var(--rooms-ink)', color: 'var(--rooms-paper)', border: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: view === 'home' && !activeSpaceId ? '0 0 0 3px var(--rooms-paper-3), 0 0 0 4.5px var(--rooms-ink)' : 'none' }}
       >
         <Grid2X2 size={21} />
       </button>
@@ -415,7 +415,7 @@ function Rail({
               type="button"
               title={space.config.name}
               onClick={() => onSpace(space.id)}
-              style={{ width: 44, height: 44, borderRadius: 13, cursor: 'pointer', flexShrink: 0, position: 'relative', border: `1.5px solid ${active ? color : 'var(--rooms-line-strong)'}`, background: active ? color : 'var(--rooms-paper)', color: active ? '#fff' : color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19, fontWeight: 700 }}
+              style={{ width: 44, height: 44, borderRadius: 13, cursor: 'pointer', flexShrink: 0, position: 'relative', border: `1.5px solid ${active ? color : 'var(--rooms-line-strong)'}`, background: active ? color : 'var(--rooms-paper)', color: active ? 'var(--rooms-paper)' : color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19, fontWeight: 700 }}
             >
               {initials(space.config.name).slice(0, 1)}
               {active && <span style={{ position: 'absolute', left: -10, top: 12, width: 4, height: 20, borderRadius: 4, background: 'var(--rooms-ink)' }} />}
@@ -616,7 +616,7 @@ function ChatDrawer({ room, onClose }: { room: RoomSummary; onClose: () => void 
       <div className="rooms-scrollbar" style={{ flex: 1, overflow: 'auto', padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {messages.length === 0 && <div style={{ margin: 'auto', color: 'var(--rooms-muted)', fontSize: 13 }}>Ask the agent about this room.</div>}
         {messages.map((message) => (
-          <div key={message.id} style={{ alignSelf: message.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '92%', background: message.role === 'user' ? 'var(--rooms-ink)' : 'var(--rooms-boundary-soft)', color: message.role === 'user' ? '#fff' : 'var(--rooms-ink)', border: message.role === 'user' ? 0 : '1px solid #dccbff', borderRadius: message.role === 'user' ? '14px 14px 2px 14px' : '2px 14px 14px 14px', padding: '10px 13px', fontSize: 13.5, lineHeight: 1.55 }}>
+          <div key={message.id} style={{ alignSelf: message.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '92%', background: message.role === 'user' ? 'var(--rooms-ink)' : 'var(--rooms-boundary-soft)', color: message.role === 'user' ? 'var(--rooms-paper)' : 'var(--rooms-ink)', border: message.role === 'user' ? 0 : '1px solid var(--rooms-boundary-line)', borderRadius: message.role === 'user' ? '14px 14px 2px 14px' : '2px 14px 14px 14px', padding: '10px 13px', fontSize: 13.5, lineHeight: 1.55 }}>
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
           </div>
         ))}
@@ -1087,7 +1087,7 @@ function InviteButton({ spaceId }: { spaceId: string }) {
     <>
       <Button variant="outline" size="sm" icon={<Users size={16} />} onClick={createInvite}>Invite link</Button>
       {inviteUrl && (
-        <div style={{ position: 'fixed', right: 24, bottom: 24, zIndex: 70, background: 'var(--rooms-ink)', color: '#fff', padding: '12px 16px', borderRadius: 12, maxWidth: 460, fontSize: 13, boxShadow: '0 16px 40px -16px rgba(0,0,0,0.5)' }}>
+        <div style={{ position: 'fixed', right: 24, bottom: 24, zIndex: 70, background: 'var(--rooms-ink)', color: 'var(--rooms-paper)', padding: '12px 16px', borderRadius: 12, maxWidth: 460, fontSize: 13, boxShadow: '0 16px 40px -16px rgba(0,0,0,0.5)' }}>
           <div style={{ fontWeight: 600, marginBottom: 6 }}>Invite link</div>
           <div style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{inviteUrl}</div>
         </div>

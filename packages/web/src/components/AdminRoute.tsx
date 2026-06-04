@@ -11,7 +11,7 @@ function AdminRoute({ children }: AdminRouteProps) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-surface flex items-center justify-center">
+      <div className="min-h-screen bg-t-bg flex items-center justify-center">
         <div className="animate-spin rounded-full w-8 h-8 border-2 border-primary border-t-transparent"></div>
       </div>
     )

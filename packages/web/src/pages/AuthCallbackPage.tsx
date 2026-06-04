@@ -75,31 +75,31 @@ function AuthCallbackPage() {
   }, [searchParams, navigate]);
 
   return (
-    <div className="min-h-screen bg-surface font-ui text-on-surface flex flex-col items-center justify-center">
-      <header className="bg-surface-container-lowest border-b border-outline-variant/20 px-xl py-lg absolute top-0 left-0 right-0">
+    <div className="min-h-screen bg-t-bg font-sans text-t-ink flex flex-col items-center justify-center">
+      <header className="bg-t-bg-raised border-b border-t-hair/20 px-xl py-lg absolute top-0 left-0 right-0">
         <div className="max-w-6xl mx-auto flex items-center gap-md">
-          <span className="material-symbols-outlined text-primary text-2xl">
+          <span className="material-symbols-outlined text-t-ink text-2xl">
             workspaces
           </span>
-          <h1 className="font-display text-title-lg text-on-surface">
+          <h1 className="font-sans text-title-lg text-t-ink">
             AI Spaces
           </h1>
         </div>
       </header>
 
       <main className="flex-1 flex items-center justify-center px-lg py-xl">
-        <div className="bg-surface-container-lowest rounded-2xl p-2xl shadow-ambient text-center">
+        <div className="bg-t-bg-raised rounded-2xl p-2xl shadow-ambient text-center">
           {error ? (
             <div className="space-y-md">
-              <span className="material-symbols-outlined text-error text-4xl">
+              <span className="material-symbols-outlined text-destructive text-4xl">
                 error
               </span>
-              <p className="text-body-md text-on-surface-variant">{error}</p>
+              <p className="text-body-md text-t-ink-dim">{error}</p>
             </div>
           ) : (
             <div className="space-y-md">
               <div className="animate-spin rounded-full w-8 h-8 border-2 border-primary border-t-transparent mx-auto"></div>
-              <p className="text-body-md text-on-surface-variant">
+              <p className="text-body-md text-t-ink-dim">
                 Completing sign-in...
               </p>
             </div>

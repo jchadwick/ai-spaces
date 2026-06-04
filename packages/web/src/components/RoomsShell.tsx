@@ -17,6 +17,7 @@ import {
   Plus,
   Shield,
   Trash2,
+  Upload,
   User,
   Users,
   X,
@@ -48,6 +49,7 @@ import {
   patchFileMetadata,
   promoteSpaceTopic,
   renameSpacePath,
+  uploadSpaceFile,
   type SpaceMember,
   type SpaceTopic,
 } from '@/api/spaceFiles'
@@ -92,6 +94,62 @@ function pathParts(topicPath: string) {
 function basename(topicPath: string) {
   const parts = pathParts(topicPath)
   return parts[parts.length - 1] || 'Root'
+}
+
+function parentPath(filePath: string) {
+  return filePath.includes('/') ? filePath.slice(0, filePath.lastIndexOf('/')) : ''
+}
+
+function joinPath(parent: string | null | undefined, name: string) {
+  const cleanParent = (parent ?? '').replace(/^\/+|\/+$/g, '')
+  const cleanName = name.trim().replace(/^\/+/, '')
+  return cleanParent ? `${cleanParent}/${cleanName}` : cleanName
+}
+
+function sortFileNodes(nodes: FileNode[]) {
+  return [...nodes].sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'directory' ? -1 : 1
+    return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+  })
+}
+
+function replaceNodeChildren(nodes: FileNode[], targetPath: string, children: FileNode[]): FileNode[] {
+  return nodes.map((node) => {
+    if (node.path === targetPath) return { ...node, children }
+    if (node.children && targetPath.startsWith(`${node.path}/`)) {
+      return { ...node, children: replaceNodeChildren(node.children, targetPath, children) }
+    }
+    return node
+  })
+}
+
+function firstFileNode(nodes: FileNode[]): FileNode | null {
+  for (const node of nodes) {
+    if (node.type === 'file') return node
+    const childFile = node.children ? firstFileNode(node.children) : null
+    if (childFile) return childFile
+  }
+  return null
+}
+
+function movePath(path: string | null, fromPath: string, toPath: string) {
+  if (!path) return path
+  if (path === fromPath) return toPath
+  if (path.startsWith(`${fromPath}/`)) return `${toPath}/${path.slice(fromPath.length + 1)}`
+  return path
+}
+
+function parseMoveData(event: React.DragEvent): { path: string; type: 'file' | 'directory' } | null {
+  const raw = event.dataTransfer.getData('ai-spaces/move')
+  if (!raw) return null
+  try {
+    const data = JSON.parse(raw) as { path?: unknown; type?: unknown }
+    if (typeof data.path !== 'string') return null
+    if (data.type !== 'file' && data.type !== 'directory') return null
+    return { path: data.path, type: data.type }
+  } catch {
+    return null
+  }
 }
 
 function initials(label: string) {
@@ -731,25 +789,50 @@ function RoomDetailInner({
 }) {
   const apiFetch = useAPI()
   const { selectTopic } = useConnectionStatus()
+  const { showToast } = useToast()
   const canEdit = hasPermission(role, 'files:write')
-  const [files, setFiles] = useState<FileNode[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [nodes, setNodes] = useState<FileNode[]>([])
   const [loading, setLoading] = useState(false)
   const [activePath, setActivePath] = useState<string | null>(null)
+  const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
   const [chatOpen, setChatOpen] = useState(false)
+  const [draftFile, setDraftFile] = useState<{ parent: string | null; type: 'file' | 'directory' } | null>(null)
+  const [newName, setNewName] = useState('')
+  const [menu, setMenu] = useState<{ x: number; y: number; node: FileNode | null } | null>(null)
+  const [uploadTarget, setUploadTarget] = useState<string | null>(null)
+  const [dragOverFolder, setDragOverFolder] = useState<string | null>(null)
+  const [isDragOver, setIsDragOver] = useState(false)
   const roomRoot = stripTopicPath(room.topicPath)
-  const routedFilePath = initialFilePath ? `${roomRoot}/${initialFilePath}` : null
+  const routedFilePath = initialFilePath ? joinPath(roomRoot, initialFilePath) : null
+  const fetchDir = useCallback(async (dirPath: string) => {
+    const res = await apiFetch(`/api/spaces/${room.spaceId}/files?path=${encodeURIComponent(dirPath)}`)
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({ error: 'Failed to load files' })) as { error?: string }
+      throw new Error(data.error ?? 'Failed to load files')
+    }
+    const data = await res.json() as { files?: FileNode[] }
+    return sortFileNodes(data.files ?? [])
+  }, [apiFetch, room.spaceId])
+  const loadChildren = useCallback(async (dirPath: string) => {
+    const children = await fetchDir(dirPath)
+    setNodes((current) => replaceNodeChildren(current, dirPath, children))
+  }, [fetchDir])
   const refresh = useCallback(async () => {
     setLoading(true)
     try {
-      const res = await apiFetch(`/api/spaces/${room.spaceId}/files?path=${encodeURIComponent(roomRoot)}`)
-      const data = await res.json() as { files?: FileNode[] }
-      const next = (data.files ?? []).filter((node) => node.type === 'file')
-      setFiles(next)
-      setActivePath((current) => routedFilePath ?? current ?? next[0]?.path ?? null)
+      const next = await fetchDir(roomRoot)
+      setNodes(next)
+      setActivePath((current) => {
+        const preferred = routedFilePath ?? current
+        const preferredNode = preferred ? findNode(next, preferred) : null
+        if (preferredNode?.type === 'file') return preferredNode.path
+        return firstFileNode(next)?.path ?? null
+      })
     } finally {
       setLoading(false)
     }
-  }, [apiFetch, room.spaceId, roomRoot, routedFilePath])
+  }, [fetchDir, roomRoot, routedFilePath])
   useEffect(() => { void refresh() }, [refresh])
   useEffect(() => {
     if (routedFilePath) setActivePath(routedFilePath)
@@ -757,7 +840,99 @@ function RoomDetailInner({
   useEffect(() => {
     void selectTopic(room.topicPath)
   }, [room.topicPath, selectTopic])
-  const activeFile = files.find((file) => file.path === activePath) ?? files[0]
+  const activeFile = activePath ? findNode(nodes, activePath) : firstFileNode(nodes)
+  const activeFilePath = activeFile?.type === 'file' ? activeFile.path : null
+  async function createNew() {
+    if (!draftFile || !newName.trim()) return
+    const parent = draftFile.parent ?? roomRoot
+    const path = joinPath(parent, newName)
+    try {
+      if (draftFile.type === 'directory') {
+        await createSpaceDirectory(room.spaceId, path)
+        setSelectedFolder(path)
+      } else {
+        await createSpaceFile(room.spaceId, path)
+        setActivePath(path)
+        onSelectFile(path)
+      }
+      setDraftFile(null)
+      setNewName('')
+      if (parent === roomRoot) await refresh()
+      else await loadChildren(parent)
+      showToast(draftFile.type === 'directory' ? 'Folder created' : 'File created', 'success')
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Failed to create', 'error')
+    }
+  }
+  async function uploadFiles(fileList: FileList, targetFolder: string) {
+    if (!canEdit || fileList.length === 0) return
+    try {
+      const uploaded = await Promise.all(Array.from(fileList).map(async (file) => {
+        await uploadSpaceFile(room.spaceId, joinPath(targetFolder, file.name), file)
+        return file.name
+      }))
+      const label = uploaded.length === 1 ? `"${uploaded[0]}"` : `${uploaded.length} files`
+      showToast(`Uploaded ${label}`, 'success')
+      if (targetFolder === roomRoot) await refresh()
+      else await loadChildren(targetFolder)
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Upload failed', 'error')
+    }
+  }
+  function chooseUploadTarget(targetFolder: string) {
+    setUploadTarget(targetFolder)
+    fileInputRef.current?.click()
+  }
+  async function moveNode(source: { path: string; type: 'file' | 'directory' }, targetFolder: string) {
+    if (!canEdit) return
+    if (source.type === 'directory' && (targetFolder === source.path || targetFolder.startsWith(`${source.path}/`))) {
+      showToast('Cannot move a folder into itself', 'error')
+      return
+    }
+    const sourceParent = parentPath(source.path)
+    if (sourceParent === targetFolder) return
+    const nextPath = joinPath(targetFolder, basename(source.path))
+    try {
+      const actualPath = await renameSpacePath(room.spaceId, source.path, nextPath, source.type)
+      setActivePath((current) => movePath(current, source.path, actualPath))
+      setSelectedFolder((current) => movePath(current, source.path, actualPath))
+      if (sourceParent === roomRoot || targetFolder === roomRoot) await refresh()
+      if (sourceParent && sourceParent !== roomRoot) await loadChildren(sourceParent)
+      if (targetFolder !== roomRoot) await loadChildren(targetFolder)
+      showToast(`Moved ${basename(source.path)}`, 'success')
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Failed to move', 'error')
+    }
+  }
+  function openNode(node: FileNode) {
+    if (node.type === 'directory') {
+      setSelectedFolder(node.path)
+      void loadChildren(node.path)
+      return
+    }
+    setActivePath(node.path)
+    onSelectFile(node.path)
+  }
+  function handleDrop(event: React.DragEvent, targetFolder: string) {
+    event.preventDefault()
+    event.stopPropagation()
+    setIsDragOver(false)
+    setDragOverFolder(null)
+    const moveData = parseMoveData(event)
+    if (moveData) {
+      void moveNode(moveData, targetFolder)
+      return
+    }
+    if (event.dataTransfer.files.length) void uploadFiles(event.dataTransfer.files, targetFolder)
+  }
+  function handleDragOver(event: React.DragEvent) {
+    const isMove = event.dataTransfer.types.includes('ai-spaces/move')
+    const isUpload = event.dataTransfer.types.includes('Files')
+    if (!canEdit || (!isMove && !isUpload)) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = isMove ? 'move' : 'copy'
+    setIsDragOver(true)
+  }
   return (
     <div className="rooms-rise" style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ padding: '22px 36px 20px', borderBottom: '1px solid var(--rooms-line)', flexShrink: 0 }}>
@@ -774,32 +949,88 @@ function RoomDetailInner({
         </div>
       </div>
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-        <div style={{ width: 232, flexShrink: 0, borderRight: '1px solid var(--rooms-line)', display: 'flex', flexDirection: 'column', background: 'var(--rooms-paper-2)' }}>
+        <div
+          onDragOver={handleDragOver}
+          onDragLeave={() => setIsDragOver(false)}
+          onDrop={(event) => handleDrop(event, roomRoot)}
+          style={{ width: 232, flexShrink: 0, borderRight: '1px solid var(--rooms-line)', display: 'flex', flexDirection: 'column', background: isDragOver ? 'var(--rooms-paper-3)' : 'var(--rooms-paper-2)' }}
+        >
           <div style={{ padding: '16px 14px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--rooms-muted)' }}>Files</span>
-            <span style={{ fontSize: 12, color: 'var(--rooms-muted-2)' }}>{files.length}</span>
+            {canEdit ? (
+              <div style={{ display: 'flex', gap: 2 }}>
+                <IconButton title="New folder" onClick={() => setDraftFile({ parent: selectedFolder ?? roomRoot, type: 'directory' })} style={{ width: 30, height: 30 }}><Folder size={16} /></IconButton>
+                <IconButton title="New file" onClick={() => setDraftFile({ parent: selectedFolder ?? roomRoot, type: 'file' })} style={{ width: 30, height: 30 }}><Plus size={16} /></IconButton>
+                <IconButton title="Upload files" onClick={() => chooseUploadTarget(selectedFolder ?? roomRoot)} style={{ width: 30, height: 30 }}><Upload size={16} /></IconButton>
+              </div>
+            ) : (
+              <span style={{ fontSize: 12, color: 'var(--rooms-muted-2)' }}>{nodes.length}</span>
+            )}
           </div>
-          <div className="rooms-scrollbar" style={{ flex: 1, overflow: 'auto', padding: '0 8px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            style={{ display: 'none' }}
+            onChange={(event) => {
+              if (event.target.files) void uploadFiles(event.target.files, uploadTarget ?? roomRoot)
+              event.currentTarget.value = ''
+            }}
+          />
+          <div className="rooms-scrollbar" onContextMenu={(event) => { if (canEdit) { event.preventDefault(); setMenu({ x: event.clientX, y: event.clientY, node: null }) } }} style={{ flex: 1, overflow: 'auto', padding: '0 8px 12px', display: 'flex', flexDirection: 'column', gap: 2 }}>
             {loading && <div style={{ padding: 12, color: 'var(--rooms-muted)', fontSize: 13 }}>Loading...</div>}
-            {files.map((file) => (
-              <button key={file.path} type="button" onClick={() => { setActivePath(file.path); onSelectFile(file.path) }} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', padding: '9px 11px', borderRadius: 9, cursor: 'pointer', border: `1.5px solid ${file.path === activeFile?.path ? 'var(--rooms-line-strong)' : 'transparent'}`, background: file.path === activeFile?.path ? 'var(--rooms-paper)' : 'transparent' }}>
-                <FileText size={17} color={file.path === activeFile?.path ? 'var(--rooms-ink)' : 'var(--rooms-muted)'} />
-                <span style={{ fontWeight: file.path === activeFile?.path ? 600 : 500, fontSize: 13.5, color: file.path === activeFile?.path ? 'var(--rooms-ink)' : 'var(--rooms-ink-soft)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{file.name}</span>
-              </button>
-            ))}
+            <TreeList
+              nodes={nodes}
+              selected={activeFilePath ?? selectedFolder}
+              promotedTopicPaths={new Set()}
+              metadata={{ files: {} }}
+              onOpen={openNode}
+              onMenu={(event, node) => { if (canEdit) setMenu({ x: event.clientX, y: event.clientY, node }) }}
+              canDrag={canEdit}
+              dragOverFolder={dragOverFolder}
+              onDragStart={(event, node) => {
+                event.dataTransfer.setData('ai-spaces/move', JSON.stringify({ path: node.path, type: node.type === 'directory' ? 'directory' : 'file' }))
+                event.dataTransfer.effectAllowed = 'move'
+              }}
+              onFolderDragEnter={(path) => setDragOverFolder(path)}
+              onFolderDragLeave={(path) => setDragOverFolder((current) => current === path ? null : current)}
+              onFolderDrop={(event, path) => handleDrop(event, path)}
+            />
           </div>
           <div style={{ padding: '12px 14px', borderTop: '1px solid var(--rooms-line)', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
             <Shield size={15} color="var(--rooms-boundary)" />
             <span style={{ fontSize: 11.5, lineHeight: 1.5, color: 'var(--rooms-muted)' }}>Only this folder is shared. The rest of the Space stays private.</span>
           </div>
         </div>
-        <RoomFileDoc key={activeFile?.path ?? 'no-file'} spaceId={room.spaceId} filePath={activeFile?.path ?? null} canEdit={canEdit} onSaved={refresh} />
+        <RoomFileDoc key={activeFilePath ?? 'no-file'} spaceId={room.spaceId} filePath={activeFilePath} canEdit={canEdit} onSaved={refresh} />
         {chatOpen && (
           <div style={{ width: 380, minWidth: 320, maxWidth: '40vw', flexShrink: 0, display: 'flex', minHeight: 0 }}>
             <AIChatPane role={role} spaceId={room.spaceId} onClose={() => setChatOpen(false)} />
           </div>
         )}
       </div>
+      {menu && (
+        <ContextMenu
+          x={menu.x}
+          y={menu.y}
+          onClose={() => setMenu(null)}
+          items={[
+            ...(menu.node ? [{ label: 'Open', icon: menu.node.type === 'directory' ? <FolderOpen size={16} /> : <Eye size={16} />, onClick: () => openNode(menu.node!) }] : []),
+            ...(!menu.node || menu.node.type === 'directory'
+              ? [
+                  { label: 'Add File', icon: <FileText size={16} />, onClick: () => setDraftFile({ parent: menu.node?.path ?? roomRoot, type: 'file' }) },
+                  { label: 'Add Folder', icon: <Folder size={16} />, onClick: () => setDraftFile({ parent: menu.node?.path ?? roomRoot, type: 'directory' }) },
+                  { label: 'Upload files', icon: <Upload size={16} />, onClick: () => chooseUploadTarget(menu.node?.path ?? roomRoot) },
+                ]
+              : []),
+          ]}
+        />
+      )}
+      {draftFile && (
+        <Modal title={draftFile.type === 'directory' ? 'New folder' : 'New file'} onClose={() => setDraftFile(null)} footer={<><Button variant="ghost" onClick={() => setDraftFile(null)}>Cancel</Button><Button variant="primary" disabled={!newName.trim()} onClick={createNew}>Create</Button></>}>
+          <Field label="Name" value={newName} onChange={setNewName} placeholder={draftFile.type === 'directory' ? 'Folder name' : 'notes.md'} />
+        </Modal>
+      )}
     </div>
   )
 }
@@ -929,6 +1160,7 @@ function SpaceExplorerInner({
   const { files, loading, refresh, loadChildren } = useFileTree(space.id)
   const { metadata, updateEntry } = useFileMetadata()
   const { showToast } = useToast()
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const routeSelection = useMemo(() => {
     if (!initialPath || files.length === 0) {
       return { currentFolder: null as string | null, selectedFile: null as string | null }
@@ -948,7 +1180,11 @@ function SpaceExplorerInner({
   const [menu, setMenu] = useState<{ x: number; y: number; node: FileNode | null } | null>(null)
   const [draftFile, setDraftFile] = useState<{ parent: string | null; type: 'file' | 'directory' } | null>(null)
   const [newName, setNewName] = useState('')
+  const [uploadTarget, setUploadTarget] = useState<string | null>(null)
+  const [dragOverFolder, setDragOverFolder] = useState<string | null>(null)
+  const [isDragOver, setIsDragOver] = useState(false)
   const [activeTab, setActiveTab] = useState<'files' | 'members'>('files')
+  const canWrite = hasPermission(space.userRole, 'files:write')
   const currentFolder = currentFolderOverride === undefined ? routeSelection.currentFolder : currentFolderOverride
   const selectedFile = selectedFileOverride === undefined ? routeSelection.selectedFile : selectedFileOverride
   const setCurrentFolder = (path: string | null) => setCurrentFolderOverride(path)
@@ -1020,9 +1256,72 @@ function SpaceExplorerInner({
       refresh()
       if (draftFile.parent) await loadChildren(draftFile.parent)
       if (draftFile.type === 'file') setSelectedFile(path)
+      showToast(draftFile.type === 'directory' ? 'Folder created' : 'File created', 'success')
     } catch (error) {
       showToast(error instanceof Error ? error.message : 'Failed to create', 'error')
     }
+  }
+  async function uploadFiles(fileList: FileList, targetFolder: string | null) {
+    if (!canWrite || fileList.length === 0) return
+    try {
+      const uploaded = await Promise.all(Array.from(fileList).map(async (file) => {
+        await uploadSpaceFile(space.id, joinPath(targetFolder, file.name), file)
+        return file.name
+      }))
+      const label = uploaded.length === 1 ? `"${uploaded[0]}"` : `${uploaded.length} files`
+      showToast(`Uploaded ${label}`, 'success')
+      refresh()
+      if (targetFolder) await loadChildren(targetFolder)
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Upload failed', 'error')
+    }
+  }
+  function chooseUploadTarget(targetFolder: string | null) {
+    setUploadTarget(targetFolder)
+    fileInputRef.current?.click()
+  }
+  async function moveNode(source: { path: string; type: 'file' | 'directory' }, targetFolder: string | null) {
+    if (!canWrite) return
+    const target = targetFolder ?? ''
+    if (source.type === 'directory' && (target === source.path || target.startsWith(`${source.path}/`))) {
+      showToast('Cannot move a folder into itself', 'error')
+      return
+    }
+    const sourceParent = parentPath(source.path)
+    if (sourceParent === target) return
+    const nextPath = joinPath(target, basename(source.path))
+    try {
+      const actualPath = await renameSpacePath(space.id, source.path, nextPath, source.type)
+      setSelectedFile(movePath(selectedFile, source.path, actualPath))
+      setCurrentFolder(movePath(currentFolder, source.path, actualPath))
+      refresh()
+      if (sourceParent) await loadChildren(sourceParent)
+      if (target) await loadChildren(target)
+      onRefreshRooms()
+      showToast(`Moved ${basename(source.path)}`, 'success')
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Failed to move', 'error')
+    }
+  }
+  function handleDrop(event: React.DragEvent, targetFolder: string | null) {
+    event.preventDefault()
+    event.stopPropagation()
+    setIsDragOver(false)
+    setDragOverFolder(null)
+    const moveData = parseMoveData(event)
+    if (moveData) {
+      void moveNode(moveData, targetFolder)
+      return
+    }
+    if (event.dataTransfer.files.length) void uploadFiles(event.dataTransfer.files, targetFolder)
+  }
+  function handleDragOver(event: React.DragEvent) {
+    const isMove = event.dataTransfer.types.includes('ai-spaces/move')
+    const isUpload = event.dataTransfer.types.includes('Files')
+    if (!canWrite || (!isMove && !isUpload)) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = isMove ? 'move' : 'copy'
+    setIsDragOver(true)
   }
   function openNode(node: FileNode) {
     if (node.type === 'directory') {
@@ -1060,15 +1359,47 @@ function SpaceExplorerInner({
       </div>
       {activeTab === 'files' ? (
         <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-          <div style={{ width: 264, flexShrink: 0, borderRight: '1px solid var(--rooms-line)', display: 'flex', flexDirection: 'column', background: 'var(--rooms-paper-2)' }}>
+          <div
+            onDragOver={handleDragOver}
+            onDragLeave={() => setIsDragOver(false)}
+            onDrop={(event) => handleDrop(event, currentFolder)}
+            style={{ width: 264, flexShrink: 0, borderRight: '1px solid var(--rooms-line)', display: 'flex', flexDirection: 'column', background: isDragOver ? 'var(--rooms-paper-3)' : 'var(--rooms-paper-2)' }}
+          >
             <div style={{ padding: '14px 14px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--rooms-muted)' }}>Files</span>
               <div style={{ display: 'flex', gap: 2 }}>
                 <IconButton title="New folder" onClick={() => setDraftFile({ parent: currentFolder, type: 'directory' })} style={{ width: 30, height: 30 }}><Folder size={16} /></IconButton>
                 <IconButton title="New file" onClick={() => setDraftFile({ parent: currentFolder, type: 'file' })} style={{ width: 30, height: 30 }}><Plus size={16} /></IconButton>
+                <IconButton title="Upload files" onClick={() => chooseUploadTarget(currentFolder)} style={{ width: 30, height: 30 }}><Upload size={16} /></IconButton>
               </div>
             </div>
-            <TreeList nodes={files} selected={selectedFile ?? currentFolder} promotedTopicPaths={promotedTopicPaths} metadata={metadata} onOpen={openNode} onMenu={(event, node) => setMenu({ x: event.clientX, y: event.clientY, node })} />
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              style={{ display: 'none' }}
+              onChange={(event) => {
+                if (event.target.files) void uploadFiles(event.target.files, uploadTarget)
+                event.currentTarget.value = ''
+              }}
+            />
+            <TreeList
+              nodes={files}
+              selected={selectedFile ?? currentFolder}
+              promotedTopicPaths={promotedTopicPaths}
+              metadata={metadata}
+              onOpen={openNode}
+              onMenu={(event, node) => setMenu({ x: event.clientX, y: event.clientY, node })}
+              canDrag={canWrite}
+              dragOverFolder={dragOverFolder}
+              onDragStart={(event, node) => {
+                event.dataTransfer.setData('ai-spaces/move', JSON.stringify({ path: node.path, type: node.type === 'directory' ? 'directory' : 'file' }))
+                event.dataTransfer.effectAllowed = 'move'
+              }}
+              onFolderDragEnter={(path) => setDragOverFolder(path)}
+              onFolderDragLeave={(path) => setDragOverFolder((current) => current === path ? null : current)}
+              onFolderDrop={(event, path) => handleDrop(event, path)}
+            />
           </div>
           {selectedNode ? (
             <RoomFileDoc
@@ -1107,6 +1438,13 @@ function SpaceExplorerInner({
           onClose={() => setMenu(null)}
           items={menu.node ? [
             { label: 'Open', icon: menu.node.type === 'directory' ? <FolderOpen size={16} /> : <Eye size={16} />, onClick: () => openNode(menu.node!) },
+            ...(menu.node.type === 'directory'
+              ? [
+                  { label: 'Add File', icon: <FileText size={16} />, onClick: () => setDraftFile({ parent: menu.node!.path, type: 'file' }) },
+                  { label: 'Add Folder', icon: <Folder size={16} />, onClick: () => setDraftFile({ parent: menu.node!.path, type: 'directory' }) },
+                  { label: 'Upload files', icon: <Upload size={16} />, onClick: () => chooseUploadTarget(menu.node!.path) },
+                ]
+              : []),
             { label: 'Rename', icon: <Edit3 size={16} />, onClick: () => void renameNode(menu.node!) },
             ...(menu.node.type === 'directory'
               ? promotedTopicPaths.has(menu.node.path)
@@ -1119,8 +1457,9 @@ function SpaceExplorerInner({
             { label: isRestricted(metadata, menu.node.path) ? 'Allow sharing' : 'Restrict (make private)', icon: isRestricted(metadata, menu.node.path) ? <Eye size={16} /> : <Lock size={16} />, onClick: () => void toggleRestricted(menu.node!) },
             { label: 'Delete', icon: <Trash2 size={16} />, danger: true, onClick: () => void deleteNode(menu.node!) },
           ] : [
-            { label: 'New folder', icon: <Folder size={16} />, onClick: () => setDraftFile({ parent: currentFolder, type: 'directory' }) },
-            { label: 'New file', icon: <FileText size={16} />, onClick: () => setDraftFile({ parent: currentFolder, type: 'file' }) },
+            { label: 'Add Folder', icon: <Folder size={16} />, onClick: () => setDraftFile({ parent: currentFolder, type: 'directory' }) },
+            { label: 'Add File', icon: <FileText size={16} />, onClick: () => setDraftFile({ parent: currentFolder, type: 'file' }) },
+            { label: 'Upload files', icon: <Upload size={16} />, onClick: () => chooseUploadTarget(currentFolder) },
           ]}
         />
       )}
@@ -1187,6 +1526,13 @@ function TreeList({
   metadata,
   onOpen,
   onMenu,
+  canDrag,
+  dragOverFolder,
+  onDragStart,
+  onDragEnd,
+  onFolderDragEnter,
+  onFolderDragLeave,
+  onFolderDrop,
 }: {
   nodes: FileNode[]
   selected: string | null
@@ -1194,6 +1540,13 @@ function TreeList({
   metadata: SpaceMetadata
   onOpen: (node: FileNode) => void
   onMenu: (event: React.MouseEvent, node: FileNode) => void
+  canDrag?: boolean
+  dragOverFolder?: string | null
+  onDragStart?: (event: React.DragEvent, node: FileNode) => void
+  onDragEnd?: (event: React.DragEvent, node: FileNode) => void
+  onFolderDragEnter?: (path: string) => void
+  onFolderDragLeave?: (path: string) => void
+  onFolderDrop?: (event: React.DragEvent, path: string) => void
 }) {
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set())
   function render(node: FileNode, depth: number): ReactNode {
@@ -1201,9 +1554,44 @@ function TreeList({
     const open = node.type === 'directory' && !collapsed.has(node.path)
     const promoted = promotedTopicPaths.has(node.path)
     const restricted = isRestricted(metadata, node.path)
+    const isFolderDropTarget = node.type === 'directory' && dragOverFolder === node.path
     return (
       <div key={node.path}>
-        <div onClick={() => onOpen(node)} onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); onMenu(event, node) }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: `6px 8px 6px ${8 + depth * 15}px`, borderRadius: 8, cursor: 'pointer', userSelect: 'none', background: active ? 'var(--rooms-paper)' : 'transparent', border: `1.5px solid ${active ? 'var(--rooms-line-strong)' : 'transparent'}` }}>
+        <div
+          draggable={Boolean(canDrag)}
+          onDragStart={(event) => onDragStart?.(event, node)}
+          onDragEnd={(event) => onDragEnd?.(event, node)}
+          onDragEnter={(event) => {
+            if (node.type !== 'directory' || !onFolderDragEnter) return
+            const isMove = event.dataTransfer.types.includes('ai-spaces/move')
+            const isUpload = event.dataTransfer.types.includes('Files')
+            if (!isMove && !isUpload) return
+            event.preventDefault()
+            event.stopPropagation()
+            onFolderDragEnter(node.path)
+          }}
+          onDragOver={(event) => {
+            if (node.type !== 'directory') return
+            const isMove = event.dataTransfer.types.includes('ai-spaces/move')
+            const isUpload = event.dataTransfer.types.includes('Files')
+            if (!isMove && !isUpload) return
+            event.preventDefault()
+            event.stopPropagation()
+            event.dataTransfer.dropEffect = isMove ? 'move' : 'copy'
+          }}
+          onDragLeave={(event) => {
+            if (node.type !== 'directory') return
+            event.stopPropagation()
+            onFolderDragLeave?.(node.path)
+          }}
+          onDrop={(event) => {
+            if (node.type !== 'directory' || !onFolderDrop) return
+            onFolderDrop(event, node.path)
+          }}
+          onClick={() => onOpen(node)}
+          onContextMenu={(event) => { event.preventDefault(); event.stopPropagation(); onMenu(event, node) }}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: `6px 8px 6px ${8 + depth * 15}px`, borderRadius: 8, cursor: 'pointer', userSelect: 'none', background: isFolderDropTarget ? 'var(--rooms-paper-3)' : active ? 'var(--rooms-paper)' : 'transparent', border: `1.5px solid ${isFolderDropTarget ? 'var(--rooms-ink)' : active ? 'var(--rooms-line-strong)' : 'transparent'}` }}
+        >
           <button type="button" onClick={(event) => {
             event.stopPropagation()
             if (node.type === 'directory') {

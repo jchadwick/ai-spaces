@@ -11,6 +11,8 @@ Keep the project pointed at its current target state while preserving the abilit
 
 This skill is not a replacement for building. Use it to make product direction explicit, protect focus, and turn vague intent into a small set of ordered bets and tasks.
 
+You may read code all you want, but this skill NEVER WRITES CODE. It only writes product docs and tickets. If the user asks for code, use this skill to clarify the intended outcome, then recommend switching to a building skill to implement it.
+
 ## Source Of Truth
 
 Read these before making prioritization calls:

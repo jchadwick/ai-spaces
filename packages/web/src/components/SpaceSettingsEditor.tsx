@@ -6,6 +6,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { useAPI } from "@/hooks/useAPI";
 import type { SpaceRole } from "@ai-spaces/shared";
 
+type TabId = "general" | "users";
+
 interface SpaceSettingsEditorProps {
   spaceId: string;
   spaceConfig: {
@@ -13,6 +15,9 @@ interface SpaceSettingsEditorProps {
     description?: string;
   };
   onConfigUpdated: (config: { name: string; description?: string }) => void;
+  initialTab?: TabId;
+  allowedTabs?: TabId[];
+  showHeader?: boolean;
 }
 
 interface SpaceMember {
@@ -38,8 +43,6 @@ const ROLES: { value: SpaceRole; label: string }[] = [
   { value: "viewer", label: "Viewer" },
 ];
 
-type TabId = "general" | "users";
-
 const TABS: { id: TabId; label: string; icon: string }[] = [
   { id: "general", label: "General", icon: "settings" },
   { id: "users", label: "Users", icon: "group" },
@@ -49,11 +52,15 @@ export default function SpaceSettingsEditor({
   spaceId,
   spaceConfig,
   onConfigUpdated,
+  initialTab = "general",
+  allowedTabs,
+  showHeader = true,
 }: SpaceSettingsEditorProps) {
   const apiFetch = useAPI();
   const { showToast } = useToast();
 
-  const [activeTab, setActiveTab] = useState<TabId>("general");
+  const visibleTabs = TABS.filter((tab) => !allowedTabs || allowedTabs.includes(tab.id));
+  const [activeTab, setActiveTab] = useState<TabId>(visibleTabs.some((tab) => tab.id === initialTab) ? initialTab : (visibleTabs[0]?.id ?? "general"));
 
   // General settings state
   const [name, setName] = useState(spaceConfig.name);
@@ -270,69 +277,71 @@ export default function SpaceSettingsEditor({
   return (
     <div className="flex flex-col h-full overflow-auto" style={{ background: "var(--t-bgRaised)" }}>
       <div className="flex-1 p-6 max-w-3xl mx-auto w-full">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <h1
-            style={{
-              fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif",
-              fontWeight: 700,
-              fontSize: 28,
-              color: "var(--t-ink)",
-              margin: 0,
-            }}
-          >
-            Space Settings
-          </h1>
-          {activeTab === "general" && (
-            <Button
-              onClick={handleSaveConfig}
-              disabled={savingConfig || !name.trim() || !isDirty}
-              size="sm"
+        {showHeader && (
+          <div className="flex items-center justify-between mb-6">
+            <h1
+              style={{
+                fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif",
+                fontWeight: 700,
+                fontSize: 28,
+                color: "var(--t-ink)",
+                margin: 0,
+              }}
             >
-              {savingConfig ? "Saving..." : "Save"}
-            </Button>
-          )}
-        </div>
-
-        {/* Tabs */}
-        <div
-          className="flex gap-0 mb-6"
-          style={{ borderBottom: "1px solid var(--t-hair)" }}
-        >
-          {TABS.map((tab) => {
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors"
-                style={{
-                  fontFamily: "'Inter Tight', sans-serif",
-                  color: isActive ? "var(--t-accent)" : "var(--t-inkDim)",
-                  borderBottom: isActive ? "2px solid var(--t-accent)" : "2px solid transparent",
-                  marginBottom: "-1px",
-                  background: "transparent",
-                  borderLeft: "none",
-                  borderRight: "none",
-                  borderTop: "none",
-                  cursor: "pointer",
-                }}
-                onMouseEnter={(e) => {
-                  if (!isActive) e.currentTarget.style.color = "var(--t-inkMid)";
-                }}
-                onMouseLeave={(e) => {
-                  if (!isActive) e.currentTarget.style.color = "var(--t-inkDim)";
-                }}
+              Space Settings
+            </h1>
+            {activeTab === "general" && (
+              <Button
+                onClick={handleSaveConfig}
+                disabled={savingConfig || !name.trim() || !isDirty}
+                size="sm"
               >
-                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
-                  {tab.icon}
-                </span>
-                {tab.label}
-              </button>
-            );
-          })}
-        </div>
+                {savingConfig ? "Saving..." : "Save"}
+              </Button>
+            )}
+          </div>
+        )}
+
+        {visibleTabs.length > 1 && (
+          <div
+            className="flex gap-0 mb-6"
+            style={{ borderBottom: "1px solid var(--t-hair)" }}
+          >
+            {visibleTabs.map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors"
+                  style={{
+                    fontFamily: "'Inter Tight', sans-serif",
+                    color: isActive ? "var(--t-accent)" : "var(--t-inkDim)",
+                    borderBottom: isActive ? "2px solid var(--t-accent)" : "2px solid transparent",
+                    marginBottom: "-1px",
+                    background: "transparent",
+                    borderLeft: "none",
+                    borderRight: "none",
+                    borderTop: "none",
+                    cursor: "pointer",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isActive) e.currentTarget.style.color = "var(--t-inkMid)";
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive) e.currentTarget.style.color = "var(--t-inkDim)";
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
+                    {tab.icon}
+                  </span>
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
         {/* Tab Content */}
         {activeTab === "general" && (
           <section>

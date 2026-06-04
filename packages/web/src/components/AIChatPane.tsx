@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useConnectionStatus, type ConnectionStatus } from "../contexts/ConnectionStatusContext";
@@ -9,6 +10,7 @@ import ShareSpaceDialog from "./ShareSpaceDialog";
 interface AIChatPaneProps {
   role?: SpaceRole;
   spaceId?: string;
+  onClose?: () => void;
 }
 
 interface ConnectionStatusIndicatorProps {
@@ -199,14 +201,14 @@ function TypingIndicator() {
 export default function AIChatPane({
   role = "viewer",
   spaceId,
+  onClose,
 }: AIChatPaneProps) {
   const [inputValue, setInputValue] = useState("");
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const prevMessagesLengthRef = useRef(0);
 
-  const { messages, sendMessage, isStreaming, activeTopicPath, status: connectionStatus, reconnectAttempt, reconnect } = useConnectionStatus();
-  const topicSegments = activeTopicPath.split('/').filter(Boolean);
+  const { messages, sendMessage, isStreaming, status: connectionStatus, reconnectAttempt, reconnect } = useConnectionStatus();
 
   const isOwner = hasPermission(role, 'space:manage');
   const isDisconnected = connectionStatus !== "connected" && connectionStatus !== "connecting";
@@ -238,11 +240,10 @@ export default function AIChatPane({
 
   return (
     <aside className="w-full h-full flex flex-col" style={{ background: 'var(--t-bgRaised)', borderLeft: '1px solid var(--t-hair)' }}>
-      {/* Header */}
       <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--t-hair)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <AgentGlyph size={14} color="var(--t-agent)" />
-          <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: 0, color: 'var(--t-agent)', textTransform: 'uppercase' }}>agent</span>
+          <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: 0, color: 'var(--t-agent)' }}>Chat</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {isOwner && spaceId && (
@@ -264,11 +265,17 @@ export default function AIChatPane({
               onRetry={reconnect}
             />
           </div>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close chat"
+              style={{ display: 'grid', placeItems: 'center', width: 30, height: 30, borderRadius: 8, border: '1px solid var(--t-hair)', background: 'var(--t-bg)', color: 'var(--t-inkDim)', cursor: 'pointer' }}
+            >
+              <X size={16} />
+            </button>
+          )}
         </div>
-      </div>
-
-      <div style={{ padding: '7px 18px', borderBottom: '1px solid var(--t-hair)', fontSize: 11, color: 'var(--t-inkDim)', fontFamily: "'JetBrains Mono', monospace" }}>
-        topic: root{topicSegments.map((segment) => ` / ${segment}`).join('')}
       </div>
 
       {isStreaming && (
@@ -295,20 +302,6 @@ export default function AIChatPane({
 
       {/* Composer */}
       <div style={{ borderTop: '1px solid var(--t-hair)', padding: '12px 14px' }}>
-        {/* Quick action chips */}
-        <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-          {['Summarize this doc', 'What changed today?', 'Make a plan'].map(chip => (
-            <button
-              key={chip}
-              type="button"
-              onClick={() => setInputValue(chip)}
-              style={{ fontSize: 11.5, padding: '4px 10px', borderRadius: 20, background: 'var(--t-bg)', border: '1px solid var(--t-hair)', color: 'var(--t-inkMid)', cursor: 'pointer', fontFamily: "'Inter Tight', sans-serif" }}
-            >
-              {chip}
-            </button>
-          ))}
-        </div>
-        {/* Input */}
         <form onSubmit={handleSubmit}>
           <div style={{ background: 'var(--t-bg)', border: '1px solid var(--t-hair)', borderRadius: 12, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}>
             <textarea

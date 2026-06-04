@@ -16,8 +16,6 @@ import {
   MessageSquare,
   MoreHorizontal,
   Plus,
-  Send,
-  Settings,
   Shield,
   Trash2,
   User,
@@ -36,6 +34,7 @@ import { useToast } from '@/components/ui/use-toast'
 import { ToastProvider } from '@/components/ui/toast'
 import { ConnectionStatusProvider, useConnectionStatus } from '@/contexts/ConnectionStatusContext'
 import { FileMetadataProvider, useFileMetadata } from '@/contexts/FileMetadataContext'
+import AIChatPane from '@/components/AIChatPane'
 import { writeSpaceFileHttp } from '@/api/spaceFiles'
 import {
   archiveSpaceTopic,
@@ -645,75 +644,23 @@ function CreateRoomModal({
   )
 }
 
-function ChatDrawer({ room, onClose }: { room: RoomSummary; onClose: () => void }) {
-  const { messages, sendMessage, isStreaming, status, selectTopic } = useConnectionStatus()
-  const [input, setInput] = useState('')
-  const endRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    void selectTopic(room.topicPath)
-  }, [room.topicPath, selectTopic, status])
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages.length, isStreaming])
-  const disabled = status !== 'connected' || isStreaming
-  return (
-    <aside className="rooms-rise" style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: 360, background: 'var(--rooms-paper)', borderLeft: '1px solid var(--rooms-line)', boxShadow: '-31.6px 1.1px 43.6px rgba(0,0,0,0.14)', zIndex: 30, display: 'flex', flexDirection: 'column' }}>
-      <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--rooms-line)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--rooms-boundary)', fontWeight: 600 }}><MessageSquare size={17} /> Room chat</div>
-        <IconButton title="Close chat" onClick={onClose} style={{ width: 32, height: 32 }}><X size={17} /></IconButton>
-      </div>
-      <div style={{ padding: '8px 18px', borderBottom: '1px solid var(--rooms-line)', fontSize: 12, color: 'var(--rooms-muted)' }}>
-        Scoped to {room.topicPath}
-      </div>
-      <div className="rooms-scrollbar" style={{ flex: 1, overflow: 'auto', padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {messages.length === 0 && <div style={{ margin: 'auto', color: 'var(--rooms-muted)', fontSize: 13 }}>Ask the agent about this room.</div>}
-        {messages.map((message) => (
-          <div key={message.id} style={{ alignSelf: message.role === 'user' ? 'flex-end' : 'flex-start', maxWidth: '92%', background: message.role === 'user' ? 'var(--rooms-ink)' : 'var(--rooms-boundary-soft)', color: message.role === 'user' ? 'var(--rooms-paper)' : 'var(--rooms-ink)', border: message.role === 'user' ? 0 : '1px solid var(--rooms-boundary-line)', borderRadius: message.role === 'user' ? '14px 14px 2px 14px' : '2px 14px 14px 14px', padding: '10px 13px', fontSize: 13.5, lineHeight: 1.55 }}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
-          </div>
-        ))}
-        {isStreaming && <div style={{ color: 'var(--rooms-boundary)', fontSize: 13 }}>agent responding...</div>}
-        <div ref={endRef} />
-      </div>
-      <form
-        onSubmit={(event) => {
-          event.preventDefault()
-          if (!input.trim() || disabled) return
-          sendMessage(input.trim())
-          setInput('')
-        }}
-        style={{ borderTop: '1px solid var(--rooms-line)', padding: 14 }}
-      >
-        <textarea value={input} disabled={disabled} onChange={(event) => setInput(event.target.value)} placeholder={status !== 'connected' ? 'Connecting...' : 'Ask AI anything...'} style={{ width: '100%', height: 84, resize: 'none', border: '1px solid var(--rooms-line)', borderRadius: 12, outline: 'none', padding: 12, fontSize: 13.5, background: 'var(--rooms-paper-2)' }} />
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-          <Button variant="boundary" size="sm" icon={<Send size={14} />} disabled={!input.trim() || disabled}>Send</Button>
-        </div>
-      </form>
-    </aside>
-  )
-}
-
 function RoomDetail({
   room,
   spaces,
   role,
   initialFilePath,
   onSelectFile,
-  onBack,
-  onManage,
 }: {
   room: RoomSummary
   spaces: SpaceSummary[]
   role: SpaceRole
   initialFilePath: string | null
   onSelectFile: (filePath: string) => void
-  onBack: () => void
-  onManage: () => void
 }) {
   const { accessToken } = useAuth()
   return (
     <ConnectionStatusProvider spaceId={room.spaceId} accessToken={accessToken}>
-      <RoomDetailInner room={room} spaces={spaces} role={role} initialFilePath={initialFilePath} onSelectFile={onSelectFile} onBack={onBack} onManage={onManage} />
+      <RoomDetailInner room={room} spaces={spaces} role={role} initialFilePath={initialFilePath} onSelectFile={onSelectFile} />
     </ConnectionStatusProvider>
   )
 }
@@ -724,18 +671,15 @@ function RoomDetailInner({
   role,
   initialFilePath,
   onSelectFile,
-  onBack,
-  onManage,
 }: {
   room: RoomSummary
   spaces: SpaceSummary[]
   role: SpaceRole
   initialFilePath: string | null
   onSelectFile: (filePath: string) => void
-  onBack: () => void
-  onManage: () => void
 }) {
   const apiFetch = useAPI()
+  const { selectTopic } = useConnectionStatus()
   const canEdit = hasPermission(role, 'files:write')
   const [files, setFiles] = useState<FileNode[]>([])
   const [loading, setLoading] = useState(false)
@@ -759,11 +703,13 @@ function RoomDetailInner({
   useEffect(() => {
     if (routedFilePath) setActivePath(routedFilePath)
   }, [routedFilePath])
+  useEffect(() => {
+    void selectTopic(room.topicPath)
+  }, [room.topicPath, selectTopic])
   const activeFile = files.find((file) => file.path === activePath) ?? files[0]
   return (
-    <div className="rooms-rise" style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
+    <div className="rooms-rise" style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ padding: '22px 36px 20px', borderBottom: '1px solid var(--rooms-line)', flexShrink: 0 }}>
-        <button type="button" onClick={onBack} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: 0, cursor: 'pointer', color: 'var(--rooms-muted)', fontSize: 13.5, padding: 0, marginBottom: 12 }}><ArrowLeft size={16} /> All rooms</button>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
           <div style={{ minWidth: 0, maxWidth: 620 }}>
             <h1 className="rooms-title" style={{ margin: 0, fontSize: 34, lineHeight: 1.08 }}>{room.name}</h1>
@@ -772,7 +718,6 @@ function RoomDetailInner({
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <AvatarStack members={room.members} />
-            {roleIsOwner(role) && <IconButton title="Manage in Space files" onClick={onManage} style={{ border: '1.5px solid var(--rooms-line-strong)' }}><Settings size={18} /></IconButton>}
             {!chatOpen && <Button variant="outline" icon={<MessageSquare size={18} />} onClick={() => setChatOpen(true)}>Ask the agent</Button>}
           </div>
         </div>
@@ -798,8 +743,12 @@ function RoomDetailInner({
           </div>
         </div>
         <RoomFileDoc key={activeFile?.path ?? 'no-file'} spaceId={room.spaceId} filePath={activeFile?.path ?? null} canEdit={canEdit} onSaved={refresh} />
+        {chatOpen && (
+          <div style={{ width: 380, minWidth: 320, maxWidth: '40vw', flexShrink: 0, display: 'flex', minHeight: 0 }}>
+            <AIChatPane role={role} spaceId={room.spaceId} onClose={() => setChatOpen(false)} />
+          </div>
+        )}
       </div>
-      {chatOpen && <ChatDrawer room={room} onClose={() => setChatOpen(false)} />}
     </div>
   )
 }
@@ -1319,7 +1268,7 @@ function RoomsShellContent() {
         <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
           {loading && <div style={{ height: '100%', display: 'grid', placeItems: 'center', color: 'var(--rooms-muted)' }}>Loading rooms...</div>}
           {!loading && view === 'home' && <RoomsHome spaces={spaces} rooms={rooms} activeSpaceId={querySpace} onOpenRoom={(room) => navigate(roomUrl(room))} onNewRoom={() => setModal('create')} onManageSpace={(spaceId) => navigate(`/space/${spaceId}`)} />}
-          {!loading && view === 'room' && activeRoom && activeSpace && <RoomDetail room={activeRoom} spaces={spaces} role={activeSpace.userRole} initialFilePath={roomFilePath} onSelectFile={(filePath) => navigate(`/spaces/${activeRoom.spaceId}/rooms/${activeRoom.id}/${filePath.slice(stripTopicPath(activeRoom.topicPath).length).replace(/^\/+/, '')}`)} onBack={() => navigate(`/spaces${querySpace ? `?space=${querySpace}` : ''}`)} onManage={() => navigate(`/spaces/${activeRoom.spaceId}/${stripTopicPath(activeRoom.topicPath)}`)} />}
+          {!loading && view === 'room' && activeRoom && activeSpace && <RoomDetail room={activeRoom} spaces={spaces} role={activeSpace.userRole} initialFilePath={roomFilePath} onSelectFile={(filePath) => navigate(`/spaces/${activeRoom.spaceId}/rooms/${activeRoom.id}/${filePath.slice(stripTopicPath(activeRoom.topicPath).length).replace(/^\/+/, '')}`)} />}
           {!loading && view === 'room' && !activeRoom && <div style={{ height: '100%', display: 'grid', placeItems: 'center', color: 'var(--rooms-muted)' }}>Room not found.</div>}
           {!loading && view === 'space' && activeSpace && roleIsOwner(activeSpace.userRole) && <SpaceExplorer space={activeSpace} spaces={spaces} promotedTopicPaths={promotedSet} promotedTopicIdsByPath={promotedIdsByPath} initialPath={routePath} onBack={() => navigate('/spaces')} onOpenRoom={(spaceId, topicPath) => {
             const roomId = topicsBySpace.get(spaceId)?.find((topic) => topic.topicPath === topicPath)?.id

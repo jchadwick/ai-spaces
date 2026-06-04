@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import AgentGlyph from '@/components/AgentGlyph';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   clearPendingInviteToken,
   createBearerFetch,
@@ -11,10 +13,15 @@ import {
 function AuthCallbackPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { loginWithTokens } = useAuth();
   const [error, setError] = useState<string | null>(null);
+  const processedRef = useRef(false);
 
   useEffect(() => {
     const handleCallback = async () => {
+      if (processedRef.current) return;
+      processedRef.current = true;
+
       const accessToken = searchParams.get('accessToken');
       const refreshToken = searchParams.get('refreshToken');
 
@@ -24,24 +31,8 @@ function AuthCallbackPage() {
         return;
       }
 
-      // Store tokens in localStorage
-      localStorage.setItem('auth_access_token', accessToken);
-      localStorage.setItem('auth_refresh_token', refreshToken);
-
       try {
-        // Fetch user info to validate tokens
-        const response = await fetch('/api/auth/me', {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch user info');
-        }
-
-        const user = await response.json();
-        localStorage.setItem('auth_user', JSON.stringify(user));
+        await loginWithTokens(accessToken, refreshToken);
 
         const pendingToken = peekPendingInviteToken();
         if (pendingToken) {
@@ -64,31 +55,27 @@ function AuthCallbackPage() {
       } catch (err) {
         console.error('[AuthCallback] Error:', err);
         setError('Authentication failed');
-        localStorage.removeItem('auth_access_token');
-        localStorage.removeItem('auth_refresh_token');
-        localStorage.removeItem('auth_user');
         setTimeout(() => navigate('/login?error=Authentication failed'), 2000);
       }
     };
 
     handleCallback();
-  }, [searchParams, navigate]);
+  }, [loginWithTokens, searchParams, navigate]);
 
   return (
-    <div className="min-h-screen bg-t-bg font-sans text-t-ink flex flex-col items-center justify-center">
-      <header className="bg-t-bg-raised border-b border-t-hair/20 px-xl py-lg absolute top-0 left-0 right-0">
-        <div className="max-w-6xl mx-auto flex items-center gap-md">
-          <span className="material-symbols-outlined text-t-ink text-2xl">
-            workspaces
-          </span>
-          <h1 className="font-sans text-title-lg text-t-ink">
-            AI Spaces
-          </h1>
+    <div className="min-h-screen bg-t-bg font-sans text-t-ink flex items-center justify-center px-lg py-xl">
+      <main className="w-full max-w-sm">
+        <div className="mb-xl flex flex-col items-center gap-md text-center">
+          <div className="grid h-11 w-11 place-items-center rounded-xl bg-t-ink text-t-bg">
+            <AgentGlyph size={23} color="var(--t-bg)" />
+          </div>
+          <div>
+            <h1 className="text-title-lg font-semibold text-t-ink">AI Spaces</h1>
+            <p className="mt-xs text-body-sm text-t-ink-dim">Completing your sign-in</p>
+          </div>
         </div>
-      </header>
 
-      <main className="flex-1 flex items-center justify-center px-lg py-xl">
-        <div className="bg-t-bg-raised rounded-2xl p-2xl shadow-ambient text-center">
+        <div className="rounded-xl border border-t-hair bg-t-bg-raised p-xl text-center shadow-ambient">
           {error ? (
             <div className="space-y-md">
               <span className="material-symbols-outlined text-destructive text-4xl">

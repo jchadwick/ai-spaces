@@ -89,7 +89,7 @@ test.describe('Rooms shell layout', () => {
     authData = await getAdminTokens();
   });
 
-  test('Rooms shell renders rail, top bar, and Rooms home', async ({ page }) => {
+  test('Rooms shell renders rail user navigation and Rooms home', async ({ page }) => {
     await page.route('**/api/spaces', route =>
       route.fulfill({
         status: 200,
@@ -121,7 +121,13 @@ test.describe('Rooms shell layout', () => {
     await page.waitForLoadState('networkidle');
 
     await expect(page.getByRole('button', { name: 'Rooms home' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('button', { name: 'Admin' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('button', { name: 'Profile menu' })).toBeVisible({ timeout: 5000 });
     await expect(page.getByRole('heading', { name: 'Rooms' })).toBeVisible({ timeout: 5000 });
     await expect(page.getByText('No rooms yet.')).toBeVisible({ timeout: 5000 });
+
+    await page.getByRole('button', { name: 'Profile menu' }).click();
+    await expect(page.getByRole('button', { name: 'Profile', exact: true })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible({ timeout: 5000 });
   });
 });

@@ -31,4 +31,32 @@ test.describe('Login page', () => {
     // Error message should appear
     await expect(page.locator('text=Invalid credentials')).toBeVisible({ timeout: 5000 });
   });
+
+  test('auth callback establishes app auth and navigates on first pass', async ({ page }) => {
+    await page.route('**/api/auth/me', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          id: 'oauth-user',
+          email: ADMIN_EMAIL,
+          displayName: 'Admin User',
+          serverRole: 'admin',
+        }),
+      }),
+    );
+    await page.route('**/api/spaces', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ spaces: [] }),
+      }),
+    );
+
+    await page.goto('/auth/callback?accessToken=test-access-token&refreshToken=test-refresh-token');
+    await page.waitForURL('**/spaces', { timeout: 10000 });
+
+    await expect(page.getByRole('heading', { name: 'Rooms' })).toBeVisible({ timeout: 5000 });
+    expect(await page.evaluate(() => localStorage.getItem('auth_access_token'))).toBe('test-access-token');
+  });
 });

@@ -1,5 +1,6 @@
 import { useState, useId } from "react";
 import { useNavigate, Link } from "react-router-dom";
+import AgentGlyph from "@/components/AgentGlyph";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
@@ -73,22 +74,21 @@ function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-t-bg font-sans text-t-ink flex flex-col">
-      <header className="bg-t-bg-raised border-b border-t-hair/20 px-xl py-lg">
-        <div className="max-w-6xl mx-auto flex items-center gap-md">
-          <span className="material-symbols-outlined text-t-ink text-2xl">
-            workspaces
-          </span>
-          <h1 className="font-sans text-title-lg text-t-ink">
-            AI Spaces
-          </h1>
+    <div className="min-h-screen bg-t-bg font-sans text-t-ink flex items-center justify-center px-lg py-xl">
+      <main className="w-full max-w-sm">
+        <div className="mb-xl flex flex-col items-center gap-md text-center">
+          <div className="grid h-11 w-11 place-items-center rounded-xl bg-t-ink text-t-bg">
+            <AgentGlyph size={23} color="var(--t-bg)" />
+          </div>
+          <div>
+            <h1 className="text-title-lg font-semibold text-t-ink">AI Spaces</h1>
+            <p className="mt-xs text-body-sm text-t-ink-dim">Create an account for shared rooms</p>
+          </div>
         </div>
-      </header>
 
-      <main className="flex-1 flex items-center justify-center px-lg py-xl">
-        <div className="bg-t-bg-raised rounded-2xl p-2xl shadow-ambient">
+        <div className="rounded-xl border border-t-hair bg-t-bg-raised p-xl shadow-ambient">
           <div className="text-center mb-xl">
-            <h2 className="font-sans text-title-lg text-t-ink mb-sm">
+            <h2 className="font-sans text-title-md font-semibold text-t-ink mb-sm">
               Create Account
             </h2>
             <p className="text-body-md text-t-ink-dim">
@@ -121,7 +121,7 @@ function RegisterPage() {
                 placeholder="you@example.com"
                 required
                 disabled={isSubmitting}
-                className="w-full"
+                className="w-full h-10 bg-t-bg-raised"
               />
             </div>
 
@@ -139,7 +139,7 @@ function RegisterPage() {
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="Your name"
                 disabled={isSubmitting}
-                className="w-full"
+                className="w-full h-10 bg-t-bg-raised"
               />
             </div>
 
@@ -158,7 +158,7 @@ function RegisterPage() {
                 placeholder="At least 8 characters"
                 required
                 disabled={isSubmitting}
-                className="w-full"
+                className="w-full h-10 bg-t-bg-raised"
               />
             </div>
 
@@ -177,14 +177,14 @@ function RegisterPage() {
                 placeholder="Repeat your password"
                 required
                 disabled={isSubmitting}
-                className="w-full"
+                className="w-full h-10 bg-t-bg-raised"
               />
             </div>
 
             <Button
               type="submit"
               disabled={isSubmitting}
-              className="w-full h-10"
+              className="w-full h-10 justify-center"
             >
               {isSubmitting ? (
                 <span className="flex items-center justify-center gap-sm">

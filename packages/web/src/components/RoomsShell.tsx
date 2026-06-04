@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft,
   ArrowRight,
@@ -12,6 +12,7 @@ import {
   FolderOpen,
   Grid2X2,
   Lock,
+  LogOut,
   MessageSquare,
   MoreHorizontal,
   Plus,
@@ -19,6 +20,7 @@ import {
   Settings,
   Shield,
   Trash2,
+  User,
   Users,
   X,
 } from 'lucide-react'
@@ -392,10 +394,38 @@ function Rail({
   onSpace: (spaceId: string) => void
   onNewRoom: () => void
 }) {
+  const { user, logout } = useAuth()
+  const navigate = useNavigate()
+  const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
   const hasOwnerSpace = spaces.some((space) => roleIsOwner(space.userRole))
   const visibleSpaces = spaces.filter((space) => roleIsOwner(space.userRole) || rooms.some((room) => room.spaceId === space.id))
+  const userLabel = user?.displayName || user?.email || 'User'
+
+  useEffect(() => {
+    if (!userMenuOpen) return
+    const close = (event: MouseEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) setUserMenuOpen(false)
+    }
+    const esc = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setUserMenuOpen(false)
+    }
+    document.addEventListener('mousedown', close)
+    document.addEventListener('keydown', esc)
+    return () => {
+      document.removeEventListener('mousedown', close)
+      document.removeEventListener('keydown', esc)
+    }
+  }, [userMenuOpen])
+
+  const handleSignOut = async () => {
+    setUserMenuOpen(false)
+    await logout()
+    navigate('/login')
+  }
+
   return (
-    <div style={{ width: 72, flexShrink: 0, background: 'var(--rooms-paper-3)', borderRight: '1px solid var(--rooms-line)', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '16px 0', gap: 10 }}>
+    <div style={{ width: 72, flexShrink: 0, background: 'var(--rooms-paper-3)', borderRight: '1px solid var(--rooms-line)', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '16px 0', gap: 10, position: 'relative' }}>
       <button
         type="button"
         title="Rooms home"
@@ -429,28 +459,50 @@ function Rail({
           <Plus size={20} />
         </button>
       )}
-      <Avatar label="Profile" size={36} index={1} />
-    </div>
-  )
-}
-
-function TopBar({ context }: { context: string }) {
-  const { user, logout } = useAuth()
-  const navigate = useNavigate()
-  return (
-    <div style={{ height: 56, flexShrink: 0, borderBottom: '1px solid var(--rooms-line)', background: 'var(--rooms-paper)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', position: 'relative', zIndex: 5 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-        <Link to="/" className="rooms-title" style={{ fontSize: 22, color: 'var(--rooms-ink)', textDecoration: 'none' }}>Spaces</Link>
-        <ChevronRight size={15} color="var(--rooms-muted-2)" />
-        <span style={{ fontSize: 13, color: 'var(--rooms-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{context}</span>
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-        {user?.serverRole === 'admin' && (
-          <Link to="/admin" style={{ color: 'var(--rooms-muted)', fontSize: 13, textDecoration: 'none' }}>Admin</Link>
+      {user?.serverRole === 'admin' && (
+        <button type="button" onClick={() => navigate('/admin')} title="Admin" style={{ width: 44, height: 44, borderRadius: 13, cursor: 'pointer', border: '1.5px solid var(--rooms-line-strong)', background: 'var(--rooms-paper)', color: 'var(--rooms-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Shield size={19} />
+        </button>
+      )}
+      <div ref={menuRef} style={{ position: 'relative' }}>
+        <button
+          type="button"
+          onClick={() => setUserMenuOpen((open) => !open)}
+          title={userLabel}
+          aria-label="Profile menu"
+          aria-expanded={userMenuOpen}
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 13,
+            cursor: 'pointer',
+            border: `1.5px solid ${userMenuOpen ? 'var(--rooms-ink)' : 'var(--rooms-line-strong)'}`,
+            background: 'var(--rooms-paper)',
+            color: 'var(--rooms-ink-soft)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 0,
+          }}
+        >
+          <Avatar label={userLabel} size={32} index={1} />
+        </button>
+        {userMenuOpen && (
+          <div className="rooms-fade" style={{ position: 'absolute', left: 54, bottom: 0, width: 216, padding: 6, background: 'var(--rooms-paper)', border: '1.5px solid var(--rooms-line-strong)', borderRadius: 12, boxShadow: '0 20px 48px -18px rgba(31,31,29,0.4)', zIndex: 100 }}>
+            <div style={{ padding: '9px 10px 10px', borderBottom: '1px solid var(--rooms-line)', marginBottom: 4 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--rooms-ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{userLabel}</div>
+              <div style={{ marginTop: 2, fontSize: 12, color: 'var(--rooms-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.email}</div>
+            </div>
+            <button type="button" onClick={() => { setUserMenuOpen(false); navigate('/profile') }} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 8, border: 0, cursor: 'pointer', background: 'transparent', fontSize: 13.5, fontWeight: 500, color: 'var(--rooms-ink-soft)' }}>
+              <User size={16} color="var(--rooms-muted)" />
+              Profile
+            </button>
+            <button type="button" onClick={handleSignOut} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left', padding: '8px 10px', borderRadius: 8, border: 0, cursor: 'pointer', background: 'transparent', fontSize: 13.5, fontWeight: 500, color: 'var(--rooms-ink-soft)' }}>
+              <LogOut size={16} color="var(--rooms-muted)" />
+              Sign out
+            </button>
+          </div>
         )}
-        <span style={{ fontSize: 13, color: 'var(--rooms-ink-soft)', fontWeight: 500 }}>{user?.displayName || user?.email || 'User'}</span>
-        <Avatar label={user?.displayName || user?.email || 'User'} size={32} index={1} />
-        <Button variant="ghost" size="sm" onClick={() => { void logout().then(() => navigate('/login')) }}>Sign out</Button>
       </div>
     </div>
   )
@@ -1257,7 +1309,6 @@ function RoomsShellContent() {
       if (location.pathname !== '/' && location.pathname !== '/spaces') navigate(`/spaces?space=${spaceId}`)
     }
   }
-  const context = view === 'room' && activeRoom ? activeRoom.name : activeSpace ? activeSpace.config.name : 'Rooms'
   const promotedSet = new Set((activeSpaceId ? topicsBySpace.get(activeSpaceId) ?? [] : []).map((topic) => stripTopicPath(topic.topicPath)))
   const promotedIdsByPath = new Map((activeSpaceId ? topicsBySpace.get(activeSpaceId) ?? [] : []).map((topic) => [stripTopicPath(topic.topicPath), topic.id] as const))
   const roomFilePath = view === 'room' && routeRoomId ? routePath : null
@@ -1265,7 +1316,6 @@ function RoomsShellContent() {
     <div className="rooms-shell">
       <Rail spaces={spaces} rooms={rooms} activeSpaceId={view === 'home' ? querySpace : activeSpaceId} view={view} onHome={goHome} onSpace={filterOrManageSpace} onNewRoom={() => setModal('create')} />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        <TopBar context={context} />
         <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
           {loading && <div style={{ height: '100%', display: 'grid', placeItems: 'center', color: 'var(--rooms-muted)' }}>Loading rooms...</div>}
           {!loading && view === 'home' && <RoomsHome spaces={spaces} rooms={rooms} activeSpaceId={querySpace} onOpenRoom={(room) => navigate(roomUrl(room))} onNewRoom={() => setModal('create')} onManageSpace={(spaceId) => navigate(`/space/${spaceId}`)} />}

@@ -14,7 +14,6 @@ import {
   Lock,
   LogOut,
   MessageSquare,
-  MoreHorizontal,
   Plus,
   Shield,
   Trash2,
@@ -32,6 +31,7 @@ import { useFileTree } from '@/hooks/useFileTree'
 import { useFileContent } from '@/hooks/useFileContent'
 import { useToast } from '@/components/ui/use-toast'
 import { ToastProvider } from '@/components/ui/toast'
+import SpaceSettingsEditor from '@/components/SpaceSettingsEditor'
 import { ConnectionStatusProvider, useConnectionStatus } from '@/contexts/ConnectionStatusContext'
 import { FileMetadataProvider, useFileMetadata } from '@/contexts/FileMetadataContext'
 import AIChatPane from '@/components/AIChatPane'
@@ -804,7 +804,19 @@ function RoomDetailInner({
   )
 }
 
-function RoomFileDoc({ spaceId, filePath, canEdit, onSaved }: { spaceId: string; filePath: string | null; canEdit: boolean; onSaved: () => void }) {
+function RoomFileDoc({
+  spaceId,
+  filePath,
+  canEdit,
+  onSaved,
+  headerContent,
+}: {
+  spaceId: string
+  filePath: string | null
+  canEdit: boolean
+  onSaved: () => void
+  headerContent?: ReactNode
+}) {
   const { content, fileInfo, loading, error } = useFileContent(spaceId, filePath ?? undefined)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState('')
@@ -826,10 +838,12 @@ function RoomFileDoc({ spaceId, filePath, canEdit, onSaved }: { spaceId: string;
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, background: 'var(--rooms-paper)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '13px 28px', borderBottom: '1px solid var(--rooms-line)', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, minWidth: 0 }}>
-          <span style={{ fontWeight: 600, fontSize: 14 }}>{fileInfo?.name ?? basename(filePath)}</span>
-          <span style={{ fontSize: 12, color: 'var(--rooms-muted-2)', whiteSpace: 'nowrap' }}>{editing ? 'Editing...' : fileInfo?.modifiedAt ?? ''}</span>
-        </div>
+        {headerContent ?? (
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, minWidth: 0 }}>
+            <span style={{ fontWeight: 600, fontSize: 14 }}>{fileInfo?.name ?? basename(filePath)}</span>
+            <span style={{ fontSize: 12, color: 'var(--rooms-muted-2)', whiteSpace: 'nowrap' }}>{editing ? 'Editing...' : fileInfo?.modifiedAt ?? ''}</span>
+          </div>
+        )}
         <div style={{ display: 'flex', gap: 8 }}>
           {editing ? <><Button variant="ghost" size="sm" onClick={() => setEditing(false)}>Cancel</Button><Button variant="primary" size="sm" icon={<Check size={16} />} onClick={save}>Save</Button></> : canEdit && <Button variant="outline" size="sm" icon={<Edit3 size={16} />} onClick={() => { setDraft(content ?? ''); setEditing(true) }}>Edit</Button>}
         </div>
@@ -858,12 +872,6 @@ function findNode(nodes: FileNode[], targetPath: string): FileNode | null {
     }
   }
   return null
-}
-
-function childrenFor(nodes: FileNode[], folderPath: string | null): FileNode[] {
-  if (!folderPath) return nodes
-  const folder = findNode(nodes, folderPath)
-  return folder?.children ?? []
 }
 
 function isRestricted(metadata: SpaceMetadata, nodePath: string) {
@@ -938,16 +946,15 @@ function SpaceExplorerInner({
   const [currentFolderOverride, setCurrentFolderOverride] = useState<string | null>()
   const [selectedFileOverride, setSelectedFileOverride] = useState<string | null>()
   const [menu, setMenu] = useState<{ x: number; y: number; node: FileNode | null } | null>(null)
-  const [renaming, setRenaming] = useState<string | null>(null)
-  const [renameValue, setRenameValue] = useState('')
   const [draftFile, setDraftFile] = useState<{ parent: string | null; type: 'file' | 'directory' } | null>(null)
   const [newName, setNewName] = useState('')
+  const [activeTab, setActiveTab] = useState<'files' | 'members'>('files')
   const currentFolder = currentFolderOverride === undefined ? routeSelection.currentFolder : currentFolderOverride
   const selectedFile = selectedFileOverride === undefined ? routeSelection.selectedFile : selectedFileOverride
   const setCurrentFolder = (path: string | null) => setCurrentFolderOverride(path)
   const setSelectedFile = (path: string | null) => setSelectedFileOverride(path)
-  const dirItems = childrenFor(files, currentFolder)
   const selectedNode = selectedFile ? findNode(files, selectedFile) : null
+  const selectedPathParts = selectedFile?.split('/').filter(Boolean) ?? []
   async function promote(node: FileNode) {
     if (isRestricted(metadata, node.path)) {
       showToast('Restricted paths cannot be promoted to Rooms', 'error')
@@ -988,13 +995,14 @@ function SpaceExplorerInner({
       showToast(error instanceof Error ? error.message : 'Failed to delete', 'error')
     }
   }
-  async function commitRename(node: FileNode, name: string) {
+  async function renameNode(node: FileNode) {
+    const name = window.prompt('Rename', node.name)?.trim()
+    if (!name || name === node.name) return
     const parent = node.path.includes('/') ? node.path.slice(0, node.path.lastIndexOf('/')) : ''
     const nextPath = parent ? `${parent}/${name}` : name
     try {
       const actualPath = await renameSpacePath(space.id, node.path, nextPath, node.type === 'directory' ? 'directory' : 'file')
       if (selectedFile === node.path) setSelectedFile(actualPath)
-      setRenaming(null)
       refresh()
       onRefreshRooms()
     } catch (error) {
@@ -1025,30 +1033,6 @@ function SpaceExplorerInner({
     }
     setSelectedFile(node.path)
   }
-  function row(node: FileNode) {
-    const promoted = promotedTopicPaths.has(node.path)
-    const restricted = isRestricted(metadata, node.path)
-    return (
-      <div key={node.path} onClick={() => openNode(node)} onContextMenu={(event) => { event.preventDefault(); setMenu({ x: event.clientX, y: event.clientY, node }) }} style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '12px 14px', borderRadius: 11, cursor: 'pointer' }}>
-        <span style={{ width: 38, height: 38, borderRadius: 9, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: node.type === 'directory' ? 'var(--rooms-paper-2)' : 'transparent', border: node.type === 'directory' ? '1px solid var(--rooms-line)' : 0, color: promoted ? spaceColor(spaces, space.id) : restricted ? 'var(--rooms-muted-2)' : 'var(--rooms-muted)' }}>
-          {node.type === 'directory' ? <Folder size={20} /> : <FileText size={20} />}
-        </span>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          {renaming === node.path ? (
-            <input autoFocus value={renameValue} onClick={(event) => event.stopPropagation()} onChange={(event) => setRenameValue(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void commitRename(node, renameValue.trim() || node.name); if (event.key === 'Escape') setRenaming(null) }} onBlur={() => void commitRename(node, renameValue.trim() || node.name)} style={{ width: '100%', border: '1.5px solid var(--rooms-ink)', borderRadius: 6, padding: '3px 6px', outline: 'none' }} />
-          ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-              <span style={{ fontWeight: 600, fontSize: 14.5, color: restricted ? 'var(--rooms-muted)' : 'var(--rooms-ink)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{node.name}</span>
-              {promoted && <Chip tone="promoted" icon={<Grid2X2 size={12} />}>Room</Chip>}
-              {restricted && <Chip tone="restricted" icon={<Lock size={12} />}>Restricted</Chip>}
-            </div>
-          )}
-          <div style={{ fontSize: 12.5, color: 'var(--rooms-muted)', marginTop: 2 }}>{node.type === 'directory' ? `${node.children?.length ?? 0} items` : node.modified ?? 'file'}</div>
-        </div>
-        <IconButton title="Actions" onClick={() => setMenu({ x: window.innerWidth - 260, y: 180, node })} style={{ width: 32, height: 32, border: '1.5px solid var(--rooms-line)' }}><MoreHorizontal size={16} /></IconButton>
-      </div>
-    )
-  }
   return (
     <div className="rooms-rise" style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }} onContextMenu={(event) => event.preventDefault()}>
       <div style={{ padding: '22px 32px 18px', borderBottom: '1px solid var(--rooms-line)', flexShrink: 0 }}>
@@ -1061,38 +1045,61 @@ function SpaceExplorerInner({
             </div>
             <p style={{ margin: '8px 0 0', fontSize: 13.5, color: 'var(--rooms-muted)' }}>Workspace root - the raw filesystem behind this space. Only owners see this view.</p>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Button variant="outline" size="sm" icon={<Users size={16} />}>Members</Button>
-            <InviteButton spaceId={space.id} />
-          </div>
+          <InviteButton spaceId={space.id} />
         </div>
       </div>
-      <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
-        <div style={{ width: 264, flexShrink: 0, borderRight: '1px solid var(--rooms-line)', display: 'flex', flexDirection: 'column', background: 'var(--rooms-paper-2)' }}>
-          <div style={{ padding: '14px 14px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--rooms-muted)' }}>Files</span>
-            <div style={{ display: 'flex', gap: 2 }}>
-              <IconButton title="New folder" onClick={() => setDraftFile({ parent: currentFolder, type: 'directory' })} style={{ width: 30, height: 30 }}><Folder size={16} /></IconButton>
-              <IconButton title="New file" onClick={() => setDraftFile({ parent: currentFolder, type: 'file' })} style={{ width: 30, height: 30 }}><Plus size={16} /></IconButton>
+      <div style={{ padding: '0 32px', borderBottom: '1px solid var(--rooms-line)', flexShrink: 0, display: 'flex', gap: 6 }}>
+        {(['files', 'members'] as const).map((tab) => {
+          const active = activeTab === tab
+          return (
+            <button key={tab} type="button" onClick={() => setActiveTab(tab)} style={{ padding: '12px 12px 10px', marginBottom: -1, border: 0, borderBottom: `2px solid ${active ? 'var(--rooms-ink)' : 'transparent'}`, background: 'transparent', cursor: 'pointer', color: active ? 'var(--rooms-ink)' : 'var(--rooms-muted)', fontSize: 13.5, fontWeight: 650 }}>
+              {tab === 'files' ? 'Files' : 'Members'}
+            </button>
+          )
+        })}
+      </div>
+      {activeTab === 'files' ? (
+        <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+          <div style={{ width: 264, flexShrink: 0, borderRight: '1px solid var(--rooms-line)', display: 'flex', flexDirection: 'column', background: 'var(--rooms-paper-2)' }}>
+            <div style={{ padding: '14px 14px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--rooms-muted)' }}>Files</span>
+              <div style={{ display: 'flex', gap: 2 }}>
+                <IconButton title="New folder" onClick={() => setDraftFile({ parent: currentFolder, type: 'directory' })} style={{ width: 30, height: 30 }}><Folder size={16} /></IconButton>
+                <IconButton title="New file" onClick={() => setDraftFile({ parent: currentFolder, type: 'file' })} style={{ width: 30, height: 30 }}><Plus size={16} /></IconButton>
+              </div>
             </div>
+            <TreeList nodes={files} selected={selectedFile ?? currentFolder} promotedTopicPaths={promotedTopicPaths} metadata={metadata} onOpen={openNode} onMenu={(event, node) => setMenu({ x: event.clientX, y: event.clientY, node })} />
           </div>
-          <TreeList nodes={files} selected={selectedFile ?? currentFolder} promotedTopicPaths={promotedTopicPaths} metadata={metadata} onOpen={openNode} onMenu={(event, node) => setMenu({ x: event.clientX, y: event.clientY, node })} />
-        </div>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, background: 'var(--rooms-paper)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 24px', borderBottom: '1px solid var(--rooms-line)', flexShrink: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', minWidth: 0 }}>
-              <button type="button" onClick={() => { setCurrentFolder(null); setSelectedFile(null) }} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontSize: 13.5, fontWeight: 600, color: currentFolder || selectedFile ? 'var(--rooms-muted)' : 'var(--rooms-ink)', padding: 0 }}>{space.config.name}</button>
-              {(currentFolder ?? selectedFile)?.split('/').filter(Boolean).map((part, index, arr) => <span key={`${part}-${index}`} style={{ display: 'inline-flex', gap: 6, alignItems: 'center', color: index === arr.length - 1 ? 'var(--rooms-ink)' : 'var(--rooms-muted)', fontSize: 13.5 }}><span style={{ color: 'var(--rooms-muted-2)' }}>/</span>{part}</span>)}
-            </div>
-            {!selectedFile && <div style={{ display: 'flex', gap: 8 }}><Button variant="outline" size="sm" icon={<Folder size={16} />} onClick={() => setDraftFile({ parent: currentFolder, type: 'directory' })}>New folder</Button><Button variant="primary" size="sm" icon={<Plus size={16} />} onClick={() => setDraftFile({ parent: currentFolder, type: 'file' })}>New file</Button></div>}
-          </div>
-          {selectedNode ? <RoomFileDoc spaceId={space.id} filePath={selectedNode.path} canEdit onSaved={refresh} /> : (
-            <div className="rooms-scrollbar" onContextMenu={(event) => { event.preventDefault(); setMenu({ x: event.clientX, y: event.clientY, node: null }) }} style={{ flex: 1, overflow: 'auto', padding: '14px 16px 56px' }}>
-              {loading ? <div style={{ color: 'var(--rooms-muted)' }}>Loading...</div> : dirItems.length === 0 ? <div style={{ height: '100%', minHeight: 280, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, color: 'var(--rooms-muted)' }}><FolderOpen size={32} color="var(--rooms-muted-2)" /><div style={{ fontSize: 14 }}>This folder is empty.</div></div> : <div style={{ maxWidth: 720, margin: '0 auto' }}>{dirItems.map(row)}</div>}
+          {selectedNode ? (
+            <RoomFileDoc
+              spaceId={space.id}
+              filePath={selectedNode.path}
+              canEdit
+              onSaved={refresh}
+              headerContent={(
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', minWidth: 0 }}>
+                  <button type="button" onClick={() => { setCurrentFolder(null); setSelectedFile(null) }} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontSize: 13.5, fontWeight: 600, color: 'var(--rooms-muted)', padding: 0 }}>{space.config.name}</button>
+                  {selectedPathParts.map((part, index) => (
+                    <span key={`${part}-${index}`} style={{ display: 'inline-flex', gap: 6, alignItems: 'center', color: index === selectedPathParts.length - 1 ? 'var(--rooms-ink)' : 'var(--rooms-muted)', fontSize: 13.5, fontWeight: index === selectedPathParts.length - 1 ? 650 : 500 }}>
+                      <span style={{ color: 'var(--rooms-muted-2)' }}>/</span>{part}
+                    </span>
+                  ))}
+                </div>
+              )}
+            />
+          ) : (
+            <div onContextMenu={(event) => { event.preventDefault(); setMenu({ x: event.clientX, y: event.clientY, node: null }) }} style={{ flex: 1, display: 'grid', placeItems: 'center', minWidth: 0, background: 'var(--rooms-paper)', color: 'var(--rooms-muted)' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                {loading ? <div style={{ fontSize: 14 }}>Loading files...</div> : <><FileText size={32} color="var(--rooms-muted-2)" /><div style={{ fontSize: 14 }}>Select a file</div></>}
+              </div>
             </div>
           )}
         </div>
-      </div>
+      ) : (
+        <div className="rooms-scrollbar" style={{ flex: 1, overflow: 'auto', background: 'var(--rooms-paper)' }}>
+          <SpaceSettingsEditor spaceId={space.id} spaceConfig={space.config} onConfigUpdated={() => { void onRefreshRooms() }} initialTab="users" allowedTabs={['users']} showHeader={false} />
+        </div>
+      )}
       {menu && (
         <ContextMenu
           x={menu.x}
@@ -1100,11 +1107,15 @@ function SpaceExplorerInner({
           onClose={() => setMenu(null)}
           items={menu.node ? [
             { label: 'Open', icon: menu.node.type === 'directory' ? <FolderOpen size={16} /> : <Eye size={16} />, onClick: () => openNode(menu.node!) },
-            { label: 'Rename', icon: <Edit3 size={16} />, onClick: () => { setRenaming(menu.node!.path); setRenameValue(menu.node!.name) } },
-            promotedTopicPaths.has(menu.node.path)
-              ? { label: 'Open Room', icon: <Grid2X2 size={16} />, onClick: () => onOpenRoom(space.id, `/${menu.node!.path}`) }
-              : { label: 'Promote to Room', icon: <Grid2X2 size={16} />, onClick: () => void promote(menu.node!) },
-            ...(promotedTopicPaths.has(menu.node.path) ? [{ label: 'Demote to folder', icon: <ArrowRight size={16} />, onClick: () => void demote(menu.node!) }] : []),
+            { label: 'Rename', icon: <Edit3 size={16} />, onClick: () => void renameNode(menu.node!) },
+            ...(menu.node.type === 'directory'
+              ? promotedTopicPaths.has(menu.node.path)
+                ? [
+                    { label: 'Open Room', icon: <Grid2X2 size={16} />, onClick: () => onOpenRoom(space.id, `/${menu.node!.path}`) },
+                    { label: 'Demote to folder', icon: <ArrowRight size={16} />, onClick: () => void demote(menu.node!) },
+                  ]
+                : [{ label: 'Promote to Room', icon: <Grid2X2 size={16} />, onClick: () => void promote(menu.node!) }]
+              : []),
             { label: isRestricted(metadata, menu.node.path) ? 'Allow sharing' : 'Restrict (make private)', icon: isRestricted(metadata, menu.node.path) ? <Eye size={16} /> : <Lock size={16} />, onClick: () => void toggleRestricted(menu.node!) },
             { label: 'Delete', icon: <Trash2 size={16} />, danger: true, onClick: () => void deleteNode(menu.node!) },
           ] : [
@@ -1207,7 +1218,7 @@ function TreeList({
             {node.type === 'directory' && <ChevronRight size={13} style={{ transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 120ms' }} />}
           </button>
           {node.type === 'directory' ? (open ? <FolderOpen size={15} /> : <Folder size={15} />) : <FileText size={15} />}
-          <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: active ? 600 : 500, color: restricted ? 'var(--rooms-muted)' : 'var(--rooms-ink-soft)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{node.name}</span>
+          <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, fontWeight: promoted ? 650 : active ? 600 : 500, color: restricted ? 'var(--rooms-muted)' : promoted ? 'var(--primary)' : 'var(--rooms-ink-soft)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{node.name}</span>
           {promoted && <Grid2X2 size={13} color="var(--rooms-success)" />}
           {restricted && <Lock size={13} color="var(--rooms-muted-2)" />}
         </div>

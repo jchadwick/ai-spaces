@@ -215,7 +215,7 @@ function FileTreeNode({
             onBlur={onRenameCommit}
           />
         ) : (
-          <span style={{ fontWeight: isSelected ? 600 : 400, color: isSpaceFolder ? 'var(--t-inkMid)' : undefined }}>
+          <span style={{ fontWeight: isTopic && isDirectory ? 600 : isSelected ? 600 : 400, color: isSpaceFolder ? 'var(--t-inkMid)' : isTopic && isDirectory ? 'var(--primary)' : undefined }}>
             {isSpaceFolder ? 'Space Settings' : ((!node.type || node.type === 'file') ? (getDisplayName(node.path) || node.name) : node.name)}
           </span>
         )}
@@ -1059,7 +1059,7 @@ export default function FileExplorer({
               </button>
             </>
           )}
-          {isOwner && (
+          {isOwner && contextMenu.node.type === "directory" && contextMenu.node.name !== ".space" && (
             <button
               type="button"
               className="w-full flex items-center gap-2 px-3 py-2 text-sm text-t-ink hover:bg-t-bg-raised/80 transition-colors text-left"

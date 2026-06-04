@@ -27,6 +27,12 @@ export function getTopic(spaceId: string, topicPath: string): SpaceTopic | undef
     .get();
 }
 
+export function getTopicById(spaceId: string, topicId: string): SpaceTopic | undefined {
+  return db.select().from(spaceTopics)
+    .where(and(eq(spaceTopics.spaceId, spaceId), eq(spaceTopics.id, topicId)))
+    .get();
+}
+
 export function getActiveTopic(spaceId: string, topicPath: string): SpaceTopic | undefined {
   const topic = getTopic(spaceId, topicPath);
   return topic?.status === 'active' ? topic : undefined;
@@ -100,6 +106,12 @@ export function archiveTopicTree(spaceId: string, topicPath: string): void {
         .where(eq(spaceTopics.id, topic.id)).run();
     }
   }
+}
+
+export function archiveTopicById(spaceId: string, topicId: string): void {
+  const topic = getTopicById(spaceId, topicId);
+  if (!topic) throw new Error('Room not found');
+  archiveTopicTree(spaceId, topic.topicPath);
 }
 
 export function renameTopicTree(spaceId: string, fromPath: string, toPath: string): void {

@@ -48,7 +48,7 @@ function AuthCallbackPage() {
           try {
             const invite = await redeemInvite(createBearerFetch(accessToken), pendingToken);
             clearPendingInviteToken();
-            navigate(invite.spaceId ? `/space/${invite.spaceId}` : '/spaces', { replace: true });
+            navigate(invite.spaceId ? `/spaces?space=${invite.spaceId}` : '/spaces', { replace: true });
             return;
           } catch (inviteError) {
             if (isTerminalInviteError(inviteError)) {

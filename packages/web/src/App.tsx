@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Outlet, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Outlet, Navigate, useLocation } from 'react-router-dom'
 import { ErrorBoundary } from './components/errors'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { HeaderProvider } from './contexts/HeaderContext'
@@ -17,6 +17,7 @@ import AuthCallbackPage from './pages/AuthCallbackPage'
 
 function AuthenticatedLayout() {
   const { isAuthenticated, isLoading } = useAuth()
+  const location = useLocation()
 
   if (isLoading) {
     return (
@@ -30,9 +31,16 @@ function AuthenticatedLayout() {
     return <Navigate to="/login" replace />
   }
 
+  const workspaceShell =
+    location.pathname === '/' ||
+    location.pathname === '/spaces' ||
+    location.pathname.startsWith('/spaces/') ||
+    location.pathname.startsWith('/space/') ||
+    location.pathname.startsWith('/room/')
+
   return (
     <div className="h-screen flex flex-col bg-t-bg">
-      <Header />
+      {!workspaceShell && <Header />}
       <Outlet />
     </div>
   )
@@ -54,6 +62,12 @@ function App() {
                 <Route element={<AuthenticatedLayout />}>
                   <Route path="/" element={<HomePage />} />
                   <Route path="/spaces" element={<HomePage />} />
+                  <Route path="/spaces/:spaceId" element={<SpacePage />} />
+                  <Route path="/spaces/:spaceId/*" element={<SpacePage />} />
+                  <Route path="/spaces/:spaceId/rooms/:roomId" element={<SpacePage />} />
+                  <Route path="/spaces/:spaceId/rooms/:roomId/*" element={<SpacePage />} />
+                  <Route path="/room/:spaceId" element={<SpacePage />} />
+                  <Route path="/room/:spaceId/*" element={<SpacePage />} />
                   <Route path="/space/:spaceId" element={<SpacePage />} />
                   <Route path="/space/:spaceId/*" element={<SpacePage />} />
                   <Route path="/profile" element={<ProfilePage />} />

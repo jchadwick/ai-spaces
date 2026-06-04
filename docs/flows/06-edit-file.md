@@ -4,6 +4,8 @@
 **Trigger:** Collaborator clicks "Edit" button on file  
 **Priority:** Post-MVP
 
+Editing happens inside a Room route: `/spaces/{spaceId}/rooms/{roomId}/{filePath}`. Editors can modify files allowed by the selected Room scope; viewers can read and chat but do not get edit controls.
+
 ---
 
 ## Happy Path
@@ -11,7 +13,7 @@
 ```
 [Collaborator]
    |
-   | 1. Viewing Maine.md in read mode
+   | 1. Viewing Maine.md in read mode inside a Room
    |
    v
 [Read mode displayed]
@@ -71,15 +73,15 @@
 [UI validates]
    |
    | 7. Check file size (< 10MB)
-   |    Check path (inside space)
+   |    Check path (inside selected Room and space)
    |    Check role (editor)
    |
    v
 [UI sends update]
    |
-   | 8. WebSocket message
-   |    { type: "req", method: "files.write", 
-   |      params: { path: "Maine.md", content: "..." } }
+   | 8. Server request
+   |    PUT /api/spaces/{spaceId}/files/Maine.md
+   |    { "content": "..." }
    |
    v
 [Server validates]
@@ -139,7 +141,7 @@
    v
 [Message shown]
    |
-   | "You're viewing this space.
+   | "You're viewing this room.
    |    Ask the owner for edit access."
 ```
 

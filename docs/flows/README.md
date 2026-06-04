@@ -10,10 +10,10 @@ Each flow describes a complete user journey from start to finish.
 |------|-------------|--------|-----|
 | [01-create-space.md](./01-create-space.md) | Owner creates a new space | Owner | ✓ |
 | [02-share-space.md](./02-share-space.md) | Owner invites a registered collaborator | Owner | ✓ |
-| [03-collaborator-access.md](./03-collaborator-access.md) | Collaborator accesses space | Collaborator | ✓ |
-| [04-browse-files.md](./04-browse-files.md) | Collaborator browses space files | Collaborator | ✓ |
-| [05-chat-agent.md](./05-chat-agent.md) | Collaborator chats with agent | Collaborator | ✓ |
-| [06-edit-file.md](./06-edit-file.md) | Collaborator edits file | Collaborator (Editor) | ✓ |
+| [03-collaborator-access.md](./03-collaborator-access.md) | Collaborator joins and opens Rooms | Collaborator | ✓ |
+| [04-browse-files.md](./04-browse-files.md) | Collaborator browses Room files | Collaborator | ✓ |
+| [05-chat-agent.md](./05-chat-agent.md) | Collaborator chats in a Room | Collaborator | ✓ |
+| [06-edit-file.md](./06-edit-file.md) | Collaborator edits a Room file | Collaborator (Editor) | ✓ |
 | [07-revoke-share.md](./07-revoke-share.md) | Parked anonymous-link revocation flow | Owner | No |
 | [08-expired-link.md](./08-expired-link.md) | Parked anonymous-link expiry flow | Collaborator | No |
 | [09-agent-modifies.md](./09-agent-modifies.md) | Agent modifies file in space | Agent, Collaborator | ✓ |
@@ -26,7 +26,7 @@ All flows involve:
 
 - **Spaces Service**: REST API + WebSocket server + Database
 - **Agent Adapter**: Interface to AI agent
-- **Space UI**: Web interface (React)
+- **Space UI**: Rooms-first web interface (React)
 
 ### Components in Flows
 

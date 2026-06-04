@@ -1,7 +1,9 @@
 # Flow: Browse Files
 
 **Actors:** Collaborator  
-**Trigger:** Collaborator clicks files/folders in file browser
+**Trigger:** Collaborator opens a Room and clicks files/folders in the Room file list
+
+Collaborators browse files through Rooms. The raw Space Explorer is owner-only. A Room is currently backed by a promoted Topic path, so all file paths in this flow are scoped under that Room's backing path.
 
 ---
 
@@ -11,26 +13,27 @@
 sequenceDiagram
     participant Collaborator
     participant UI
-    participant WebSocket
+    participant Server
     participant Agent
     
-    Note over UI: File browser shows root
+    Note over UI: Room file list shows the Room root
     Collaborator->>UI: Click "Budget" folder
-    UI->>WebSocket: files.list {path: "Budget"}
-    WebSocket->>Agent: Validate path inside space
-    Agent-->>WebSocket: Path valid
+    UI->>Server: GET /api/spaces/{spaceId}/files/Budget
+    Server->>Agent: Validate path inside Room and space
+    Agent-->>Server: Path valid
     Agent->>Agent: List directory contents
-    Agent-->>WebSocket: File nodes
-    WebSocket-->>UI: Folder contents
+    Agent-->>Server: File nodes
+    Server-->>UI: Folder contents
     UI-->>Collaborator: Display expanded folder
     
     Collaborator->>UI: Click "Maine.md" file
-    UI->>WebSocket: files.read {path: "Maine.md"}
-    WebSocket->>Agent: Validate path inside space
-    Agent-->>WebSocket: Path valid
+    UI->>UI: Navigate /spaces/{spaceId}/rooms/{roomId}/Maine.md
+    UI->>Server: GET /api/spaces/{spaceId}/files/Maine.md
+    Server->>Agent: Validate path inside Room and space
+    Agent-->>Server: Path valid
     Agent->>Agent: Read file content
-    Agent-->>WebSocket: File content + metadata
-    WebSocket-->>UI: File content
+    Agent-->>Server: File content + metadata
+    Server-->>UI: File content
     UI->>UI: Detect file type
     UI->>UI: Render markdown
     UI-->>Collaborator: Display rendered file
@@ -46,16 +49,16 @@ sequenceDiagram
 sequenceDiagram
     participant Collaborator
     participant UI
-    participant WebSocket
+    participant Server
     participant Agent
     
     Collaborator->>UI: Navigate to "../../../Private/secrets.md"
-    UI->>WebSocket: files.read {path: "../../../Private/secrets.md"}
-    WebSocket->>Agent: Validate path
+    UI->>Server: GET /api/spaces/{spaceId}/files/../../../Private/secrets.md
+    Server->>Agent: Validate path
     Agent->>Agent: Resolve: /workspace/Private/secrets.md
     Agent->>Agent: Space root: /workspace/Vacations
-    Agent-->>WebSocket: Error: Path escapes space
-    WebSocket-->>UI: Access denied
+    Agent-->>Server: Error: Path escapes space
+    Server-->>UI: Access denied
     UI-->>Collaborator: Show error dialog
     Note right of Collaborator: "Cannot access files outside<br/>the Vacations space."
     
@@ -68,14 +71,14 @@ sequenceDiagram
 sequenceDiagram
     participant Collaborator
     participant UI
-    participant WebSocket
+    participant Server
     participant Agent
     
     Collaborator->>UI: Click non-existent file
-    UI->>WebSocket: files.read {path: "Nonexistent.md"}
-    WebSocket->>Agent: Read file
-    Agent-->>WebSocket: Error: File not found
-    WebSocket-->>UI: Error
+    UI->>Server: GET /api/spaces/{spaceId}/files/Nonexistent.md
+    Server->>Agent: Read file
+    Agent-->>Server: Error: File not found
+    Server-->>UI: Error
     UI-->>Collaborator: Show "File Not Found"
     Note right of Collaborator: This file no longer exists.<br/>It may have been deleted.
     UI->>UI: Refresh file tree
@@ -87,14 +90,14 @@ sequenceDiagram
 sequenceDiagram
     participant Collaborator
     participant UI
-    participant WebSocket
+    participant Server
     participant Agent
     
     Collaborator->>UI: Click vacation-photo.jpg
-    UI->>WebSocket: files.read {path: "vacation-photo.jpg"}
-    WebSocket->>Agent: Read file
-    Agent-->>WebSocket: Binary file, type: image/jpeg, size: 2.4MB
-    WebSocket-->>UI: File metadata (no content)
+    UI->>Server: GET /api/spaces/{spaceId}/files/vacation-photo.jpg
+    Server->>Agent: Read file
+    Agent-->>Server: Binary file, type: image/jpeg, size: 2.4MB
+    Server-->>UI: File metadata (no content)
     UI-->>Collaborator: Show download option
     Note right of Collaborator: Cannot preview this file.<br/>Type: image/jpeg<br/>Size: 2.4 MB<br/>[Download File]
 ```
@@ -109,17 +112,17 @@ sequenceDiagram
 sequenceDiagram
     participant Collaborator
     participant UI
-    participant WebSocket
+    participant Server
     participant Agent
     
     Collaborator->>UI: Click large file (>1MB)
-    UI->>WebSocket: files.read {path: "large.md"}
-    WebSocket->>Agent: Read file
-    Agent-->>WebSocket: Stream content in chunks
+    UI->>Server: GET /api/spaces/{spaceId}/files/large.md
+    Server->>Agent: Read file
+    Agent-->>Server: Stream content in chunks
     Note over Agent: Show loading indicator
-    WebSocket-->>UI: Chunk 1
-    WebSocket-->>UI: Chunk 2
-    WebSocket-->>UI: Chunk 3
+    Server-->>UI: Chunk 1
+    Server-->>UI: Chunk 2
+    Server-->>UI: Chunk 3
     UI->>UI: Display progress
     UI-->>Collaborator: Show content (streaming)
     
@@ -142,7 +145,7 @@ flowchart TD
     Note right of F: Deep navigation supported
 ```
 
-### EC3: Hidden Files
+### EC3: Restricted And Hidden Files
 
 ```mermaid
 sequenceDiagram
@@ -150,14 +153,14 @@ sequenceDiagram
     participant UI
     participant Agent
     
-    Note over UI: Hidden files shown differently
-    UI->>UI: Display .DS_Store with gray styling
-    UI->>UI: Display .space/ with special icon
+    Note over UI: Room list hides owner-only paths
+    UI->>UI: Hide .space/ and hidden internals
+    UI->>UI: Hide metadata-restricted files/folders
     
-    alt Collaborator is Admin
-        UI-->>Collaborator: Can view .space/ contents
+    alt User is Owner in Space Explorer
+        UI-->>Collaborator: Can view .space/ and restricted badges
     else Collaborator is Viewer/Editor
-        UI->>UI: Hide .space/ directory
+        UI->>UI: Never show raw Space Explorer
     end
 ```
 
@@ -167,12 +170,13 @@ sequenceDiagram
 
 ### Test 1: Basic Navigation
 
-**Given** space with nested folders  
+**Given** a Room with nested folders  
 **When** collaborator clicks folders  
 **Then** folder expands  
 **And** contents display  
 **When** collaborator clicks file  
 **Then** content loads in main panel
+**And** the URL uses `/spaces/{spaceId}/rooms/{roomId}/{filePath}`
 
 ### Test 2: Path Escape Prevention
 

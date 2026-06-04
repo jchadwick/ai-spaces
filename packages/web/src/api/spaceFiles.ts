@@ -102,3 +102,126 @@ export async function patchFileMetadata(
     return { success: false, error: String(e) }
   }
 }
+
+function authHeaders(extra?: HeadersInit): HeadersInit {
+  const token = getAccessToken()
+  return {
+    ...(extra ?? {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  }
+}
+
+async function jsonRequest<T>(
+  url: string,
+  init?: RequestInit,
+): Promise<T> {
+  const response = await fetch(url, {
+    ...init,
+    headers: authHeaders(init?.headers),
+  })
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: response.statusText }))
+    throw new Error((error as { error?: string }).error || response.statusText)
+  }
+  return response.json() as Promise<T>
+}
+
+export interface SpaceMember {
+  id: string
+  userId: string
+  role: 'owner' | 'editor' | 'viewer'
+  email: string
+  displayName?: string
+}
+
+export interface SpaceTopic {
+  id: string
+  spaceId: string
+  topicPath: string
+  targetType: 'root' | 'file' | 'directory'
+  status: 'active' | 'archived'
+  updatedAt?: string
+}
+
+export async function fetchSpaceTopics(spaceId: string): Promise<SpaceTopic[]> {
+  const data = await jsonRequest<{ rooms: SpaceTopic[] }>(`/api/spaces/${spaceId}/rooms`)
+  return data.rooms
+}
+
+export async function promoteSpaceTopic(
+  spaceId: string,
+  topicPath: string,
+  targetType: 'file' | 'directory',
+): Promise<SpaceTopic> {
+  const data = await jsonRequest<{ room: SpaceTopic }>(`/api/spaces/${spaceId}/rooms`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ topicPath, targetType }),
+  })
+  return data.room
+}
+
+export async function archiveSpaceTopic(spaceId: string, roomId: string): Promise<void> {
+  await jsonRequest<{ success: true }>(`/api/spaces/${spaceId}/rooms/${encodeURIComponent(roomId)}`, {
+    method: 'DELETE',
+  })
+}
+
+export async function createSpaceDirectory(spaceId: string, dirPath: string): Promise<void> {
+  await jsonRequest<{ success: true }>(`/api/spaces/${spaceId}/directories`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: dirPath }),
+  })
+}
+
+export async function createSpaceFile(spaceId: string, filePath: string, content = ''): Promise<void> {
+  await jsonRequest<{ success: true }>(`/api/spaces/${spaceId}/files/${encodeURIComponent(filePath)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+  })
+}
+
+export async function deleteSpacePath(
+  spaceId: string,
+  filePath: string,
+  type: 'file' | 'directory',
+): Promise<void> {
+  const resource = type === 'directory' ? 'directories' : 'files'
+  await jsonRequest<{ success: true }>(`/api/spaces/${spaceId}/${resource}/${encodeURIComponent(filePath)}`, {
+    method: 'DELETE',
+  })
+}
+
+export async function renameSpacePath(
+  spaceId: string,
+  fromPath: string,
+  toPath: string,
+  type: 'file' | 'directory',
+): Promise<string> {
+  const resource = type === 'directory' ? 'directories' : 'files'
+  const data = await jsonRequest<{ success: true; path?: string }>(`/api/spaces/${spaceId}/${resource}/${encodeURIComponent(fromPath)}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ newPath: toPath }),
+  })
+  return data.path ?? toPath
+}
+
+export async function fetchSpaceMembers(spaceId: string): Promise<SpaceMember[]> {
+  const data = await jsonRequest<{ members: SpaceMember[] }>(`/api/spaces/${spaceId}/members`)
+  return data.members
+}
+
+export async function createSpaceInvite(
+  spaceId: string,
+  role: 'owner' | 'editor' | 'viewer' = 'editor',
+): Promise<string> {
+  const data = await jsonRequest<{ inviteUrl: string }>(`/api/spaces/${spaceId}/invites`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role }),
+  })
+  return data.inviteUrl
+}

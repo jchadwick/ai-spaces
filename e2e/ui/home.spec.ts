@@ -48,15 +48,14 @@ test.describe('Home page', () => {
     await expect(page.locator('text=Spaces').first()).toBeVisible();
   });
 
-  test('empty state message visible when no spaces', async ({ page }) => {
+  test('rooms grid or empty state is visible', async ({ page }) => {
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    const spaceCards = page.locator('a[href^="/space/"]');
-    const cardCount = await spaceCards.count();
+    const cardCount = await page.getByRole('heading', { level: 3 }).count();
 
     if (cardCount === 0) {
-      await expect(page.locator('text=No spaces yet')).toBeVisible();
+      await expect(page.getByText('No rooms yet.')).toBeVisible();
     } else {
       expect(cardCount).toBeGreaterThan(0);
     }

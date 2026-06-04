@@ -346,7 +346,7 @@ wss.on('upgrade', (request, socket, head) => {
   });
 
   let clientWs: WebSocket | null = null;
-  const orchestrator = new BrowserAcpOrchestrator(serverSpace);
+  const orchestrator = new BrowserAcpOrchestrator(serverSpace, spaceRole);
   const pendingToClient: Buffer[] = [];
   const pendingToGateway: Buffer[] = [];
 

@@ -1,7 +1,10 @@
 import * as path from 'node:path';
 import type { FileNodeType } from '@ai-spaces/shared';
+import type { SpaceRole } from '@ai-spaces/shared';
+import { hasPermission } from '@ai-spaces/shared';
 import { agentAdapter } from '../agent-adapter-instance.js';
 import { workspacePolicy } from '../security/workspace-policy-instance.js';
+import { filterRestrictedNodes, isPathRestricted, loadSpaceMetadata } from '../restricted-paths.js';
 import type { SpaceRecord } from '../space-store.js';
 import type { TopicTargetType } from '../topics/topic-store.js';
 
@@ -39,8 +42,14 @@ export async function buildTopicPromptContext(
   space: SpaceRecord,
   topicPath: string,
   targetType: TopicTargetType,
+  role: SpaceRole = 'viewer',
 ): Promise<string> {
   const relativeTopicPath = topicPath === '/' ? '' : topicPath.replace(/^\/+/, '');
+  const includeInternal = hasPermission(role, 'files:read-internal');
+  const metadata = includeInternal ? null : await loadSpaceMetadata(space);
+  if (metadata && isPathRestricted(metadata, relativeTopicPath)) {
+    throw new Error('Access denied: restricted path');
+  }
   const approvedTarget = await workspacePolicy.approvePath(space, relativeTopicPath, {
     expectedType: targetType === 'root' ? 'directory' : targetType,
   });
@@ -48,7 +57,8 @@ export async function buildTopicPromptContext(
 
   const approvedRoot = await workspacePolicy.approvePath(space, '', { expectedType: 'directory' });
   const rootResolution = workspacePolicy.consume(approvedRoot.token);
-  const tree = await agentAdapter.listFiles(space, rootResolution.path, false, rootResolution.token);
+  const rawTree = await agentAdapter.listFiles(space, rootResolution.path, false, rootResolution.token);
+  const tree = metadata ? filterRestrictedNodes(rawTree, metadata) : rawTree;
   const allFiles = flatten(tree);
   const inheritedDirs = parentDirectories(topicPath, targetType);
   const inheritedSections: string[] = [];

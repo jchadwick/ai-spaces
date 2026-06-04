@@ -17,7 +17,7 @@ sequenceDiagram
     participant DB
     participant Collaborator
 
-    Owner->>Browser: Open space sharing controls
+    Owner->>Browser: Open owner controls from Rooms shell or Space Explorer
     Browser->>Server: POST /api/spaces/{spaceId}/invites { role }
     Server->>Server: Verify owner role
     Server->>Server: Generate 32-byte token
@@ -98,6 +98,7 @@ sequenceDiagram
 **Given** an owner creates a viewer invite
 **When** the collaborator redeems it after login
 **Then** the collaborator is added as a viewer member
+**And** the collaborator lands in Rooms home, not raw Space Explorer
 
 ---
 
@@ -107,3 +108,4 @@ sequenceDiagram
 - Invite has role and expiration
 - Raw invite URL displayed once for owner delivery
 - No anonymous access session is created
+- Redeemed collaborators start from `/spaces?space={spaceId}` and choose promoted Rooms

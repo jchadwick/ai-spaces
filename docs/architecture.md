@@ -11,7 +11,9 @@ Related operational docs:
 
 ## Core Principle
 
-> A Space is a subdirectory of an agent's workspace that can be shared with collaborators. The Spaces Service owns users, authentication, and permissions. The Agent Adapter manages all agent communication. The Agent owns files and computation.
+> A Space is the security and administration boundary for a subdirectory of an agent's workspace. A Room is the collaborator-facing workspace promoted from a file or folder inside a Space. The Spaces Service owns users, authentication, permissions, Rooms, and metadata. The Agent Adapter manages all agent communication. The Agent owns files and computation.
+
+Rooms are currently backed by the existing Topics implementation and `space_topics` storage. The UI and product docs use Rooms language now; internal model/API names may continue to say topics until the planned rename.
 
 ---
 
@@ -96,6 +98,7 @@ Related operational docs:
 
 - `spaceId` (UUID)
 - Space metadata (name, description, owner)
+- Promoted Rooms inside each Space
 - Users, authentication, OAuth providers
 - Share links, roles, permissions
 - Sessions, audit logs
@@ -309,6 +312,39 @@ Authorization: Bearer <access-token>
 # Chat
 { "type": "req", "id": "4", "method": "chat.send", "params": { "message": "What files are here?" } }
 ```
+
+### Rooms
+
+Rooms are the product-facing name for promoted topics. New web UI routes are hierarchical:
+
+```bash
+GET /spaces
+GET /spaces/{spaceId}
+GET /spaces/{spaceId}/rooms/{roomId}
+GET /spaces/{spaceId}/rooms/{roomId}/{filePath}
+```
+
+Server API calls stay under `/api/spaces/{spaceId}`:
+
+```bash
+# List rooms visible to the current member
+GET /api/spaces/{spaceId}/rooms
+
+# Promote a file or folder to a room
+POST /api/spaces/{spaceId}/rooms
+{
+  "topicPath": "/Vacations",
+  "targetType": "directory"
+}
+
+# Get one room
+GET /api/spaces/{spaceId}/rooms/{roomId}
+
+# Archive/demote a room
+DELETE /api/spaces/{spaceId}/rooms/{roomId}
+```
+
+The legacy `/api/spaces/{spaceId}/topics` endpoints remain compatibility aliases while the internal rename is pending.
 
 ---
 

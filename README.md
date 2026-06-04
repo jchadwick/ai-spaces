@@ -8,11 +8,11 @@
 
 Your AI agent has a workspace full of research, notes, plans, and decisions. But your spouse, family, colleagues — they can't see any of it. They send you texts asking "what did we decide about vacation?" or "which car are we leaning toward?"
 
-**AI Spaces lets you share specific folders from your agent's workspace with specific people.** Your collaborators get a web interface where they can:
+**AI Spaces lets you share specific goal-centered Rooms from your agent's workspace with specific people.** Your collaborators get a web interface where they can:
 
-- Browse files and folders in the shared space
-- Edit documents directly
-- Chat with a **scoped context** of your agent — it only knows about that space
+- Open Rooms that the owner has promoted from files or folders inside a Space
+- Browse and edit documents inside those Rooms
+- Chat with a **scoped context** of your agent - it only knows about that Room's shared scope
 
 The agent sees their edits and messages. You see what they changed. Everyone stays in sync.
 
@@ -20,7 +20,7 @@ The agent sees their edits and messages. You see what they changed. Everyone sta
 
 ## The Core Insight
 
-**Spaces are subdirectories of your agent's existing workspace.**
+**Spaces are subdirectories of your agent's existing workspace. Rooms are the collaborator-facing workspaces inside them.**
 
 You don't create new workspaces. You don't copy files. You share portions of what your agent already knows:
 
@@ -43,7 +43,7 @@ You don't create new workspaces. You don't copy files. You share portions of wha
     └── secrets.md
 ```
 
-The agent's private files (`AGENTS.md`, `MEMORY.md`, `Private/`) are never exposed. Only the directories you designate as spaces become shareable.
+The agent's private files (`AGENTS.md`, `MEMORY.md`, `Private/`) are never exposed. Spaces remain the security and administration boundary. Collaborators usually enter through promoted Rooms, while owners can still use the raw Space Explorer.
 
 ---
 
@@ -57,7 +57,7 @@ AI Spaces is a **standalone service** that connects to your AI agent through a p
 |-----------|---------------|
 | **Spaces Service** | Users, auth, memberships, invites, permissions, real-time WebSocket, audit logs |
 | **Agent Adapter** | File operations, scoped sessions, tool execution |
-| **Space UI** | Web interface for collaborators (React) |
+| **Space UI** | Rooms-first web interface for owners and collaborators (React) |
 
 ### Data Ownership
 
@@ -153,13 +153,14 @@ Response:
 
 ### 3. Collaborators Access
 
-Collaborators log in, redeem the invite, and then see only spaces where they are members:
+Collaborators log in, redeem the invite, and then land in Rooms home filtered to spaces where they are members:
 
-- **File Browser**: Navigate files and folders in the space
-- **Markdown Editor**: View and edit documents
-- **Chat Interface**: Talk to the agent about space content
+- **Rooms Home**: Choose a promoted Room inside an accessible Space
+- **Room Files**: Navigate files and folders scoped to that Room
+- **Markdown Editor**: View and edit documents when their role allows it
+- **Chat Interface**: Talk to the agent about Room content
 
-The agent only knows about files in that space — it can't see other spaces or private files.
+The agent only receives the selected Room context - it can't see other spaces, private files, or owner-restricted paths.
 
 ---
 
@@ -184,7 +185,7 @@ The agent only knows about files in that space — it can't see other spaces or 
 
 ### Memory Isolation
 
-When a collaborator chats with the agent, the agent loads a **scoped context**:
+When a collaborator chats with the agent, the agent loads a **scoped Room context**:
 
 | File | Full Agent | Scoped Context |
 |------|------------|----------------|
@@ -192,11 +193,12 @@ When a collaborator chats with the agent, the agent loads a **scoped context**:
 | `MEMORY.md` | ✓ Loaded | ✗ Skipped |
 | `USER.md` | ✓ Loaded | ✗ Skipped |
 | `.space/SPACE.md` | Optional | ✓ Loaded |
-| Space files | ✓ All | ✓ Only within space |
+| Space files | ✓ All | ✓ Only within selected Room and allowed space paths |
 
 ### What Collaborators Cannot Do
 
 - Access files outside the space directory
+- Access owner-restricted files or folders
 - See the agent's private memory or instructions
 - Use tools denied by space configuration
 - Escalate to other spaces

@@ -24,13 +24,16 @@ sequenceDiagram
     Server->>DB: Upsert space_members row
     DB-->>Server: Membership created
     Server-->>Browser: { spaceId, role }
-    Browser->>Server: GET /api/spaces/{spaceId}
-    Server->>DB: Resolve membership role
-    Server-->>Browser: Space details and userRole
+    Browser->>Server: GET /api/spaces
+    Server->>DB: Resolve member-scoped spaces
+    Server-->>Browser: Accessible spaces and userRole values
+    Browser->>Server: GET /api/spaces/{spaceId}/rooms
+    Server->>DB: Resolve promoted rooms visible to role
+    Server-->>Browser: Rooms for joined space
     Browser->>WebSocket: Connect /ws/spaces/{spaceId} with bearer token
     WebSocket->>DB: Resolve membership role
     WebSocket-->>Browser: Scoped ACP connection established
-    Browser-->>Collaborator: Show Space UI
+    Browser-->>Collaborator: Show Rooms home and Room detail links
 ```
 
 ---
@@ -49,7 +52,7 @@ sequenceDiagram
     Collaborator->>Browser: Log in
     Browser->>Server: POST /api/invites/redeem
     Server-->>Browser: { spaceId, role }
-    Browser-->>Collaborator: Joined space
+    Browser-->>Collaborator: Joined space and redirected to Rooms home
 ```
 
 ---
@@ -78,7 +81,7 @@ sequenceDiagram
     participant Browser
     participant Server
 
-    User->>Browser: Open /space/{spaceId}
+    User->>Browser: Open /spaces/{spaceId}/rooms/{roomId}
     Browser->>Server: GET /api/spaces/{spaceId}
     Server->>Server: Resolve membership
     Server-->>Browser: 403 Forbidden
@@ -106,7 +109,8 @@ sequenceDiagram
 **Given** a valid invite and an authenticated collaborator
 **When** the collaborator redeems the invite
 **Then** the server creates a membership row
-**And** the collaborator can load the space
+**And** the collaborator lands on `/spaces?space={spaceId}`
+**And** the collaborator can load promoted Rooms for that space
 
 ### Test 2: Space List Is Member-Scoped
 
@@ -127,4 +131,5 @@ sequenceDiagram
 - Invite token removed from URL
 - Invite marked consumed
 - Collaborator has durable space membership
+- Collaborator starts from Rooms home
 - File and chat access use normal authenticated authorization

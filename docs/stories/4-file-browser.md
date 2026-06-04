@@ -1,13 +1,13 @@
-# Specification: File Browser
+# Specification: Room File Browser
 
 **Epic:** 4 - File Browser
 
 ---
 
-## Browse Space Contents
+## Browse Room Contents
 
 **User Story**  
-Browse all files and folders in the space to explore what the agent knows.
+Browse files and folders in a Room to explore the goal-centered workspace the owner shared.
 
 **Acceptance Checklist**
 
@@ -18,23 +18,25 @@ Browse all files and folders in the space to explore what the agent knows.
 * [ ] Infinite scroll supports deeply nested folders
 * [ ] Clicking a file highlights it in tree and loads content in main view
 * [ ] File path shown in header when selected
-* [ ] Hidden files (starting with `.`) visible with different styling (gray, italic)
-* [ ] `.space/` directory shown differently than regular folders
+* [ ] Hidden files and `.space/` internals are hidden from viewers/editors
+* [ ] Owner Space Explorer can show `.space/` and hidden files with distinct styling
 * [ ] Empty folders show "(empty)" text
 * [ ] Binary files show appropriate icons (🖼️, 📄, 📊)
 * [ ] Clicking binary files opens preview/download
-* [ ] Breadcrumb shows full path (e.g., "Vacations / Budget / notes.md")
+* [ ] Breadcrumb shows the Room-relative path (e.g., "Vacations / Budget / notes.md")
 * [ ] Clicking breadcrumb segment navigates to that folder
+* [ ] File route uses `/spaces/{spaceId}/rooms/{roomId}/{filePath}`
 
 **Rules**
 
 * Files loaded lazily: root level immediately, folders on expand
 * Loaded folders cached during session
-* Role-based visibility affects `.space/` access:
-  * Viewer/Editor: `.space/` visible
-  * Admin: Full access to `.space/` contents
+* Role-based visibility affects raw space access:
+  * Viewer/Editor: Rooms only; no raw Space Explorer
+  * Owner: Full Space Explorer, including `.space/` and restricted controls
 * Max file size for preview: 10MB
 * WebSocket updates file tree when agent modifies files
+* Rooms are currently backed by Topics internally; file paths are still validated against the Space boundary.
 
 **Examples**
 
@@ -47,7 +49,7 @@ Browse all files and folders in the space to explore what the agent knows.
 ## View File Contents
 
 **User Story**  
-View file contents to read the agent's research.
+View file contents to read the Room's shared research.
 
 **Acceptance Checklist**
 

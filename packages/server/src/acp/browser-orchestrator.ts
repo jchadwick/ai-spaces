@@ -1,4 +1,5 @@
 import type { SpaceRecord } from '../space-store.js';
+import type { SpaceRole } from '@ai-spaces/shared';
 import { buildTopicPromptContext } from '../context/topic-context.js';
 import { getActiveTopic, normalizeTopicPath, type TopicTargetType } from '../topics/topic-store.js';
 
@@ -28,7 +29,7 @@ export class BrowserAcpOrchestrator {
   private readonly pendingNewTopics = new Map<string | number, string>();
   private readonly sessionTopics = new Map<string, string>();
 
-  constructor(private readonly space: SpaceRecord) {}
+  constructor(private readonly space: SpaceRecord, private readonly role: SpaceRole) {}
 
   async filterClientChunk(chunk: Buffer): Promise<{ forward?: Buffer; response?: Buffer }> {
     const packet = JSON.parse(chunk.toString('utf8').trim()) as Packet;
@@ -53,7 +54,7 @@ export class BrowserAcpOrchestrator {
       packet.params = {
         ...params,
         cwd: topicPath === '/' ? '' : topicPath.slice(1),
-        _meta: { aiSpacesSystemContext: await buildTopicPromptContext(this.space, topicPath, topic.targetType as TopicTargetType) },
+        _meta: { aiSpacesSystemContext: await buildTopicPromptContext(this.space, topicPath, topic.targetType as TopicTargetType, this.role) },
       };
     }
 
@@ -65,7 +66,7 @@ export class BrowserAcpOrchestrator {
       const topic = this.requireActiveTopic(topicPath);
       packet.params = {
         ...params,
-        _meta: { aiSpacesSystemContext: await buildTopicPromptContext(this.space, topicPath, topic.targetType as TopicTargetType) },
+        _meta: { aiSpacesSystemContext: await buildTopicPromptContext(this.space, topicPath, topic.targetType as TopicTargetType, this.role) },
       };
     }
 

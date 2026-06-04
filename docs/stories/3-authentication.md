@@ -29,8 +29,8 @@ Collaborators access spaces through a registered user account. Invites are redee
 
 **Examples**
 
-* Valid login → Home page lists only spaces where the user is a member
-* User opens `/space/{spaceId}` without membership → `403 Forbidden`
+* Valid login → Rooms home lists only rooms in spaces where the user is a member
+* User opens `/spaces/{spaceId}/rooms/{roomId}` without membership → `403 Forbidden`
 * User clicks invite while logged out → app asks them to log in, then redeems the invite
 * Expired invite → invite redemption fails and no membership is created
 
@@ -67,7 +67,7 @@ Registered users remain signed in across browser refreshes and tab closings.
 
 **Examples**
 
-* Refresh with valid session → Space UI loads
+* Refresh with valid session → Rooms home or Room detail loads
 * Refresh with expired session → Error page, localStorage cleared
 * Close/reopen tab → Session restored from localStorage if valid
 * Click "Leave Space" → localStorage cleared, WebSocket disconnected, goodbye message

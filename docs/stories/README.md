@@ -68,6 +68,8 @@ A **Room** is the primary collaboration workspace. A room is a promoted file or 
 
 The room goal comes first. Opening and editing files that support the goal is a close second. Chatting with the room to query, create, and edit is a third close second. In the product UX, collaborators should usually choose a room before they browse a raw space file tree.
 
+Implementation note: Rooms are currently backed by Topics and `space_topics` internally. User stories should use Rooms language for product behavior while allowing internal APIs and database names to keep Topics until the rename work happens.
+
 ### Permissions vs Roles
 
 **Permissions** (system-level):

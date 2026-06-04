@@ -14,9 +14,11 @@ A **Room** is the primary collaboration workspace. A room is a promoted file or 
 
 The product should treat spaces as backstage containers and rooms as the frontstage user experience. Collaborators should usually start by choosing a room, not by browsing a raw space root.
 
+Implementation note: Rooms are currently backed by the existing Topics implementation and `space_topics` storage. The product should use Rooms language in the UI and docs while internal API/model names may still say topics until the planned rename is done.
+
 ## Current Active Bet
 
-An authenticated owner can create or identify a shareable space, invite another registered user, and prove that the invited user can browse, edit, and chat only within that space through the server-mediated web app. The near-term UX direction is promoted rooms: goal-centered workspaces inside spaces where collaboration actually happens.
+An authenticated owner can create or identify a shareable space, invite another registered user, promote files/folders to Rooms, and prove that the invited user can browse, edit, and chat only inside those Rooms through the server-mediated web app.
 
 ## Success Evidence
 

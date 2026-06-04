@@ -59,7 +59,7 @@ As a collaborator, I want to accept an invite after logging in so the space appe
 * [ ] Server validates token hash, expiration, and single-use state atomically
 * [ ] Server creates or updates `space_members` for the authenticated user
 * [ ] Server records who redeemed the invite
-* [ ] UI routes the collaborator to the space list or joined space after success
+* [ ] UI routes the collaborator to Rooms home filtered to the joined space after success (`/spaces?space={spaceId}`)
 
 **Rules**
 
@@ -117,8 +117,8 @@ As a space owner, I want to add, remove, or change member roles.
 
 | Role | Permissions |
 | --- | --- |
-| `viewer` | Browse files and chat, no file writes |
-| `editor` | Browse, chat, create, edit, rename, and delete files |
+| `viewer` | Browse Room files and chat, no file writes |
+| `editor` | Browse Room files, chat, create, edit, rename, and delete allowed files |
 | `owner` | Editor permissions plus member, invite, and space config management |
 
 ---

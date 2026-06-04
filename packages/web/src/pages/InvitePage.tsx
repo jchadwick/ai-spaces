@@ -45,7 +45,7 @@ export default function InvitePage() {
       try {
         const result = await redeemInvite(apiFetch, inviteToken);
         clearPendingInviteToken();
-        navigate(result.spaceId ? `/space/${result.spaceId}` : "/spaces", { replace: true });
+        navigate(result.spaceId ? `/spaces?space=${result.spaceId}` : "/spaces", { replace: true });
       } catch (err) {
         if (isTerminalInviteError(err)) {
           clearPendingInviteToken();

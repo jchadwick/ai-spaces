@@ -15,8 +15,10 @@ import { hasPermission, SpaceConfigSchema } from '@ai-spaces/shared';
 import { getUserSpaceRole, getUserSpaceRoles } from '../db/queries.js';
 import {
   archiveTopicTree,
+  archiveTopicById,
   getActiveTopic,
   getTopic,
+  getTopicById,
   listActiveTopics,
   normalizeTopicPath,
   persistTopicSession,
@@ -24,6 +26,11 @@ import {
   upsertPromotedTopic,
 } from '../topics/topic-store.js';
 import { workspacePolicy } from '../security/workspace-policy-instance.js';
+import {
+  filterRestrictedNodes,
+  isPathRestricted,
+  loadSpaceMetadata,
+} from '../restricted-paths.js';
 
 export interface SpaceVariables extends AuthVariables {
   spaceRole: SpaceRole;
@@ -99,10 +106,15 @@ const topicSchema = z.object({
   acpSessionId: z.string().min(1),
 });
 
-spacesRouter.get('/:id/topics/session', (c) => {
+spacesRouter.get('/:id/topics/session', async (c) => {
   const spaceId = c.req.param('id');
+  const space = getSpace(spaceId);
+  const role = c.get('spaceRole');
   try {
     const topicPath = normalizeTopicPath(c.req.query('path') ?? '/');
+    if (space && !hasPermission(role, 'files:read-internal') && isPathRestricted(await loadSpaceMetadata(space), topicPath)) {
+      return c.json({ error: 'Access denied: restricted path' }, 403);
+    }
     const topic = topicPath === '/' ? getTopic(spaceId, topicPath) : getActiveTopic(spaceId, topicPath);
     return c.json({ topic: topic ?? null });
   } catch (err) {
@@ -111,12 +123,17 @@ spacesRouter.get('/:id/topics/session', (c) => {
 });
 
 // @ts-ignore -- tsgo TS2589: type instantiation depth limit on Hono+zValidator chains
-spacesRouter.put('/:id/topics/session', zValidator('json', topicSchema), (c) => {
+spacesRouter.put('/:id/topics/session', zValidator('json', topicSchema), async (c) => {
   const spaceId = c.req.param('id');
   const { userId } = c.get('user');
   const { acpSessionId } = c.req.valid('json');
+  const space = getSpace(spaceId);
+  const role = c.get('spaceRole');
   try {
     const topicPath = normalizeTopicPath(c.req.valid('json').topicPath);
+    if (space && !hasPermission(role, 'files:read-internal') && isPathRestricted(await loadSpaceMetadata(space), topicPath)) {
+      return c.json({ error: 'Access denied: restricted path' }, 403);
+    }
     const topic = persistTopicSession(spaceId, topicPath, acpSessionId, userId);
     return c.json({ topic });
   } catch (err) {
@@ -124,8 +141,24 @@ spacesRouter.put('/:id/topics/session', zValidator('json', topicSchema), (c) => 
   }
 });
 
-spacesRouter.get('/:id/topics', (c) => {
-  return c.json({ topics: listActiveTopics(c.req.param('id')).filter((topic) => topic.topicPath !== '/') });
+async function listVisibleRooms(c: { req: { param: (key: string) => string }; get: (key: 'spaceRole') => SpaceRole }) {
+  const space = getSpace(c.req.param('id'));
+  const role = c.get('spaceRole');
+  const metadata = space && !hasPermission(role, 'files:read-internal')
+    ? await loadSpaceMetadata(space)
+    : null;
+  return listActiveTopics(c.req.param('id')).filter((topic) => {
+    if (topic.topicPath === '/') return false;
+    return !metadata || !isPathRestricted(metadata, topic.topicPath);
+  });
+}
+
+spacesRouter.get('/:id/topics', async (c) => {
+  return c.json({ topics: await listVisibleRooms(c) });
+});
+
+spacesRouter.get('/:id/rooms', async (c) => {
+  return c.json({ rooms: await listVisibleRooms(c) });
 });
 
 const promoteTopicSchema = z.object({
@@ -143,6 +176,9 @@ spacesRouter.post('/:id/topics', zValidator('json', promoteTopicSchema), async (
     const { topicPath, targetType } = c.req.valid('json');
     const normalized = normalizeTopicPath(topicPath);
     if (normalized === '/') return c.json({ error: 'Root topic is built in' }, 400);
+    if (isPathRestricted(await loadSpaceMetadata(space), normalized)) {
+      return c.json({ error: 'Restricted paths cannot be promoted to Rooms' }, 400);
+    }
     const approved = await workspacePolicy.approvePath(space, normalized.slice(1), { expectedType: targetType });
     workspacePolicy.consume(approved.token);
     const topic = upsertPromotedTopic(spaceId, normalized, targetType, c.get('user').userId);
@@ -153,10 +189,53 @@ spacesRouter.post('/:id/topics', zValidator('json', promoteTopicSchema), async (
 });
 
 // @ts-ignore -- tsgo TS2589
+spacesRouter.post('/:id/rooms', zValidator('json', promoteTopicSchema), async (c) => {
+  try {
+    requirePermission(c, 'space:manage');
+    const spaceId = c.req.param('id');
+    const space = getSpace(spaceId);
+    if (!space) return c.json({ error: 'Space not found' }, 404);
+    const { topicPath, targetType } = c.req.valid('json');
+    const normalized = normalizeTopicPath(topicPath);
+    if (normalized === '/') return c.json({ error: 'Root room is built in' }, 400);
+    if (isPathRestricted(await loadSpaceMetadata(space), normalized)) {
+      return c.json({ error: 'Restricted paths cannot be promoted to Rooms' }, 400);
+    }
+    const approved = await workspacePolicy.approvePath(space, normalized.slice(1), { expectedType: targetType });
+    workspacePolicy.consume(approved.token);
+    const room = upsertPromotedTopic(spaceId, normalized, targetType, c.get('user').userId);
+    return c.json({ room }, 201);
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, (err as Error).message === 'Forbidden' ? 403 : 400);
+  }
+});
+
+spacesRouter.get('/:id/rooms/:roomId', async (c) => {
+  const room = getTopicById(c.req.param('id'), c.req.param('roomId'));
+  if (!room || room.status !== 'active' || room.topicPath === '/') return c.json({ error: 'Room not found' }, 404);
+  const space = getSpace(c.req.param('id'));
+  const role = c.get('spaceRole');
+  if (space && !hasPermission(role, 'files:read-internal') && isPathRestricted(await loadSpaceMetadata(space), room.topicPath)) {
+    return c.json({ error: 'Access denied: restricted path' }, 403);
+  }
+  return c.json({ room });
+});
+
+// @ts-ignore -- tsgo TS2589
 spacesRouter.delete('/:id/topics', zValidator('json', z.object({ topicPath: z.string().min(1) })), (c) => {
   try {
     requirePermission(c, 'space:manage');
     archiveTopicTree(c.req.param('id'), c.req.valid('json').topicPath);
+    return c.json({ success: true });
+  } catch (err) {
+    return c.json({ error: (err as Error).message }, (err as Error).message === 'Forbidden' ? 403 : 400);
+  }
+});
+
+spacesRouter.delete('/:id/rooms/:roomId', (c) => {
+  try {
+    requirePermission(c, 'space:manage');
+    archiveTopicById(c.req.param('id'), c.req.param('roomId'));
     return c.json({ success: true });
   } catch (err) {
     return c.json({ error: (err as Error).message }, (err as Error).message === 'Forbidden' ? 403 : 400);
@@ -179,6 +258,7 @@ const patchMetadataSchema = z.object({
   files: z.record(z.string(), z.object({
     displayName: z.string().optional(),
     summary: z.string().optional(),
+    restricted: z.boolean().optional(),
   })),
 });
 
@@ -214,10 +294,17 @@ spacesRouter.get('/:id/files', async (c) => {
   }
 
   try {
-    const approved = await workspacePolicy.approvePath(space, dirPath, { expectedType: 'directory' });
+    const includeInternal = hasPermission(role, 'files:read-internal');
+    const approved = await workspacePolicy.approvePath(space, dirPath, {
+      allowHidden: includeInternal,
+      expectedType: 'directory',
+    });
     const resolution = workspacePolicy.consume(approved.token);
-    const files = await agentAdapter.listFiles(space, resolution.path, hasPermission(role, 'files:read-internal'), resolution.token);
-    return c.json({ files });
+    if (!includeInternal && isPathRestricted(await loadSpaceMetadata(space), resolution.path)) {
+      return c.json({ error: 'Access denied: restricted path' }, 403);
+    }
+    const files = await agentAdapter.listFiles(space, resolution.path, includeInternal, resolution.token);
+    return c.json({ files: includeInternal ? files : filterRestrictedNodes(files, await loadSpaceMetadata(space)) });
   } catch (err: any) {
     return c.json({ error: err.message ?? 'Failed to list files' }, 500);
   }
@@ -239,6 +326,9 @@ spacesRouter.get('/:id/files/:filePath{.*}', async (c) => {
       expectedType: 'file',
     });
     const resolution = workspacePolicy.consume(approved.token);
+    if (!hasPermission(role, 'files:read-internal') && isPathRestricted(await loadSpaceMetadata(space), resolution.path)) {
+      return c.json({ error: 'Access denied: restricted path' }, 403);
+    }
     const { content, contentType } = await agentAdapter.readFile(space, resolution.path, resolution.token);
     c.header('Content-Type', contentType);
     return c.body(content);
@@ -267,6 +357,9 @@ spacesRouter.put('/:id/files/:filePath{.*}', zValidator('json', writeFileSchema)
     requirePermission(c, 'files:write');
     const approved = await workspacePolicy.approvePath(space, filePath, { allowMissing: true });
     const resolution = workspacePolicy.consume(approved.token);
+    if (!hasPermission(c.get('spaceRole'), 'files:write-internal') && isPathRestricted(await loadSpaceMetadata(space), resolution.path)) {
+      return c.json({ error: 'Access denied: restricted path' }, 403);
+    }
     await agentAdapter.writeFile(space, resolution.path, content, resolution.token, encoding);
     return c.json({ success: true, path: filePath });
   } catch (err: any) {
@@ -292,6 +385,9 @@ spacesRouter.post('/:id/directories', zValidator('json', createDirSchema), async
     requirePermission(c, 'files:write');
     const approved = await workspacePolicy.approvePath(space, dirPath, { allowMissing: true });
     const resolution = workspacePolicy.consume(approved.token);
+    if (!hasPermission(c.get('spaceRole'), 'files:write-internal') && isPathRestricted(await loadSpaceMetadata(space), resolution.path)) {
+      return c.json({ error: 'Access denied: restricted path' }, 403);
+    }
     await agentAdapter.createDirectory(space, resolution.path, resolution.token);
     return c.json({ success: true, path: dirPath });
   } catch (err: any) {
@@ -312,6 +408,9 @@ spacesRouter.delete('/:id/files/:filePath{.*}', async (c) => {
     requirePermission(c, 'files:write');
     const approved = await workspacePolicy.approvePath(space, filePath, { expectedType: 'file' });
     const resolution = workspacePolicy.consume(approved.token);
+    if (!hasPermission(c.get('spaceRole'), 'files:write-internal') && isPathRestricted(await loadSpaceMetadata(space), resolution.path)) {
+      return c.json({ error: 'Access denied: restricted path' }, 403);
+    }
     await agentAdapter.deleteFile(space, resolution.path, resolution.token);
     archiveTopicTree(id, `/${resolution.path}`);
     return c.json({ success: true });
@@ -341,6 +440,13 @@ spacesRouter.patch('/:id/files/:filePath{.*}', zValidator('json', renameFileSche
     const to = await workspacePolicy.approvePath(space, newPath, { allowMissing: true });
     const sourceResolution = workspacePolicy.consume(from.token);
     const targetResolution = workspacePolicy.consume(to.token);
+    const metadata = await loadSpaceMetadata(space);
+    if (!hasPermission(c.get('spaceRole'), 'files:write-internal') && (
+      isPathRestricted(metadata, sourceResolution.path) ||
+      isPathRestricted(metadata, targetResolution.path)
+    )) {
+      return c.json({ error: 'Access denied: restricted path' }, 403);
+    }
     await agentAdapter.renameFile(space, sourceResolution.path, targetResolution.path, sourceResolution.token, targetResolution.token);
     renameTopicTree(id, `/${sourceResolution.path}`, `/${targetResolution.path}`);
     return c.json({ success: true, path: newPath });
@@ -362,6 +468,9 @@ spacesRouter.delete('/:id/directories/:dirPath{.*}', async (c) => {
     requirePermission(c, 'files:write');
     const approved = await workspacePolicy.approvePath(space, dirPath, { expectedType: 'directory' });
     const resolution = workspacePolicy.consume(approved.token);
+    if (!hasPermission(c.get('spaceRole'), 'files:write-internal') && isPathRestricted(await loadSpaceMetadata(space), resolution.path)) {
+      return c.json({ error: 'Access denied: restricted path' }, 403);
+    }
     await agentAdapter.deleteDirectory(space, resolution.path, resolution.token);
     archiveTopicTree(id, `/${resolution.path}`);
     return c.json({ success: true });
@@ -391,6 +500,13 @@ spacesRouter.patch('/:id/directories/:dirPath{.*}', zValidator('json', renameDir
     const to = await workspacePolicy.approvePath(space, newPath, { allowMissing: true });
     const sourceResolution = workspacePolicy.consume(from.token);
     const targetResolution = workspacePolicy.consume(to.token);
+    const metadata = await loadSpaceMetadata(space);
+    if (!hasPermission(c.get('spaceRole'), 'files:write-internal') && (
+      isPathRestricted(metadata, sourceResolution.path) ||
+      isPathRestricted(metadata, targetResolution.path)
+    )) {
+      return c.json({ error: 'Access denied: restricted path' }, 403);
+    }
     await agentAdapter.renameDirectory(space, sourceResolution.path, targetResolution.path, sourceResolution.token, targetResolution.token);
     renameTopicTree(id, `/${sourceResolution.path}`, `/${targetResolution.path}`);
     return c.json({ success: true, path: newPath });

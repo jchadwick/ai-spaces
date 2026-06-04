@@ -3,6 +3,8 @@
 **Actors:** Collaborator, Agent  
 **Trigger:** Collaborator types message in chat
 
+Chat starts inside a Room. The UI selects the Room's backing topic path before opening the drawer, so agent context is scoped to the Room rather than the raw Space root.
+
 ---
 
 ## Happy Path
@@ -10,7 +12,8 @@
 ```
 [Collaborator]
    |
-   | 1. View space, chat sidebar visible
+   | 1. Open /spaces/{spaceId}/rooms/{roomId}
+   |    and open the Room chat drawer
    |
    v
 [Chat UI ready]
@@ -19,7 +22,7 @@
    | │ Status: ● Connected        │
    | │                            │
    | │ [Agent] Welcome! I can help│
-   | │ you explore this space.    │
+   | │ you explore this room.     │
    | │                            │
    | │ [You] ┌─────────────────┐  │
    | │       │ Type message...│  │
@@ -59,7 +62,7 @@
    v
 [Agent processes]
    |
-   | 6. Read space files (Maine.md, CostaRica.md)
+   | 6. Read Room files (Maine.md, CostaRica.md)
    |    Generate response based on content
    |    Stream response chunks
    |
@@ -138,16 +141,16 @@
    v
 [Agent responds]
    |
-   | 4. "I cannot access files outside this space.
-   |      I'm only able to read files within the Vacations space."
+   | 4. "I cannot access files outside this room.
+   |      I'm only able to read files within the selected room."
    |
    v
 [UI shows response]
    |
    | [Agent] I cannot access files outside
-   |         this space. I'm only able to
-   |         read files within the Vacations
-   |         space.
+   |         this room. I'm only able to
+   |         read files within the selected
+   |         room.
 ```
 
 ### E2: Agent Denied Web Search

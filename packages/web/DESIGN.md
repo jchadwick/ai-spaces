@@ -1,199 +1,145 @@
-# Design System Specification: Paper & Ink
+# Web Design System: Rooms Paper Shell
 
-## 1. Overview & Creative North Star: "The Editorial Workspace"
+## 1. Direction
 
-The creative direction is **Paper & Ink** — a warm, editorial aesthetic that treats the workspace like a high-quality physical desk. The UI steps back so the content takes center stage. Structure emerges from tonal shifts, not harsh rules. AI moments feel like a quiet, trusted colleague — not a flashy chatbot.
+The web app now uses the prototype Rooms-first UX. Spaces remain the security and administration boundary, but Rooms are the primary workspace people see and use.
 
-Key principles:
-- **Warmth over sterility.** Warm off-white surfaces (`#F6F3EE`) instead of cold grays.
-- **Ink, not black.** Deep `#1A1714` for text — has warmth without harshness.
-- **One accent, used sparingly.** Rust/coral (`#C2410C`) is the sole action color. It signals momentum.
-- **Moss for the agent.** All AI-specific UI uses moss green (`#3F6B4F`). It is reserved — never used for non-AI things.
-- **Serif for soul, mono for precision.** Display headings use Instrument Serif italic to give the app editorial weight. Paths, status labels, and metadata use JetBrains Mono.
+The visual direction is a crisp paper workspace:
 
----
+- **Inter only.** Use Inter for navigation, labels, body text, headings, controls, and metadata.
+- **Paper surfaces.** White and soft neutral grays define depth.
+- **Black primary controls.** Primary actions use near-black backgrounds with white text.
+- **Purple boundary accent.** Purple identifies security boundaries, shared scope, and restricted/private affordances.
+- **Per-space dot colors.** Space identity is carried by small colored dots in the rail, cards, and breadcrumbs.
+- **Hairline structure.** Use subtle 1px dividers and modest shadows only for floating overlays.
 
-## 2. Color Tokens
+Do not reintroduce the previous editorial serif, rust CTA, or moss AI palette.
 
-### Light Mode
+## 2. Product Language
 
-| Token | Hex | Role |
-|-------|-----|------|
-| `bg` | `#F6F3EE` | Warm canvas — page background |
-| `bgAlt` | `#EFEAE2` | Sidebar / secondary panels |
-| `bgRaised` | `#FBFAF7` | Cards, chat pane background |
-| `bgWell` | `#E9E3D8` | Inputs, wells, code blocks |
-| `ink` | `#1A1714` | Primary text |
-| `inkMid` | `#5A5147` | Body text, secondary labels |
-| `inkDim` | `#8A7F72` | Tertiary, placeholders |
-| `inkFaint` | `#B8AE9F` | Hairlines, disabled text |
-| `hair` | `#E2DBCD` | Dividers, borders |
-| `accent` | `#C2410C` | Rust — primary action color |
-| `accentSoft` | `#FBE4D5` | Rust tint background |
-| `accentInk` | `#7C2D12` | Rust dark text |
-| `agent` | `#3F6B4F` | Moss green — AI-only accent |
-| `agentSoft` | `#E4ECDF` | Agent tint background |
-| `agentInk` | `#1F3A29` | Agent dark text |
+Visible UI uses **Rooms** for the collaborator-facing workspace. Internally, Rooms are currently backed by the existing Topics implementation and `space_topics` data until the planned rename.
 
-### Dark Mode
+Use this language:
 
-| Token | Hex |
-|-------|-----|
-| `bg` | `#1A1714` |
-| `bgAlt` | `#15120F` |
-| `bgRaised` | `#221E1A` |
-| `bgWell` | `#0F0D0B` |
-| `ink` | `#F6F3EE` |
-| `inkMid` | `#C8BFB0` |
-| `hair` | `#2E2823` |
-| `accent` | `#F97316` |
-| `agent` | `#86C49C` |
-| `agentSoft` | `#1F2E24` |
+| Concept | Visible Copy | Internal Backing |
+|---------|--------------|------------------|
+| Security/admin boundary | Space | `spaces` |
+| Collaborator workspace | Room | promoted `space_topics` row |
+| Owner raw filesystem | Space Explorer | server file APIs |
+| Private path | Restricted | file metadata `restricted` |
 
----
+## 3. Routes
 
-## 3. Typography
+The UI route shape is hierarchical:
 
-Three typefaces, each with a clear role:
+| Route | Purpose |
+|-------|---------|
+| `/` | Rooms home |
+| `/spaces` | Rooms home across accessible spaces |
+| `/spaces/:spaceId` | Owner-only Space Explorer |
+| `/spaces/:spaceId/rooms/:roomId` | Room detail |
+| `/spaces/:spaceId/rooms/:roomId/*filePath` | Room detail with selected room-relative file |
 
-| Typeface | Role | Usage |
-|----------|------|-------|
-| **Inter Tight** | UI sans-serif | All functional labels, body text, buttons, navigation |
-| **Instrument Serif** | Display / editorial | Page headings, space names, "Spaces" brand word (always italic) |
-| **JetBrains Mono** | Monospace | File paths, status indicators, metadata, code blocks |
+Legacy `/space/:spaceId/*` and `/room/:spaceId/*` links may be accepted for compatibility, but new navigation should use `/spaces/:spaceId/rooms/:roomId/*filePath`.
 
-**Key rules:**
-- Instrument Serif is always italic at display sizes
-- Never use display scale fonts for functional UI labels
-- Status/metadata labels: uppercase + 1.2–1.4 letter-spacing + JetBrains Mono
+## 4. Layout
 
----
+### App Shell
 
-## 4. Surface Hierarchy
+- Left rail: `72px` fixed width.
+- Top bar: `56px` fixed height.
+- Main surface: fills remaining viewport height and width.
+- Rail contains Rooms home and accessible Space dots.
+- Top bar contains product mark, search/filter affordance, role-appropriate actions, and account/admin entry points.
 
-Depth comes from tonal shifts, not shadows.
+### Rooms Home
 
-```
-bg (#F6F3EE)           ← page background
-  bgAlt (#EFEAE2)      ← sidebar, secondary panels
-  bgRaised (#FBFAF7)   ← cards, chat pane, modals
-    bgWell (#E9E3D8)   ← inputs, code blocks, wells
-```
+- Shows Rooms as the first screen.
+- Owner sees all accessible spaces in the rail and can create Rooms.
+- Editor/viewer sees Rooms only; clicking a rail space filters Rooms for that Space.
+- Room cards use a 16px radius, white paper surface, soft border, concise metadata, member avatars, and visible Space identity.
 
-Hairline borders (`#E2DBCD`, 1px) are acceptable for edge definition between content areas. Avoid multiple stacked borders.
+### Room Detail
 
----
+- Header shows Room name, Space breadcrumb, member avatars, owner manage action, and chat entry.
+- Left file list is scoped to the Room's topic path.
+- Document pane keeps editor/viewer internals but uses the Rooms shell chrome.
+- Chat opens as a right drawer and stays scoped to the selected Room.
 
-## 5. Components
+### Owner Space Explorer
+
+- Owner-only raw Space Explorer at `/spaces/:spaceId`.
+- Shows the raw file tree, Room badges, restricted badges, context menus, and create/rename/delete/promote/demote/restrict controls.
+- Non-owners must be redirected to Rooms home filtered to the requested Space.
+
+## 5. Tokens
+
+Core CSS variables live in `packages/web/src/index.css`.
+
+| Token | Value | Role |
+|-------|-------|------|
+| `--rooms-paper` | `#ffffff` | Primary content surface |
+| `--rooms-paper-2` | `#f7f7f5` | Secondary panels and rails |
+| `--rooms-paper-3` | `#efefec` | Inputs and subtle wells |
+| `--rooms-ink` | `#1f1f1d` | Primary text |
+| `--rooms-ink-soft` | `#3f3f3a` | Secondary readable text |
+| `--rooms-muted` | `#73716a` | Metadata and inactive labels |
+| `--rooms-muted-2` | `#aaa69b` | Tertiary labels and hints |
+| `--rooms-line` | `#e6e3db` | Hairline dividers |
+| `--rooms-line-strong` | `#d4d0c6` | Active borders and control outlines |
+| `--rooms-boundary` | `#7c3aed` | Space boundary and restricted accent |
+| `--rooms-boundary-soft` | `#f0e9ff` | Boundary tint |
+| `--rooms-success` | `#168a5b` | Promoted Room state |
+| `--rooms-warning` | `#b7791f` | Caution state |
+| `--rooms-error` | `#c23b3b` | Destructive/error state |
+
+Per-space colors:
+
+- `--rooms-space-0`
+- `--rooms-space-1`
+- `--rooms-space-2`
+- `--rooms-space-3`
+
+## 6. Components
 
 ### Buttons
-- **Primary:** `background: ink (#1A1714)`, `color: bg (#F6F3EE)`, `borderRadius: 8px`
-- **Accent:** `background: accent (#C2410C)`, `color: white`
-- **Ghost:** `background: transparent`, `color: inkMid`
-- **Soft:** `background: bgWell (#E9E3D8)`, `color: ink`
-- All buttons: `font: Inter Tight, 13px, weight 500`
 
-### The AI Chat (Cards style)
-Agent and user messages render as cards — full-width, stacked vertically.
+- Primary: black/ink background, white text, 9px radius.
+- Outline: white/transparent paper, 1.5px strong hairline border.
+- Ghost: transparent with muted text.
+- Icon buttons: square, stable dimensions, lucide icons, hover tint.
 
-- **User message:** dark card — `background: ink (#1A1714)`, `color: bg`, `borderRadius: 14px 14px 2px 14px` (right-corner clipped)
-- **Agent message:** tinted card — `background: agentSoft (#E4ECDF)`, `border: 1px solid #C8D9C2`, `borderRadius: 2px 14px 14px 14px` (left-corner clipped). Header shows AgentGlyph + italic serif "agent" in moss green.
-- **Typing indicator:** same shape as agent card, with 3 bouncing dots
+### Cards
 
-### AgentGlyph
-A small 4-point constellation SVG replaces sparkle icons everywhere for AI attribution. Never use `auto_awesome` or similar sparkle emoji/icons for AI. The glyph uses the `agent` color (`#3F6B4F`).
+- Room cards use 16px radius, white surface, `--rooms-line` border, and a light hover lift.
+- Do not nest cards inside cards.
+- Use chips only for compact state such as Room, Restricted, Owner, Editor, Viewer.
 
-```svg
-<svg viewBox="0 0 16 16">
-  <circle cx="8" cy="3" r="1.4" opacity="0.9" />
-  <circle cx="3" cy="9" r="1" opacity="0.7" />
-  <circle cx="13" cy="9" r="1" opacity="0.7" />
-  <circle cx="8" cy="13" r="0.8" opacity="0.5" />
-  <path d="M8 3 L3 9 L8 13 L13 9 Z" strokeWidth="0.5" opacity="0.3" />
-</svg>
-```
+### Modals and Menus
 
-### File Explorer
-- Background: `bgAlt (#EFEAE2)`
-- "FILES" label: JetBrains Mono, 10px, uppercase, letterSpacing 1.4, `inkDim` color
-- Active file: `background: accentSoft`, left border `2px solid accent`, `color: accentInk`
-- Hover: subtle `rgba(26,23,20,0.04)` overlay
+- Modals use 20px radius and a real overlay.
+- Context menus use 12px radius, paper background, strong border, and floating shadow.
+- Menus must close on outside click and Escape.
 
-### Chat Composer
-- Input container: `background: bg`, `border: 1px solid hair`, `borderRadius: 12px`
-- Quick-action chips above input: pill buttons in `bgWell` with hairline border
-- Send button: accent rust style
-- Footer label: "agent sees only files in this space" in JetBrains Mono, `inkFaint`, centered
+### Chat
 
-### Top Navigation
-- Height: 52px, `background: bg`, `borderBottom: 1px solid hair`
-- Left: ink square logo (22px, borderRadius 6px) with AgentGlyph, then italic serif "Spaces" brand, then hairline separator + breadcrumb when in a space
-- Right: live status dot (moss green + mono "LIVE"), Home button in ink style
+- Chat is a right drawer, not a separate page.
+- Header must show the Room scope.
+- Composer uses paper input chrome and a compact send icon button.
+- Chat context must be selected via the active Room's backing topic path.
 
-### Home Page
-- Editorial serif headline at 56px (italic word for emphasis)
-- JetBrains Mono eyebrow label above headline
-- Space cards: `bgRaised` background, hairline border, Instrument Serif name, rust accent icon, mono metadata
+### Restricted Paths
 
----
+- Restricted files/folders show a lock and "Restricted" badge in owner Space Explorer.
+- Restricted paths are never shown to non-owners.
+- Restricted paths cannot be promoted to Rooms until sharing is allowed again.
 
-## 6. Tailwind Configuration
+## 7. Role Behavior
 
-Design tokens are implemented as CSS custom properties and must also be reflected in `tailwind.config.ts` so they are available as Tailwind utility classes.
+| Role | UX |
+|------|----|
+| Owner | Rooms home, raw Space Explorer, create Room, promote/demote, restrict/allow, members, invites, edit |
+| Editor | Rooms home and Room detail only; can read, edit, and chat inside Rooms |
+| Viewer | Rooms home and Room detail only; can read and chat inside Rooms; edit controls hidden or disabled |
 
-### Color tokens → Tailwind classes
-
-| Design token | Tailwind class | Usage |
-|---|---|---|
-| `bg` | `bg-t-bg` / `text-t-bg` | Page background |
-| `bgAlt` | `bg-t-bg-alt` | Sidebar, secondary panels |
-| `bgRaised` | `bg-t-bg-raised` | Cards, modals, chat pane |
-| `bgWell` | `bg-t-bg-well` | Inputs, code blocks |
-| `ink` | `text-t-ink` | Primary text |
-| `inkMid` | `text-t-ink-mid` | Body text, labels |
-| `inkDim` | `text-t-ink-dim` | Tertiary, placeholders |
-| `inkFaint` | `text-t-ink-faint` | Hairlines, disabled |
-| `hair` | `border-t-hair` | Dividers, borders |
-| `accent` | `bg-t-accent` / `text-t-accent` | Primary action (rust) |
-| `accentSoft` | `bg-t-accent-soft` | Rust tint background |
-| `accentInk` | `text-t-accent-ink` | Rust dark text |
-| `agent` | `text-t-agent` | AI-only accent (moss) |
-| `agentSoft` | `bg-t-agent-soft` | Agent tint background |
-| `agentInk` | `text-t-agent-ink` | Agent dark text |
-
-### Layout constants → Tailwind theme extensions
-
-Never use bare pixel literals for these values. Define them in `tailwind.config.ts` under `theme.extend` and reference by name:
-
-| Constant | Value | Tailwind key |
-|---|---|---|
-| Header height | 52px | `h-header` |
-| Sidebar min width | 150px | `min-w-sidebar` |
-| Sidebar max width | 600px | `max-w-sidebar` |
-| Content max width | 1100px | `max-w-content` |
-| Tree indent base | 8px | `pl-indent-base` |
-| Tree indent step | 16px | `pl-indent-step` |
-
-For values used in resize calculations (JS `useState`, `useMemo`), keep a parallel `packages/web/src/constants/layout.ts` file that exports the same values as numbers. The Tailwind config and the constants file are the two sources of truth — inline style objects must reference the constants file, never magic numbers.
-
-### Rule: no bare pixel literals for layout
-
-Arbitrary Tailwind values like `w-[350px]` or `min-w-[140px]` are acceptable for one-off component constraints, but **must not be used for any value that appears in more than one place**. Extract repeated dimensions to `tailwind.config.ts` and reference them by name (e.g., `min-w-sidebar`).
-
----
-
-## 7. Do's and Don'ts
-
-### Do
-- Use **Instrument Serif italic** for display headings and the brand wordmark
-- Use **moss green** exclusively for agent/AI attribution — nowhere else
-- Use **rust** as the sole CTA color
-- Use hairline borders (`1px solid #E2DBCD`) to define content areas
-- Use `bgAlt` for sidebars so they recede from the main content area
-
-### Don't
-- Don't use `auto_awesome` or sparkle icons for AI — use AgentGlyph only
-- Don't use blue as an accent color — this palette has no blue
-- Don't use Instrument Serif for functional UI labels or buttons
-- Don't use shadow effects except for floating overlays (modals, context menus)
-- Don't use multiple stacked borders on the same edge
+The prototype Owner/Collaborator toggle is not part of production UI.

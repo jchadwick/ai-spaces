@@ -50,8 +50,11 @@ test.describe('Invite page flow', () => {
     await page.getByLabel('Password').fill(password);
     await page.getByRole('button', { name: 'Sign In', exact: true }).click();
 
-    await page.waitForURL((url) => url.pathname.startsWith(`/space/${spaceId}`), { timeout: 10000 });
-    expect(page.url()).toContain(`/space/${spaceId}`);
+    await page.waitForURL(
+      (url) => url.pathname === '/spaces' && url.searchParams.get('space') === spaceId,
+      { timeout: 10000 },
+    );
+    expect(page.url()).toContain(`/spaces?space=${spaceId}`);
     const pendingAfter = await page.evaluate(() => sessionStorage.getItem('pendingInviteToken'));
     expect(pendingAfter).toBeNull();
   });

@@ -119,6 +119,7 @@ export const AuthTokensSchema = z.object({
 export const FileMetadataEntrySchema = z.object({
   displayName: z.string().optional(),
   summary: z.string().optional(),
+  restricted: z.boolean().optional(),
 });
 
 export const SpaceMetadataSchema = z.object({

@@ -8,18 +8,18 @@ See `docs/product/target-state.md`.
 
 ## Ordered Work
 
-1. Prove the registered owner-to-registered collaborator invite loop.
-2. Prove member-scoped space listing, file browsing, and role-based file editing.
-3. Prove scoped chat cannot escape the invited space for a non-owner registered user.
-4. Reframe the core collaborator UX around promoted rooms as goal-centered workspaces inside spaces.
+1. Fix the top-priority UI migration regressions that block a credible Rooms-first walkthrough.
+2. Prove the registered owner-to-registered collaborator invite loop.
+3. Prove member-scoped space listing, file browsing, and role-based file editing.
+4. Prove scoped chat cannot escape the invited space for a non-owner registered user.
 5. Harden the repeatable local demo from a clean Docker dev environment.
 6. Reassess whether file metadata UX is still the next highest-leverage step after the registered-user demo works.
 
 ## Current Backlog Notes
 
-- `aa-7d12 Rooms-first prototype UX migration`: current active epic for replacing the old raw-space-first web UI with the prototype Rooms shell.
-- `aa-2e47 Registered-user collaboration demo`: current active epic.
-- `aa-ff5e Fix registered-user invite UI flow`: first implementation target because invite creation/redemption is likely the demo blocker.
+- `aa-8adb UI Migration Issues`: current top-priority epic for cleaning up Rooms-first migration regressions before resuming broader demo hardening.
+- `aa-c43e Polish authentication and app shell navigation`: first implementation target because login/OAuth friction and duplicated shell controls block any credible walkthrough.
+- `aa-2e47 Registered-user collaboration demo`: still the active product bet after the UI migration blockers are cleared.
 - `aa-1072 Add invite redemption and membership e2e coverage`: prove the owner-to-collaborator loop.
 - `aa-2062 Prove non-owner scoped file and chat boundaries`: prove privacy and role constraints for registered collaborators.
 - Promoted Rooms UX: Rooms are goal-centered workspaces where files and chat support the goal. They are currently backed by existing Topics internally until the planned rename.

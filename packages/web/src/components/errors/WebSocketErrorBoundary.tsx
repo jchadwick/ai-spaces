@@ -1,37 +1,37 @@
-import { Component, type ReactNode } from 'react'
-import { WebSocketError } from './ErrorComponents'
+import { Component, type ReactNode } from "react";
+import { WebSocketError } from "./ErrorComponents";
 
 interface Props {
-  children: ReactNode
-  onRetry?: () => void
-  showInline?: boolean
+  children: ReactNode;
+  onRetry?: () => void;
+  showInline?: boolean;
 }
 
 interface State {
-  hasError: boolean
-  errorMessage: string | null
+  hasError: boolean;
+  errorMessage: string | null;
 }
 
 export class WebSocketErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
-    super(props)
-    this.state = { hasError: false, errorMessage: null }
+    super(props);
+    this.state = { hasError: false, errorMessage: null };
   }
 
   static getDerivedStateFromError(error: Error): State {
     if (import.meta.env.DEV) {
-      console.error('WebSocket error caught:', error)
+      console.error("WebSocket error caught:", error);
     }
-    return { 
-      hasError: true, 
-      errorMessage: error.message || 'Connection failed'
-    }
+    return {
+      hasError: true,
+      errorMessage: error.message || "Connection failed",
+    };
   }
 
   handleRetry = () => {
-    this.setState({ hasError: false, errorMessage: null })
-    this.props.onRetry?.()
-  }
+    this.setState({ hasError: false, errorMessage: null });
+    this.props.onRetry?.();
+  };
 
   render() {
     if (this.state.hasError) {
@@ -42,9 +42,7 @@ export class WebSocketErrorBoundary extends Component<Props, State> {
               <span className="material-symbols-outlined">link_off</span>
               <span className="text-body-md font-medium">Chat disconnected</span>
             </div>
-            <p className="text-body-sm text-t-ink-dim mb-sm">
-              Lost connection to the AI chat.
-            </p>
+            <p className="text-body-sm text-t-ink-dim mb-sm">Lost connection to the AI chat.</p>
             <button
               type="button"
               onClick={this.handleRetry}
@@ -53,16 +51,12 @@ export class WebSocketErrorBoundary extends Component<Props, State> {
               Reconnect
             </button>
           </div>
-        )
+        );
       }
 
-      return (
-        <WebSocketError 
-          onRetry={this.handleRetry}
-        />
-      )
+      return <WebSocketError onRetry={this.handleRetry} />;
     }
 
-    return this.props.children
+    return this.props.children;
   }
 }

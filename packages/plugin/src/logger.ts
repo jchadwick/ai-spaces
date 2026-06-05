@@ -1,9 +1,9 @@
-import pino from 'pino';
+import pino from "pino";
 
 export const logger = pino({
-  name: 'ai-spaces-plugin',
-  level: process.env.LOG_LEVEL ?? 'info',
-  ...(process.env.LOG_PRETTY === 'true'
-    ? { transport: { target: 'pino-pretty', options: { colorize: true } } }
+  name: "ai-spaces-plugin",
+  level: process.env.LOG_LEVEL ?? "info",
+  ...(process.env.LOG_PRETTY === "true"
+    ? { transport: { target: "pino-pretty", options: { colorize: true } } }
     : {}),
 });

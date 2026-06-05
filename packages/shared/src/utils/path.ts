@@ -1,5 +1,5 @@
-import * as path from 'path';
-import * as fs from 'fs';
+import * as fs from "node:fs";
+import * as path from "node:path";
 
 export interface PathValidationResult {
   valid: boolean;
@@ -7,20 +7,17 @@ export interface PathValidationResult {
   error?: string;
 }
 
-export function validatePath(
-  userPath: string,
-  spaceRoot: string
-): PathValidationResult {
-  if (!userPath || typeof userPath !== 'string') {
-    return { valid: false, resolvedPath: null, error: 'Invalid path' };
+export function validatePath(userPath: string, spaceRoot: string): PathValidationResult {
+  if (!userPath || typeof userPath !== "string") {
+    return { valid: false, resolvedPath: null, error: "Invalid path" };
   }
 
-  if (userPath.includes('\0')) {
-    return { valid: false, resolvedPath: null, error: 'Invalid path' };
+  if (userPath.includes("\0")) {
+    return { valid: false, resolvedPath: null, error: "Invalid path" };
   }
 
   if (path.isAbsolute(userPath)) {
-    return { valid: false, resolvedPath: null, error: 'Access denied' };
+    return { valid: false, resolvedPath: null, error: "Access denied" };
   }
 
   const normalizedSpaceRoot = path.resolve(spaceRoot);
@@ -29,11 +26,11 @@ export function validatePath(
   try {
     resolvedPath = path.resolve(normalizedSpaceRoot, userPath);
   } catch {
-    return { valid: false, resolvedPath: null, error: 'Invalid path' };
+    return { valid: false, resolvedPath: null, error: "Invalid path" };
   }
 
   if (!isPathContained(resolvedPath, normalizedSpaceRoot)) {
-    return { valid: false, resolvedPath: null, error: 'Access denied' };
+    return { valid: false, resolvedPath: null, error: "Access denied" };
   }
 
   return resolveWorkspacePath(resolvedPath, normalizedSpaceRoot);
@@ -55,7 +52,10 @@ function realpathExistingSymlink(filePath: string): string | null {
   }
 }
 
-function resolveWorkspacePath(resolvedLogicalPath: string, normalizedSpaceRoot: string): PathValidationResult {
+function resolveWorkspacePath(
+  resolvedLogicalPath: string,
+  normalizedSpaceRoot: string,
+): PathValidationResult {
   const realSpaceRoot = canonicalizeExistingPath(normalizedSpaceRoot);
   const relativePath = path.relative(normalizedSpaceRoot, resolvedLogicalPath);
   const segments = relativePath.split(path.sep).filter(Boolean);
@@ -73,13 +73,13 @@ function resolveWorkspacePath(resolvedLogicalPath: string, normalizedSpaceRoot: 
         stats = fs.lstatSync(candidateRealPath);
       } catch (err) {
         const code = (err as NodeJS.ErrnoException).code;
-        if (code !== 'ENOENT') {
-          return { valid: false, resolvedPath: null, error: 'Invalid path' };
+        if (code !== "ENOENT") {
+          return { valid: false, resolvedPath: null, error: "Invalid path" };
         }
         const targetPath = path.join(currentRealPath, ...segments.slice(index));
         return isPathContained(targetPath, realSpaceRoot)
           ? { valid: true, resolvedPath: targetPath }
-          : { valid: false, resolvedPath: null, error: 'Access denied' };
+          : { valid: false, resolvedPath: null, error: "Access denied" };
       }
 
       if (!stats.isSymbolicLink()) {
@@ -89,15 +89,15 @@ function resolveWorkspacePath(resolvedLogicalPath: string, normalizedSpaceRoot: 
 
       const symlinkRealPath = realpathExistingSymlink(candidateRealPath);
       if (!symlinkRealPath) {
-        return { valid: false, resolvedPath: null, error: 'Invalid path' };
+        return { valid: false, resolvedPath: null, error: "Invalid path" };
       }
       if (visitedSymlinks.has(symlinkRealPath)) {
-        return { valid: false, resolvedPath: null, error: 'Invalid path' };
+        return { valid: false, resolvedPath: null, error: "Invalid path" };
       }
       visitedSymlinks.add(symlinkRealPath);
 
       if (!isPathContained(symlinkRealPath, realSpaceRoot)) {
-        return { valid: false, resolvedPath: null, error: 'Access denied' };
+        return { valid: false, resolvedPath: null, error: "Access denied" };
       }
 
       currentRealPath = symlinkRealPath;
@@ -105,9 +105,9 @@ function resolveWorkspacePath(resolvedLogicalPath: string, normalizedSpaceRoot: 
 
     return isPathContained(currentRealPath, realSpaceRoot)
       ? { valid: true, resolvedPath: currentRealPath }
-      : { valid: false, resolvedPath: null, error: 'Access denied' };
+      : { valid: false, resolvedPath: null, error: "Access denied" };
   } catch {
-    return { valid: false, resolvedPath: null, error: 'Invalid path' };
+    return { valid: false, resolvedPath: null, error: "Invalid path" };
   }
 }
 
@@ -128,17 +128,14 @@ export function isPathContained(resolvedPath: string, containerPath: string): bo
   );
 }
 
-export function validateSymlink(
-  filePath: string,
-  spaceRoot: string
-): PathValidationResult {
+export function validateSymlink(filePath: string, spaceRoot: string): PathValidationResult {
   try {
     let currentPath = filePath;
     const visitedPaths = new Set<string>();
 
     while (true) {
       if (visitedPaths.has(currentPath)) {
-        return { valid: false, resolvedPath: null, error: 'Invalid path' };
+        return { valid: false, resolvedPath: null, error: "Invalid path" };
       }
       visitedPaths.add(currentPath);
 
@@ -149,7 +146,7 @@ export function validateSymlink(
         const resolvedTarget = path.resolve(path.dirname(currentPath), linkTarget);
 
         if (!isPathContained(resolvedTarget, spaceRoot)) {
-          return { valid: false, resolvedPath: null, error: 'Access denied' };
+          return { valid: false, resolvedPath: null, error: "Access denied" };
         }
 
         currentPath = resolvedTarget;
@@ -160,27 +157,27 @@ export function validateSymlink(
 
     return { valid: true, resolvedPath: currentPath };
   } catch {
-    return { valid: false, resolvedPath: null, error: 'Invalid path' };
+    return { valid: false, resolvedPath: null, error: "Invalid path" };
   }
 }
 
 export function sanitizeFilename(filename: string): string | null {
-  if (!filename || typeof filename !== 'string') {
+  if (!filename || typeof filename !== "string") {
     return null;
   }
 
-  if (filename.includes('\0')) {
+  if (filename.includes("\0")) {
     return null;
   }
 
-  const dangerousPatterns = ['../', '..\\', '/', '\\', '<', '>', ':', '"', '|', '?', '*'];
+  const dangerousPatterns = ["../", "..\\", "/", "\\", "<", ">", ":", '"', "|", "?", "*"];
   for (const pattern of dangerousPatterns) {
     if (filename.includes(pattern)) {
       return null;
     }
   }
 
-  if (filename === '.' || filename === '..') {
+  if (filename === "." || filename === "..") {
     return null;
   }
 

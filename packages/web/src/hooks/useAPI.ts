@@ -1,5 +1,5 @@
-import { useCallback } from 'react'
-import { useAuth } from '@/contexts/AuthContext'
+import { useCallback } from "react";
+import { useAuth } from "@/contexts/AuthContext";
 
 /**
  * Returns a fetch-compatible function that:
@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext'
  * - If refresh fails, logout has already been called; returns the 401
  */
 export function useAPI(): (url: string, options?: RequestInit) => Promise<Response> {
-  const { accessToken, refresh } = useAuth()
+  const { accessToken, refresh } = useAuth();
 
   return useCallback(
     async (url: string, options: RequestInit = {}): Promise<Response> => {
@@ -18,22 +18,25 @@ export function useAPI(): (url: string, options?: RequestInit) => Promise<Respon
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...(options.headers as Record<string, string> | undefined),
         },
-      })
+      });
 
-      const response = await fetch(url, withToken(accessToken))
+      const response = await fetch(url, withToken(accessToken));
 
       if (response.status === 401) {
-        const body = await response.clone().json().catch(() => ({}))
-        if ((body as { code?: string }).code === 'TOKEN_EXPIRED') {
-          const newToken = await refresh()
+        const body = await response
+          .clone()
+          .json()
+          .catch(() => ({}));
+        if ((body as { code?: string }).code === "TOKEN_EXPIRED") {
+          const newToken = await refresh();
           if (newToken) {
-            return fetch(url, withToken(newToken))
+            return fetch(url, withToken(newToken));
           }
         }
       }
 
-      return response
+      return response;
     },
     [accessToken, refresh],
-  )
+  );
 }

@@ -1,38 +1,37 @@
-import { serve } from '@hono/node-server';
-import * as http from 'http';
-import { WebSocketServer, WebSocket } from 'ws';
-import * as fs from 'fs';
-import * as path from 'path';
-import jwt from 'jsonwebtoken';
-import { config, assertProductionHttps } from './config.js';
-import { authRouter } from './routes/auth.js';
-import { spacesRouter, getSpaceById } from './routes/spaces.js';
-import { auditRouter } from './routes/audit.js';
-import { membersRouter } from './routes/members.js';
-import { invitesRouter } from './routes/invites.js';
-import { identityRouter } from './routes/identity.js';
-import { confirmRouter } from './routes/confirm.js';
-import { adminRouter } from './routes/admin.js';
-import { internalRouter } from './routes/internal.js';
-import { agentSetupRouter } from './routes/agent-setup.js';
-import { pluginsRouter } from './routes/plugins.js';
-import { schemasRouter } from './routes/schemas.js';
-import { runMigrations } from './db/migrate.js';
-import { runPreflightChecks } from './preflight.js';
-import { getUserSpaceRole, getServerBySpaceId, getUserWithServerRole } from './db/queries.js';
-import { createInternalMiddleware } from './middleware/ip-allowlist.js';
-import { db } from './db/connection.js';
-import { servers, users } from './db/index.js';
-import { DEFAULT_SERVER_ID } from './db/constants.js';
-import { agentAdapter } from './agent-adapter-instance.js';
-import { acpConnectionPool } from './adapters/acp-connection-pool.js';
-import { createUser, getUserWithServerRoleByEmail, hashPassword } from './user-service.js';
-import { Hono } from 'hono';
-import { cors } from 'hono/cors';
-import { logger as honoLogger } from 'hono/logger';
-import { logger as rootLogger } from './logger.js';
-import { execSync } from 'node:child_process';
-import { BrowserAcpOrchestrator } from './acp/browser-orchestrator.js';
+import { execSync } from "node:child_process";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { serve } from "@hono/node-server";
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import { logger as honoLogger } from "hono/logger";
+import jwt from "jsonwebtoken";
+import { WebSocket, WebSocketServer } from "ws";
+import { BrowserAcpOrchestrator } from "./acp/browser-orchestrator.js";
+import { acpConnectionPool } from "./adapters/acp-connection-pool.js";
+import { agentAdapter } from "./agent-adapter-instance.js";
+import { assertProductionHttps, config } from "./config.js";
+import { db } from "./db/connection.js";
+import { DEFAULT_SERVER_ID } from "./db/constants.js";
+import { servers, users } from "./db/index.js";
+import { runMigrations } from "./db/migrate.js";
+import { getServerBySpaceId, getUserSpaceRole, getUserWithServerRole } from "./db/queries.js";
+import { logger as rootLogger } from "./logger.js";
+import { createInternalMiddleware } from "./middleware/ip-allowlist.js";
+import { runPreflightChecks } from "./preflight.js";
+import { adminRouter } from "./routes/admin.js";
+import { agentSetupRouter } from "./routes/agent-setup.js";
+import { auditRouter } from "./routes/audit.js";
+import { authRouter } from "./routes/auth.js";
+import { confirmRouter } from "./routes/confirm.js";
+import { identityRouter } from "./routes/identity.js";
+import { internalRouter } from "./routes/internal.js";
+import { invitesRouter } from "./routes/invites.js";
+import { membersRouter } from "./routes/members.js";
+import { pluginsRouter } from "./routes/plugins.js";
+import { schemasRouter } from "./routes/schemas.js";
+import { getSpaceById, spacesRouter } from "./routes/spaces.js";
+import { createUser, getUserWithServerRoleByEmail, hashPassword } from "./user-service.js";
 
 type BuildInfo = {
   display: string;
@@ -41,23 +40,23 @@ type BuildInfo = {
   tag: string;
 };
 
-const log = rootLogger.child({ component: 'server' });
+const log = rootLogger.child({ component: "server" });
 
 function runGit(command: string): string {
   try {
-    return execSync(command, { encoding: 'utf8' }).trim();
+    return execSync(command, { encoding: "utf8" }).trim();
   } catch {
-    return '';
+    return "";
   }
 }
 
 function resolveBuildInfo(): BuildInfo {
-  const tag = runGit('git describe --tags --exact-match');
-  const sha = runGit('git rev-parse --short HEAD');
-  const branch = runGit('git rev-parse --abbrev-ref HEAD');
-  const packageVersion = process.env.npm_package_version?.trim() ?? '';
+  const tag = runGit("git describe --tags --exact-match");
+  const sha = runGit("git rev-parse --short HEAD");
+  const branch = runGit("git rev-parse --abbrev-ref HEAD");
+  const packageVersion = process.env.npm_package_version?.trim() ?? "";
 
-  const versionFallback = packageVersion ? `v${packageVersion}` : 'unknown';
+  const versionFallback = packageVersion ? `v${packageVersion}` : "unknown";
   const display = tag || (sha && branch ? `${branch}-${sha}` : sha || versionFallback);
 
   return {
@@ -74,92 +73,111 @@ function injectBuildMetaTags(html: string, buildInfo: BuildInfo): string {
     `<meta name="ai-spaces-sha" content="${buildInfo.sha}">`,
     `<meta name="ai-spaces-branch" content="${buildInfo.branch}">`,
     `<meta name="ai-spaces-tag" content="${buildInfo.tag}">`,
-  ].join('\n    ');
-  return html.replace('</head>', `    ${metaTags}\n  </head>`);
+  ].join("\n    ");
+  return html.replace("</head>", `    ${metaTags}\n  </head>`);
 }
 
 const buildInfo = resolveBuildInfo();
 
-
-assertProductionHttps(config.BASE_URL, 'BASE_URL');
+assertProductionHttps(config.BASE_URL, "BASE_URL");
 
 const app = new Hono();
 
 // WS logger with token redaction
-app.use('*', honoLogger((str) => {
-  const redacted = str.replace(/[?&]token=[^&\s]*/g, (m) => m.replace(/token=[^&\s]*/, 'token=[REDACTED]'));
-  log.info(redacted);
-}));
+app.use(
+  "*",
+  honoLogger((str) => {
+    const redacted = str.replace(/[?&]token=[^&\s]*/g, (m) =>
+      m.replace(/token=[^&\s]*/, "token=[REDACTED]"),
+    );
+    log.info(redacted);
+  }),
+);
 
-app.use('/api/*', cors({
-  origin: '*',
-  credentials: true,
-}));
+app.use(
+  "/api/*",
+  cors({
+    origin: "*",
+    credentials: true,
+  }),
+);
 
-app.use('/api/*', async (c, next) => {
+app.use("/api/*", async (c, next) => {
   await next();
-  c.res.headers.set('X-AI-Spaces-Build', buildInfo.display);
-  c.res.headers.set('X-AI-Spaces-Sha', buildInfo.sha);
-  c.res.headers.set('X-AI-Spaces-Branch', buildInfo.branch);
-  c.res.headers.set('X-AI-Spaces-Tag', buildInfo.tag);
+  c.res.headers.set("X-AI-Spaces-Build", buildInfo.display);
+  c.res.headers.set("X-AI-Spaces-Sha", buildInfo.sha);
+  c.res.headers.set("X-AI-Spaces-Branch", buildInfo.branch);
+  c.res.headers.set("X-AI-Spaces-Tag", buildInfo.tag);
 });
 
 // CSP middleware for invite and login routes — register before static file serving
 // Note: Hono's use() does not accept an array of paths; register each path separately
-app.use('/invite*', async (c, next) => {
+app.use("/invite*", async (c, next) => {
   await next();
-  c.res.headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'");
+  c.res.headers.set(
+    "Content-Security-Policy",
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'",
+  );
 });
-app.use('/login*', async (c, next) => {
+app.use("/login*", async (c, next) => {
   await next();
-  c.res.headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'");
+  c.res.headers.set(
+    "Content-Security-Policy",
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'",
+  );
 });
-app.use('/register*', async (c, next) => {
+app.use("/register*", async (c, next) => {
   await next();
-  c.res.headers.set('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'");
+  c.res.headers.set(
+    "Content-Security-Policy",
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'",
+  );
 });
 
 const internalMiddleware = createInternalMiddleware(config.GATEWAY_TOKEN);
-app.use('/api/internal/*', internalMiddleware);
-app.route('/api/internal', internalRouter);
+app.use("/api/internal/*", internalMiddleware);
+app.route("/api/internal", internalRouter);
 
-app.route('/api/agent-setup', agentSetupRouter);
-app.route('/api/plugins', pluginsRouter);
-app.route('/api/schemas', schemasRouter);
-app.route('/plugins', pluginsRouter);
-app.route('/schemas', schemasRouter);
+app.route("/api/agent-setup", agentSetupRouter);
+app.route("/api/plugins", pluginsRouter);
+app.route("/api/schemas", schemasRouter);
+app.route("/plugins", pluginsRouter);
+app.route("/schemas", schemasRouter);
 
-app.get('/health', async (c) => {
-  const startedAt = Date.now();
+app.get("/health", async (c) => {
+  const _startedAt = Date.now();
 
   // Check DB
-  let dbStatus: 'ok' | 'error' = 'ok';
+  let dbStatus: "ok" | "error" = "ok";
   try {
-    db.run('SELECT 1');
+    db.run("SELECT 1");
   } catch {
-    dbStatus = 'error';
+    dbStatus = "error";
   }
 
   // Check plugin reachability
-  let pluginStatus: 'ok' | 'unreachable' | 'unknown' = 'unknown';
+  let pluginStatus: "ok" | "unreachable" | "unknown" = "unknown";
   try {
     const registeredServer = db.select().from(servers).get();
     if (registeredServer?.pluginUrl) {
       const res = await fetch(`${registeredServer.pluginUrl}/health`, {
         signal: AbortSignal.timeout(2000),
       });
-      pluginStatus = res.ok ? 'ok' : 'unreachable';
+      pluginStatus = res.ok ? "ok" : "unreachable";
     }
   } catch {
-    pluginStatus = 'unreachable';
+    pluginStatus = "unreachable";
   }
 
-  const circuitBreaker = agentAdapter.getCircuitStatus().toLowerCase() as 'closed' | 'open' | 'half_open';
-  const degraded = dbStatus !== 'ok' || pluginStatus === 'unreachable' || circuitBreaker === 'open';
+  const circuitBreaker = agentAdapter.getCircuitStatus().toLowerCase() as
+    | "closed"
+    | "open"
+    | "half_open";
+  const degraded = dbStatus !== "ok" || pluginStatus === "unreachable" || circuitBreaker === "open";
 
   return c.json(
     {
-      status: degraded ? 'degraded' : 'ok',
+      status: degraded ? "degraded" : "ok",
       db: dbStatus,
       plugin: pluginStatus,
       circuitBreaker,
@@ -169,68 +187,80 @@ app.get('/health', async (c) => {
   );
 });
 
-app.route('/api/auth', authRouter);
-app.route('/api/admin', adminRouter);
-app.route('/api/spaces', spacesRouter);
-app.route('/api/spaces', membersRouter);
-app.route('/api/spaces', identityRouter);
-app.route('/api/audit', auditRouter);
-app.route('/api/invites', invitesRouter);
-app.route('/api', confirmRouter);
+app.route("/api/auth", authRouter);
+app.route("/api/admin", adminRouter);
+app.route("/api/spaces", spacesRouter);
+app.route("/api/spaces", membersRouter);
+app.route("/api/spaces", identityRouter);
+app.route("/api/audit", auditRouter);
+app.route("/api/invites", invitesRouter);
+app.route("/api", confirmRouter);
 
 if (fs.existsSync(config.WEB_DIST)) {
-  app.use('*', async (c, next) => {
-    if (c.req.path === '/agent-setup' || c.req.path.startsWith('/agent-setup/') || c.req.path.startsWith('/api/') || c.req.path.startsWith('/ws/') || c.req.path.startsWith('/plugins/') || c.req.path.startsWith('/schemas/')) {
+  app.use("*", async (c, next) => {
+    if (
+      c.req.path === "/agent-setup" ||
+      c.req.path.startsWith("/agent-setup/") ||
+      c.req.path.startsWith("/api/") ||
+      c.req.path.startsWith("/ws/") ||
+      c.req.path.startsWith("/plugins/") ||
+      c.req.path.startsWith("/schemas/")
+    ) {
       return next();
     }
     const filePath = path.join(config.WEB_DIST, c.req.path);
     if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-      const content = fs.readFileSync(filePath, 'utf-8');
-      const responseContent = filePath.endsWith('.html') ? injectBuildMetaTags(content, buildInfo) : content;
-      const isAsset = c.req.path.startsWith('/assets/');
+      const content = fs.readFileSync(filePath, "utf-8");
+      const responseContent = filePath.endsWith(".html")
+        ? injectBuildMetaTags(content, buildInfo)
+        : content;
+      const isAsset = c.req.path.startsWith("/assets/");
       return c.text(responseContent, 200, {
-        'Content-Type': getContentType(filePath),
-        'Cache-Control': isAsset ? 'public, max-age=31536000, immutable' : 'no-cache',
+        "Content-Type": getContentType(filePath),
+        "Cache-Control": isAsset ? "public, max-age=31536000, immutable" : "no-cache",
       });
     }
 
-    if (c.req.path.startsWith('/assets/')) {
-      return c.text('Not found', 404, {
-        'Content-Type': 'text/plain',
-        'Cache-Control': 'no-store',
+    if (c.req.path.startsWith("/assets/")) {
+      return c.text("Not found", 404, {
+        "Content-Type": "text/plain",
+        "Cache-Control": "no-store",
       });
     }
 
-    const indexContent = fs.readFileSync(path.join(config.WEB_DIST, 'index.html'), 'utf-8');
+    const indexContent = fs.readFileSync(path.join(config.WEB_DIST, "index.html"), "utf-8");
     return c.text(injectBuildMetaTags(indexContent, buildInfo), 200, {
-      'Content-Type': 'text/html',
-      'Cache-Control': 'no-store',
+      "Content-Type": "text/html",
+      "Cache-Control": "no-store",
     });
   });
-  log.info({ dir: config.WEB_DIST }, 'Serving static files');
+  log.info({ dir: config.WEB_DIST }, "Serving static files");
 }
 
 function getContentType(filePath: string): string {
   const ext = path.extname(filePath);
   const types: Record<string, string> = {
-    '.html': 'text/html',
-    '.js': 'application/javascript',
-    '.css': 'text/css',
-    '.json': 'application/json',
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
+    ".html": "text/html",
+    ".js": "application/javascript",
+    ".css": "text/css",
+    ".json": "application/json",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
   };
-  return types[ext] || 'text/plain';
+  return types[ext] || "text/plain";
 }
 
 await runPreflightChecks();
 runMigrations();
 
-db.insert(servers).values({
-  id: DEFAULT_SERVER_ID,
-  name: 'God Server',
-  createdAt: new Date().toISOString(),
-}).onConflictDoNothing().run();
+db.insert(servers)
+  .values({
+    id: DEFAULT_SERVER_ID,
+    name: "God Server",
+    createdAt: new Date().toISOString(),
+  })
+  .onConflictDoNothing()
+  .run();
 
 async function bootstrapAdminIfNeeded(): Promise<void> {
   const email = config.BOOTSTRAP_ADMIN_EMAIL?.trim();
@@ -244,8 +274,8 @@ async function bootstrapAdminIfNeeded(): Promise<void> {
   if (existingAnyUser) return;
 
   const passwordHash = await hashPassword(password);
-  createUser(email, passwordHash, 'admin');
-  log.info({ email }, 'Bootstrapped initial admin user');
+  createUser(email, passwordHash, "admin");
+  log.info({ email }, "Bootstrapped initial admin user");
 }
 
 await bootstrapAdminIfNeeded();
@@ -254,21 +284,29 @@ function rawDataToBuffer(data: unknown): Buffer {
   if (Buffer.isBuffer(data)) return data;
   if (data instanceof ArrayBuffer) return Buffer.from(data);
   if (Array.isArray(data)) return Buffer.concat(data);
-  return Buffer.from(String(data), 'utf8');
+  return Buffer.from(String(data), "utf8");
 }
 
 const wss = new WebSocketServer({ noServer: true });
 
-
-wss.on('upgrade', (request, socket, head) => {
-  const url = new URL(request.url || '/', `http://${request.headers.host}`);
+wss.on("upgrade", (request, socket, head) => {
+  const url = new URL(request.url || "/", `http://${request.headers.host}`);
   const pathMatch = url.pathname.match(/^\/ws\/spaces\/([^/]+)$/);
 
-  const wsLog = log.child({ component: 'ws-upgrade' });
-  wsLog.info({ url: request.url, host: request.headers.host, origin: request.headers.origin, hasAuth: !!request.headers.authorization, hasToken: url.searchParams.has('token') }, 'WS upgrade');
+  const wsLog = log.child({ component: "ws-upgrade" });
+  wsLog.info(
+    {
+      url: request.url,
+      host: request.headers.host,
+      origin: request.headers.origin,
+      hasAuth: !!request.headers.authorization,
+      hasToken: url.searchParams.has("token"),
+    },
+    "WS upgrade",
+  );
 
   if (!pathMatch) {
-    wsLog.warn({ url: request.url }, 'No path match, destroying');
+    wsLog.warn({ url: request.url }, "No path match, destroying");
     socket.destroy();
     return;
   }
@@ -277,7 +315,7 @@ wss.on('upgrade', (request, socket, head) => {
 
   const serverSpace = getSpaceById(spaceId);
   if (!serverSpace) {
-    wsLog.warn({ spaceId }, 'Space not found');
+    wsLog.warn({ spaceId }, "Space not found");
     socket.destroy();
     return;
   }
@@ -286,31 +324,34 @@ wss.on('upgrade', (request, socket, head) => {
   let rawToken: string | null = null;
 
   // In non-production dev mode with DEV_VIRTUAL_USER, bypass JWT validation
-  if (process.env.NODE_ENV !== 'production' && process.env.DEV_VIRTUAL_USER === 'true') {
-    userId = 'dev-user-00000000-0000-0000-0000-000000000000';
-    wsLog.info({ userId, spaceId }, 'WS auth via DEV_VIRTUAL_USER');
+  if (process.env.NODE_ENV !== "production" && process.env.DEV_VIRTUAL_USER === "true") {
+    userId = "dev-user-00000000-0000-0000-0000-000000000000";
+    wsLog.info({ userId, spaceId }, "WS auth via DEV_VIRTUAL_USER");
   } else {
     // Require JWT — check Authorization header first, then ?token= query param
     const authHeader = request.headers.authorization;
-    rawToken = authHeader?.startsWith('Bearer ')
+    rawToken = authHeader?.startsWith("Bearer ")
       ? authHeader.substring(7)
-      : url.searchParams.get('token');
+      : url.searchParams.get("token");
 
     if (!rawToken) {
-      wsLog.warn('No token, closing 1008');
-      wss.handleUpgrade(request, socket, head, (ws) => ws.close(1008, 'Authentication required'));
+      wsLog.warn("No token, closing 1008");
+      wss.handleUpgrade(request, socket, head, (ws) => ws.close(1008, "Authentication required"));
       return;
     }
 
     try {
       const decoded = jwt.verify(rawToken, config.JWT_SECRET) as jwt.JwtPayload;
-      if (!decoded.userId) throw new Error('Missing userId');
+      if (!decoded.userId) throw new Error("Missing userId");
       userId = decoded.userId as string;
-      if (!getUserWithServerRole(userId)) throw new Error('User no longer exists');
-      wsLog.info({ userId, spaceId, tokenSource: authHeader?.startsWith('Bearer ') ? 'header' : 'query' }, 'WS auth ok');
+      if (!getUserWithServerRole(userId)) throw new Error("User no longer exists");
+      wsLog.info(
+        { userId, spaceId, tokenSource: authHeader?.startsWith("Bearer ") ? "header" : "query" },
+        "WS auth ok",
+      );
     } catch (err) {
-      wsLog.warn({ err: (err as Error).message }, 'Invalid token');
-      wss.handleUpgrade(request, socket, head, (ws) => ws.close(1008, 'Invalid token'));
+      wsLog.warn({ err: (err as Error).message }, "Invalid token");
+      wss.handleUpgrade(request, socket, head, (ws) => ws.close(1008, "Invalid token"));
       return;
     }
   }
@@ -318,26 +359,26 @@ wss.on('upgrade', (request, socket, head) => {
   // Resolve the user's actual SpaceRole from the DB (admin → 'owner' handled here)
   const spaceRole = getUserSpaceRole(userId, spaceId);
   if (!spaceRole) {
-    wsLog.warn({ userId, spaceId }, 'No space access');
-    wss.handleUpgrade(request, socket, head, (ws) => ws.close(1008, 'Forbidden'));
+    wsLog.warn({ userId, spaceId }, "No space access");
+    wss.handleUpgrade(request, socket, head, (ws) => ws.close(1008, "Forbidden"));
     return;
   }
 
   const pluginServer = getServerBySpaceId(spaceId);
   if (!pluginServer?.pluginUrl) {
-    wsLog.warn({ spaceId }, 'No plugin URL for space');
-    wss.handleUpgrade(request, socket, head, (ws) => ws.close(1011, 'No plugin registered for this space'));
+    wsLog.warn({ spaceId }, "No plugin URL for space");
+    wss.handleUpgrade(request, socket, head, (ws) =>
+      ws.close(1011, "No plugin registered for this space"),
+    );
     return;
   }
-  const pluginWsUrl = `${pluginServer.pluginUrl.replace(/^http/, 'ws')}/api/spaces/${spaceId}/acp`;
-  wsLog.info({ userId, spaceId, pluginWsUrl }, 'Connecting gateway websocket');
+  const pluginWsUrl = `${pluginServer.pluginUrl.replace(/^http/, "ws")}/api/spaces/${spaceId}/acp`;
+  wsLog.info({ userId, spaceId, pluginWsUrl }, "Connecting gateway websocket");
 
   // Mint a forwarding token with the resolved SpaceRole so the plugin gets the correct role
-  const forwardToken = jwt.sign(
-    { userId, role: spaceRole },
-    config.JWT_SECRET,
-    { expiresIn: '1h' },
-  );
+  const forwardToken = jwt.sign({ userId, role: spaceRole }, config.JWT_SECRET, {
+    expiresIn: "1h",
+  });
 
   const gatewayWs = new WebSocket(pluginWsUrl, {
     headers: {
@@ -366,16 +407,16 @@ wss.on('upgrade', (request, socket, head) => {
     pendingToGateway.length = 0;
   };
 
-  gatewayWs.on('open', () => {
-    wsLog.info({ userId, spaceId }, 'Gateway websocket open');
+  gatewayWs.on("open", () => {
+    wsLog.info({ userId, spaceId }, "Gateway websocket open");
     flushToGateway();
   });
 
-  gatewayWs.on('message', (data, isBinary) => {
+  gatewayWs.on("message", (data, isBinary) => {
     try {
       orchestrator.observeGatewayChunk(rawDataToBuffer(data));
     } catch (err) {
-      wsLog.warn({ err: (err as Error).message }, 'Could not inspect gateway ACP packet');
+      wsLog.warn({ err: (err as Error).message }, "Could not inspect gateway ACP packet");
     }
     if (clientWs && clientWs.readyState === WebSocket.OPEN) {
       clientWs.send(data, { binary: isBinary });
@@ -384,27 +425,27 @@ wss.on('upgrade', (request, socket, head) => {
     }
   });
 
-  gatewayWs.on('error', (err) => {
-    wsLog.error({ userId, spaceId, err: err.message }, 'Gateway websocket error');
-    log.error({ err: err.message }, 'Gateway WebSocket error');
+  gatewayWs.on("error", (err) => {
+    wsLog.error({ userId, spaceId, err: err.message }, "Gateway websocket error");
+    log.error({ err: err.message }, "Gateway WebSocket error");
     if (clientWs && clientWs.readyState === WebSocket.OPEN) {
-      clientWs.close(1011, 'Gateway error');
+      clientWs.close(1011, "Gateway error");
     }
   });
 
-  gatewayWs.on('close', (code, reason) => {
-    wsLog.info({ userId, spaceId, code, reason: reason.toString() }, 'Gateway websocket close');
+  gatewayWs.on("close", (code, reason) => {
+    wsLog.info({ userId, spaceId, code, reason: reason.toString() }, "Gateway websocket close");
     if (clientWs && clientWs.readyState === WebSocket.OPEN) {
-      clientWs.close(1000, 'Gateway closed');
+      clientWs.close(1000, "Gateway closed");
     }
   });
 
   wss.handleUpgrade(request, socket, head, (ws) => {
     clientWs = ws;
-    wsLog.info({ userId, spaceId }, 'Client websocket upgraded');
+    wsLog.info({ userId, spaceId }, "Client websocket upgraded");
     flushToClient();
 
-    ws.on('message', async (data) => {
+    ws.on("message", async (data) => {
       try {
         const filtered = await orchestrator.filterClientChunk(rawDataToBuffer(data));
         if (filtered.response) ws.send(filtered.response);
@@ -415,18 +456,22 @@ wss.on('upgrade', (request, socket, head) => {
           pendingToGateway.push(filtered.forward);
         }
       } catch (err) {
-        wsLog.warn({ err: (err as Error).message }, 'Rejected browser ACP packet');
-        ws.send(Buffer.from(`${JSON.stringify({ jsonrpc: '2.0', id: null, error: { code: -32602, message: (err as Error).message } })}\n`));
+        wsLog.warn({ err: (err as Error).message }, "Rejected browser ACP packet");
+        ws.send(
+          Buffer.from(
+            `${JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32602, message: (err as Error).message } })}\n`,
+          ),
+        );
       }
     });
 
-    ws.on('close', (code, reason) => {
-      wsLog.info({ userId, spaceId, code, reason: reason.toString() }, 'Client websocket close');
+    ws.on("close", (code, reason) => {
+      wsLog.info({ userId, spaceId, code, reason: reason.toString() }, "Client websocket close");
       gatewayWs.close();
     });
 
-    ws.on('error', (err) => {
-      log.error({ err: err.message }, 'Browser WebSocket error');
+    ws.on("error", (err) => {
+      log.error({ err: err.message }, "Browser WebSocket error");
       gatewayWs.close();
     });
   });
@@ -435,21 +480,21 @@ wss.on('upgrade', (request, socket, head) => {
 const server = serve({
   fetch: app.fetch,
   port: config.AI_SPACES_PORT,
-  hostname: '0.0.0.0',
+  hostname: "0.0.0.0",
   overrideGlobalObjects: false,
 });
 
-server.on('upgrade', (request, socket, head) => {
-  wss.emit('upgrade', request, socket, head);
+server.on("upgrade", (request, socket, head) => {
+  wss.emit("upgrade", request, socket, head);
 });
 
-log.info({ port: config.AI_SPACES_PORT }, 'Server started');
+log.info({ port: config.AI_SPACES_PORT }, "Server started");
 
 const shutdown = () => {
   acpConnectionPool.disposeAll();
   process.exit(0);
 };
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);
 
 export { app };

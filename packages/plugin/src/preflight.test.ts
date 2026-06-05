@@ -1,6 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock('./logger.js', () => ({
+vi.mock("./logger.js", () => ({
   logger: {
     child: () => ({
       info: vi.fn(),
@@ -12,7 +12,7 @@ vi.mock('./logger.js', () => ({
 
 const ORIGINAL_ENV = { ...process.env };
 
-describe('preflight', () => {
+describe("preflight", () => {
   beforeEach(() => {
     vi.resetModules();
     process.env = { ...ORIGINAL_ENV };
@@ -23,15 +23,17 @@ describe('preflight', () => {
     vi.unstubAllGlobals();
   });
 
-  it('returns warnings instead of throwing when config/server unavailable', async () => {
-    process.env.OPENCLAW_HOME = '/tmp/definitely-missing-openclaw-home';
-    process.env.AI_SPACES_URL = 'http://127.0.0.1:1';
+  it("returns warnings instead of throwing when config/server unavailable", async () => {
+    process.env.OPENCLAW_HOME = "/tmp/definitely-missing-openclaw-home";
+    process.env.AI_SPACES_URL = "http://127.0.0.1:1";
 
-    const fetchMock = vi.fn().mockRejectedValue(new Error('connection refused'));
-    vi.stubGlobal('fetch', fetchMock);
+    const fetchMock = vi.fn().mockRejectedValue(new Error("connection refused"));
+    vi.stubGlobal("fetch", fetchMock);
 
-    const { runPluginPreflightChecks } = await import('./preflight.js');
-    const result = await runPluginPreflightChecks([{ agentId: 'main', workspaceRoot: '/tmp/missing-workspace' }]);
+    const { runPluginPreflightChecks } = await import("./preflight.js");
+    const result = await runPluginPreflightChecks([
+      { agentId: "main", workspaceRoot: "/tmp/missing-workspace" },
+    ]);
 
     expect(result.ok).toBe(false);
     expect(result.warnings.length).toBeGreaterThan(0);

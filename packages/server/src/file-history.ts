@@ -1,13 +1,13 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import { config } from './config.js';
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { config } from "./config.js";
 
 interface FileModification {
   path: string;
-  action: 'created' | 'modified' | 'deleted';
+  action: "created" | "modified" | "deleted";
   sessionId: string;
   timestamp: string;
-  triggeredBy: 'user' | 'agent';
+  triggeredBy: "user" | "agent";
 }
 
 interface FileHistoryStore {
@@ -20,19 +20,19 @@ function getDataDir(): string {
 
 function getHistoryFilePath(spacePath: string): string {
   const dataDir = getDataDir();
-  const fullPath = path.join(dataDir, 'history', spacePath, 'history.json');
+  const fullPath = path.join(dataDir, "history", spacePath, "history.json");
   return fullPath;
 }
 
 function loadHistory(spacePath: string): FileHistoryStore {
   const filePath = getHistoryFilePath(spacePath);
-  
+
   if (!fs.existsSync(filePath)) {
     return { modifications: [] };
   }
-  
+
   try {
-    const content = fs.readFileSync(filePath, 'utf-8');
+    const content = fs.readFileSync(filePath, "utf-8");
     return JSON.parse(content);
   } catch {
     return { modifications: [] };
@@ -42,28 +42,28 @@ function loadHistory(spacePath: string): FileHistoryStore {
 function saveHistory(spacePath: string, history: FileHistoryStore): void {
   const filePath = getHistoryFilePath(spacePath);
   const dir = path.dirname(filePath);
-  
+
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
-  
+
   const maxModifications = 100;
   if (history.modifications.length > maxModifications) {
     history.modifications = history.modifications.slice(-maxModifications);
   }
-  
+
   fs.writeFileSync(filePath, JSON.stringify(history, null, 2));
 }
 
 export function logFileModification(
   spacePath: string,
   filePath: string,
-  action: FileModification['action'],
+  action: FileModification["action"],
   sessionId: string,
-  triggeredBy: FileModification['triggeredBy']
+  triggeredBy: FileModification["triggeredBy"],
 ): void {
   const history = loadHistory(spacePath);
-  
+
   const modification: FileModification = {
     path: filePath,
     action,
@@ -71,7 +71,7 @@ export function logFileModification(
     timestamp: new Date().toISOString(),
     triggeredBy,
   };
-  
+
   history.modifications.push(modification);
   saveHistory(spacePath, history);
 }
@@ -83,5 +83,5 @@ export function getRecentModifications(spacePath: string, limit: number = 10): F
 
 export function getFileModifications(spacePath: string, filePath: string): FileModification[] {
   const history = loadHistory(spacePath);
-  return history.modifications.filter(m => m.path === filePath);
+  return history.modifications.filter((m) => m.path === filePath);
 }

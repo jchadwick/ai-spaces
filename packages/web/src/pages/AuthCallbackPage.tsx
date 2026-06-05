@@ -1,14 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import AgentGlyph from '@/components/AgentGlyph';
-import { useAuth } from '@/contexts/AuthContext';
+import { useEffect, useRef, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import AgentGlyph from "@/components/AgentGlyph";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   clearPendingInviteToken,
   createBearerFetch,
   isTerminalInviteError,
   peekPendingInviteToken,
   redeemInvite,
-} from '@/lib/invites';
+} from "@/lib/invites";
 
 function AuthCallbackPage() {
   const [searchParams] = useSearchParams();
@@ -22,12 +22,12 @@ function AuthCallbackPage() {
       if (processedRef.current) return;
       processedRef.current = true;
 
-      const accessToken = searchParams.get('accessToken');
-      const refreshToken = searchParams.get('refreshToken');
+      const accessToken = searchParams.get("accessToken");
+      const refreshToken = searchParams.get("refreshToken");
 
       if (!accessToken || !refreshToken) {
-        setError('Invalid authentication response');
-        setTimeout(() => navigate('/login?error=Invalid authentication response'), 2000);
+        setError("Invalid authentication response");
+        setTimeout(() => navigate("/login?error=Invalid authentication response"), 2000);
         return;
       }
 
@@ -39,23 +39,26 @@ function AuthCallbackPage() {
           try {
             const invite = await redeemInvite(createBearerFetch(accessToken), pendingToken);
             clearPendingInviteToken();
-            navigate(invite.spaceId ? `/spaces?space=${invite.spaceId}` : '/spaces', { replace: true });
+            navigate(invite.spaceId ? `/spaces?space=${invite.spaceId}` : "/spaces", {
+              replace: true,
+            });
             return;
           } catch (inviteError) {
             if (isTerminalInviteError(inviteError)) {
               clearPendingInviteToken();
             }
-            const message = inviteError instanceof Error ? inviteError.message : 'Invite redemption failed';
+            const message =
+              inviteError instanceof Error ? inviteError.message : "Invite redemption failed";
             setError(`Signed in, but the invite could not be accepted: ${message}`);
             return;
           }
         }
 
-        navigate('/spaces', { replace: true });
+        navigate("/spaces", { replace: true });
       } catch (err) {
-        console.error('[AuthCallback] Error:', err);
-        setError('Authentication failed');
-        setTimeout(() => navigate('/login?error=Authentication failed'), 2000);
+        console.error("[AuthCallback] Error:", err);
+        setError("Authentication failed");
+        setTimeout(() => navigate("/login?error=Authentication failed"), 2000);
       }
     };
 
@@ -78,17 +81,13 @@ function AuthCallbackPage() {
         <div className="rounded-xl border border-t-hair bg-t-bg-raised p-xl text-center shadow-ambient">
           {error ? (
             <div className="space-y-md">
-              <span className="material-symbols-outlined text-destructive text-4xl">
-                error
-              </span>
+              <span className="material-symbols-outlined text-destructive text-4xl">error</span>
               <p className="text-body-md text-t-ink-dim">{error}</p>
             </div>
           ) : (
             <div className="space-y-md">
               <div className="animate-spin rounded-full w-8 h-8 border-2 border-primary border-t-transparent mx-auto"></div>
-              <p className="text-body-md text-t-ink-dim">
-                Completing sign-in...
-              </p>
+              <p className="text-body-md text-t-ink-dim">Completing sign-in...</p>
             </div>
           )}
         </div>

@@ -1,20 +1,20 @@
-import { useState } from "react"
+import type { SpaceRole } from "@ai-spaces/shared";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogDescription,
   DialogFooter,
-} from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import { useAPI } from "@/hooks/useAPI"
-import type { SpaceRole } from "@ai-spaces/shared"
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { useAPI } from "@/hooks/useAPI";
 
 interface ShareSpaceDialogProps {
-  spaceId: string
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  spaceId: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 const ROLES: { value: SpaceRole; label: string; description: string }[] = [
@@ -33,24 +33,20 @@ const ROLES: { value: SpaceRole; label: string; description: string }[] = [
     label: "Owner",
     description: "Full access including managing members",
   },
-]
+];
 
-export default function ShareSpaceDialog({
-  spaceId,
-  open,
-  onOpenChange,
-}: ShareSpaceDialogProps) {
-  const apiFetch = useAPI()
-  const [selectedRole, setSelectedRole] = useState<SpaceRole>("editor")
-  const [isLoading, setIsLoading] = useState(false)
-  const [inviteUrl, setInviteUrl] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
+export default function ShareSpaceDialog({ spaceId, open, onOpenChange }: ShareSpaceDialogProps) {
+  const apiFetch = useAPI();
+  const [selectedRole, setSelectedRole] = useState<SpaceRole>("editor");
+  const [isLoading, setIsLoading] = useState(false);
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const handleCreate = async () => {
-    setIsLoading(true)
-    setError(null)
-    setInviteUrl(null)
+    setIsLoading(true);
+    setError(null);
+    setInviteUrl(null);
 
     try {
       const response = await apiFetch(`/api/spaces/${spaceId}/invites`, {
@@ -59,50 +55,50 @@ export default function ShareSpaceDialog({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ role: selectedRole }),
-      })
+      });
 
       if (!response.ok) {
-        const data = await response.json().catch(() => ({})) as { error?: string }
+        const data = (await response.json().catch(() => ({}))) as { error?: string };
         if (response.status === 403) {
-          throw new Error("Only space owners can create invites")
+          throw new Error("Only space owners can create invites");
         }
-        throw new Error(data.error || "Failed to create invite")
+        throw new Error(data.error || "Failed to create invite");
       }
 
-      const data = await response.json() as { inviteUrl?: string }
+      const data = (await response.json()) as { inviteUrl?: string };
       if (!data.inviteUrl) {
-        throw new Error("Failed to create invite")
+        throw new Error("Failed to create invite");
       }
-      setInviteUrl(data.inviteUrl)
+      setInviteUrl(data.inviteUrl);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create invite")
+      setError(err instanceof Error ? err.message : "Failed to create invite");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   const handleCopy = async () => {
-    if (!inviteUrl) return
+    if (!inviteUrl) return;
     try {
-      await navigator.clipboard.writeText(inviteUrl)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      await navigator.clipboard.writeText(inviteUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     } catch {
       // Fallback: select the text
     }
-  }
+  };
 
   const handleClose = (newOpen: boolean) => {
     if (!newOpen) {
       // Reset state when closing
       setTimeout(() => {
-        setInviteUrl(null)
-        setError(null)
-        setCopied(false)
-      }, 200)
+        setInviteUrl(null);
+        setError(null);
+        setCopied(false);
+      }, 200);
     }
-    onOpenChange(newOpen)
-  }
+    onOpenChange(newOpen);
+  };
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -135,9 +131,7 @@ export default function ShareSpaceDialog({
               </p>
             </div>
 
-            {error && (
-              <p className="text-sm text-destructive">{error}</p>
-            )}
+            {error && <p className="text-sm text-destructive">{error}</p>}
           </div>
         ) : (
           <div className="flex flex-col gap-3 py-2">
@@ -171,12 +165,7 @@ export default function ShareSpaceDialog({
                       />
                     </svg>
                   ) : (
-                    <svg
-                      className="size-4"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
+                    <svg className="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
@@ -210,5 +199,5 @@ export default function ShareSpaceDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

@@ -1,4 +1,4 @@
-import type { SpaceRole } from '../permissions.js';
+import type { SpaceRole } from "../permissions.js";
 
 /**
  * ACP extension method names for workspace file operations.
@@ -6,22 +6,22 @@ import type { SpaceRole } from '../permissions.js';
  * owns the workspace filesystem — the inverse of standard ACP fs/* methods.
  */
 export const ACP_WORKSPACE_METHODS = {
-  RESOLVE_PATH: 'workspace/resolve_path',
-  LIST_FILES: 'workspace/list_files',
-  READ_FILE: 'workspace/read_file',
-  WRITE_FILE: 'workspace/write_file',
-  DELETE_FILE: 'workspace/delete_file',
-  RENAME: 'workspace/rename',
-  CREATE_DIRECTORY: 'workspace/create_directory',
-  DELETE_DIRECTORY: 'workspace/delete_directory',
-  GET_METADATA: 'workspace/get_metadata',
-  PATCH_METADATA: 'workspace/patch_metadata',
+  RESOLVE_PATH: "workspace/resolve_path",
+  LIST_FILES: "workspace/list_files",
+  READ_FILE: "workspace/read_file",
+  WRITE_FILE: "workspace/write_file",
+  DELETE_FILE: "workspace/delete_file",
+  RENAME: "workspace/rename",
+  CREATE_DIRECTORY: "workspace/create_directory",
+  DELETE_DIRECTORY: "workspace/delete_directory",
+  GET_METADATA: "workspace/get_metadata",
+  PATCH_METADATA: "workspace/patch_metadata",
 } as const;
 
 export interface WorkspacePathFacts {
   requestedPath: string;
   canonicalRelativePath: string;
-  targetType: 'file' | 'directory' | 'missing';
+  targetType: "file" | "directory" | "missing";
   exists: boolean;
   contained: boolean;
   hidden: boolean;
@@ -34,7 +34,7 @@ export type AcpWorkspaceMethod = (typeof ACP_WORKSPACE_METHODS)[keyof typeof ACP
 
 /** ACP extension notification for file change events pushed by the plugin. */
 export const ACP_WORKSPACE_NOTIFICATIONS = {
-  FILE_CHANGED: 'workspace/file_changed',
+  FILE_CHANGED: "workspace/file_changed",
 } as const;
 
 export type AcpWorkspaceNotification =
@@ -70,7 +70,7 @@ export interface WorkspaceWriteFileParams {
   spaceId: string;
   path: string;
   content: string;
-  encoding?: 'utf-8' | 'base64';
+  encoding?: "utf-8" | "base64";
 }
 
 export interface WorkspaceDeleteFileParams {
@@ -107,6 +107,6 @@ export interface WorkspacePatchMetadataParams {
 export interface WorkspaceFileChangedPayload {
   spaceId: string;
   path: string;
-  action: 'modified' | 'deleted' | 'created';
-  triggeredBy: 'agent' | 'user';
+  action: "modified" | "deleted" | "created";
+  triggeredBy: "agent" | "user";
 }

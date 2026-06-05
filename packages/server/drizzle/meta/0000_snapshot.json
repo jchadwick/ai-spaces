@@ -50,12 +50,8 @@
           "name": "sessions_user_id_users_id_fk",
           "tableFrom": "sessions",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -129,10 +125,7 @@
       "indexes": {
         "spaces_agent_path_idx": {
           "name": "spaces_agent_path_idx",
-          "columns": [
-            "agent_id",
-            "path"
-          ],
+          "columns": ["agent_id", "path"],
           "isUnique": true
         }
       },
@@ -200,9 +193,7 @@
       "indexes": {
         "users_email_unique": {
           "name": "users_email_unique",
-          "columns": [
-            "email"
-          ],
+          "columns": ["email"],
           "isUnique": true
         }
       },

@@ -1,4 +1,4 @@
-import type { WebSocket as WsWebSocket } from 'ws';
+import type { WebSocket as WsWebSocket } from "ws";
 
 /**
  * Bridges a ws package WebSocket to the WritableStream/ReadableStream pair
@@ -42,7 +42,7 @@ export function wsToAcpStream(ws: WsWebSocket): {
   const onMessage = (data: Buffer | ArrayBuffer | Buffer[] | string) => {
     if (isClosed) return;
     try {
-      if (typeof data === 'string') {
+      if (typeof data === "string") {
         streamController.enqueue(new TextEncoder().encode(data));
       } else if (Buffer.isBuffer(data)) {
         streamController.enqueue(data);
@@ -79,14 +79,14 @@ export function wsToAcpStream(ws: WsWebSocket): {
   const input = new ReadableStream<Uint8Array>({
     start(ctrl) {
       streamController = ctrl;
-      ws.on('message', onMessage);
-      ws.on('close', onClose);
-      ws.on('error', onError);
+      ws.on("message", onMessage);
+      ws.on("close", onClose);
+      ws.on("error", onError);
     },
     cancel() {
-      ws.off('message', onMessage);
-      ws.off('close', onClose);
-      ws.off('error', onError);
+      ws.off("message", onMessage);
+      ws.off("close", onClose);
+      ws.off("error", onError);
       if (!isClosed) {
         isClosed = true;
         ws.close();

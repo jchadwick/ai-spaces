@@ -90,8 +90,8 @@ async function readResponsePayload(response: Response): Promise<Record<string, u
 }
 
 function getErrorMessage(payload: Record<string, unknown>, fallback: string): string {
-  const error = payload["error"];
-  const message = payload["message"];
+  const error = payload.error;
+  const message = payload.message;
   if (typeof error === "string" && error.trim()) {
     return error;
   }
@@ -101,7 +101,10 @@ function getErrorMessage(payload: Record<string, unknown>, fallback: string): st
   return fallback;
 }
 
-export async function redeemInvite(fetchLike: InviteFetch, token: string): Promise<InviteRedemptionResult> {
+export async function redeemInvite(
+  fetchLike: InviteFetch,
+  token: string,
+): Promise<InviteRedemptionResult> {
   const response = await fetchLike("/api/invites/redeem", {
     method: "POST",
     headers: {
@@ -116,13 +119,13 @@ export async function redeemInvite(fetchLike: InviteFetch, token: string): Promi
     const error = buildInviteError(
       getErrorMessage(payload, `Invite redemption failed (${response.status})`),
       response.status,
-      typeof payload["code"] === "string" ? payload["code"] : undefined,
+      typeof payload.code === "string" ? payload.code : undefined,
     );
     throw error;
   }
 
   return {
-    spaceId: typeof payload["spaceId"] === "string" ? payload["spaceId"] : undefined,
-    role: typeof payload["role"] === "string" ? payload["role"] : undefined,
+    spaceId: typeof payload.spaceId === "string" ? payload.spaceId : undefined,
+    role: typeof payload.role === "string" ? payload.role : undefined,
   };
 }

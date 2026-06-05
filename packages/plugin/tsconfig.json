@@ -11,10 +11,6 @@
     "types": ["node"]
   },
   "include": ["src/**/*"],
-  "exclude": [
-    "src/**/*.test.ts"
-  ],
-  "references": [
-    { "path": "../shared" }
-  ]
+  "exclude": ["src/**/*.test.ts"],
+  "references": [{ "path": "../shared" }]
 }

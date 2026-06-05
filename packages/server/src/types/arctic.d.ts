@@ -1,4 +1,4 @@
-declare module 'arctic' {
+declare module "arctic" {
   export type IdTokenClaims = {
     sub: string;
   } & Record<string, unknown>;

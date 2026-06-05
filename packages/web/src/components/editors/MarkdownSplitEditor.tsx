@@ -1,19 +1,19 @@
-import { lazy, Suspense, isValidElement } from 'react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
-import remarkMath from 'remark-math'
-import rehypeHighlight from 'rehype-highlight'
-import rehypeRaw from 'rehype-raw'
-import rehypeKatex from 'rehype-katex'
-import 'highlight.js/styles/github.css'
-import 'katex/dist/katex.min.css'
-import { remarkCallouts } from './remarkCallouts'
-import type { EditorProps } from './types'
+import { isValidElement, lazy, Suspense } from "react";
+import ReactMarkdown from "react-markdown";
+import rehypeHighlight from "rehype-highlight";
+import rehypeKatex from "rehype-katex";
+import rehypeRaw from "rehype-raw";
+import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import "highlight.js/styles/github.css";
+import "katex/dist/katex.min.css";
+import { remarkCallouts } from "./remarkCallouts";
+import type { EditorProps } from "./types";
 
-const MermaidDiagram = lazy(() => import('./MermaidDiagram'))
+const MermaidDiagram = lazy(() => import("./MermaidDiagram"));
 
 const markdownClasses =
-  'prose prose-slate max-w-none prose-img:rounded-lg prose-headings:font-sans prose-headings:font-semibold prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl prose-p:text-t-ink prose-a:text-t-accent prose-code:font-mono prose-code:bg-t-bg-well prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-pre:bg-t-bg-well prose-pre:font-mono'
+  "prose prose-slate max-w-none prose-img:rounded-lg prose-headings:font-sans prose-headings:font-semibold prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl prose-p:text-t-ink prose-a:text-t-accent prose-code:font-mono prose-code:bg-t-bg-well prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-pre:bg-t-bg-well prose-pre:font-mono";
 
 export default function MarkdownSplitEditor({ content, onChange }: EditorProps) {
   return (
@@ -24,7 +24,7 @@ export default function MarkdownSplitEditor({ content, onChange }: EditorProps) 
         </div>
         <textarea
           className="flex-1 resize-none p-4 font-mono text-sm bg-t-bg text-t-ink focus:outline-none"
-          value={content ?? ''}
+          value={content ?? ""}
           onChange={(e) => onChange(e.target.value)}
           spellCheck={false}
         />
@@ -44,31 +44,33 @@ export default function MarkdownSplitEditor({ content, onChange }: EditorProps) 
                     {...props}
                     className="max-w-full h-auto rounded-lg"
                     loading="lazy"
-                    alt={props.alt ?? ''}
+                    alt={props.alt ?? ""}
                   />
                 ),
                 pre: ({ children, ...props }) => {
-                  const child = Array.isArray(children) ? children[0] : children
+                  const child = Array.isArray(children) ? children[0] : children;
                   if (
                     isValidElement(child) &&
-                    (child.props as { className?: string }).className?.includes('language-mermaid')
+                    (child.props as { className?: string }).className?.includes("language-mermaid")
                   ) {
-                    const chart = String((child.props as { children?: unknown }).children ?? '').trim()
+                    const chart = String(
+                      (child.props as { children?: unknown }).children ?? "",
+                    ).trim();
                     return (
                       <Suspense fallback={null}>
                         <MermaidDiagram chart={chart} />
                       </Suspense>
-                    )
+                    );
                   }
-                  return <pre {...props}>{children}</pre>
+                  return <pre {...props}>{children}</pre>;
                 },
               }}
             >
-              {content ?? ''}
+              {content ?? ""}
             </ReactMarkdown>
           </article>
         </div>
       </div>
     </div>
-  )
+  );
 }

@@ -1,6 +1,6 @@
-import { test as base, expect } from '@playwright/test';
-import type { APIRequestContext } from '@playwright/test';
-import { loginAsAdmin } from './auth.js';
+import type { APIRequestContext } from "@playwright/test";
+import { test as base, expect } from "@playwright/test";
+import { loginAsAdmin } from "./auth.js";
 
 interface TestFixtures {
   authToken: string;

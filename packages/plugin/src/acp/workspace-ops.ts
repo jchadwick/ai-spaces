@@ -2,14 +2,20 @@
  * Pure workspace file operation functions.
  * Used by the ACP agent handler to serve workspace/* extension methods.
  */
-import * as fs from 'fs';
-import * as fsPromises from 'fs/promises';
-import * as path from 'path';
-import mime from 'mime-types';
-import type { FileNode, FileMetadataEntry, SpaceMetadata, WorkspacePathFacts } from '@ai-spaces/shared';
-import { SpaceMetadataSchema } from '@ai-spaces/shared';
-import { validatePath, isPathContained } from '../validation.js';
-import { isInternalWorkspacePath } from './chat-policy.js';
+
+import * as fs from "node:fs";
+import * as fsPromises from "node:fs/promises";
+import * as path from "node:path";
+import type {
+  FileMetadataEntry,
+  FileNode,
+  SpaceMetadata,
+  WorkspacePathFacts,
+} from "@ai-spaces/shared";
+import { SpaceMetadataSchema } from "@ai-spaces/shared";
+import mime from "mime-types";
+import { isPathContained, validatePath } from "../validation.js";
+import { isInternalWorkspacePath } from "./chat-policy.js";
 
 const DEFAULT_MAX_DEPTH = 10;
 
@@ -32,17 +38,19 @@ function isInternalResolvedPath(spaceRoot: string, fullPath: string): boolean {
   const realSpaceRoot = getRealPath(spaceRoot);
   const realPath = getRealPath(fullPath);
   if (!isPathContained(realPath, realSpaceRoot)) return false;
-  const relative = path.relative(realSpaceRoot, realPath).split(path.sep).join('/');
+  const relative = path.relative(realSpaceRoot, realPath).split(path.sep).join("/");
   return isInternalWorkspacePath(relative);
 }
 
 export async function listWorkspaceFiles(
   spaceRoot: string,
   includeHidden: boolean,
-  dirPath = '',
+  dirPath = "",
 ): Promise<FileNode[]> {
-  const validation = dirPath ? validatePath(dirPath, spaceRoot) : { valid: true, resolvedPath: spaceRoot };
-  if (!validation.valid) throw new Error('Access denied: path outside workspace');
+  const validation = dirPath
+    ? validatePath(dirPath, spaceRoot)
+    : { valid: true, resolvedPath: spaceRoot };
+  if (!validation.valid) throw new Error("Access denied: path outside workspace");
   const targetDir = validation.resolvedPath!;
   try {
     await fsPromises.access(targetDir);
@@ -51,7 +59,9 @@ export async function listWorkspaceFiles(
   }
 
   const roots: FileNode[] = [];
-  const queue: QueueItem[] = [{ dir: targetDir, basePath: dirPath, depth: 0, parentChildren: roots }];
+  const queue: QueueItem[] = [
+    { dir: targetDir, basePath: dirPath, depth: 0, parentChildren: roots },
+  ];
   const visitedDirs = new Set<string>();
 
   while (queue.length > 0) {
@@ -86,18 +96,24 @@ export async function listWorkspaceFiles(
       try {
         const entryValidation = validatePath(relativePath, spaceRoot);
         if (!entryValidation.valid || !entryValidation.resolvedPath) continue;
-        if (!includeHidden && isInternalResolvedPath(spaceRoot, entryValidation.resolvedPath)) continue;
+        if (!includeHidden && isInternalResolvedPath(spaceRoot, entryValidation.resolvedPath))
+          continue;
         const stats = await fsPromises.stat(fullPath);
 
         if (stats.isDirectory()) {
           const children: FileNode[] = [];
-          nodes.push({ name: entry.name, path: relativePath, type: 'directory', children });
-          queue.push({ dir: entryValidation.resolvedPath, basePath: relativePath, depth: depth + 1, parentChildren: children });
+          nodes.push({ name: entry.name, path: relativePath, type: "directory", children });
+          queue.push({
+            dir: entryValidation.resolvedPath,
+            basePath: relativePath,
+            depth: depth + 1,
+            parentChildren: children,
+          });
         } else {
           nodes.push({
             name: entry.name,
             path: relativePath,
-            type: 'file',
+            type: "file",
             size: stats.size,
             modified: stats.mtime.toISOString(),
           });
@@ -107,10 +123,12 @@ export async function listWorkspaceFiles(
       }
     }
 
-    parentChildren.push(...nodes.sort((a, b) => {
-      if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
-      return a.name.localeCompare(b.name);
-    }));
+    parentChildren.push(
+      ...nodes.sort((a, b) => {
+        if (a.type !== b.type) return a.type === "directory" ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      }),
+    );
   }
 
   return roots;
@@ -118,12 +136,18 @@ export async function listWorkspaceFiles(
 
 function detectContentType(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase();
-  if (['.md', '.mdx'].includes(ext)) return 'text/markdown';
-  return mime.lookup(filePath) || 'text/plain';
+  if ([".md", ".mdx"].includes(ext)) return "text/markdown";
+  return mime.lookup(filePath) || "text/plain";
 }
 
-export async function getWorkspacePathFacts(spaceRoot: string, requestedPath: string): Promise<WorkspacePathFacts> {
-  const canonicalRelativePath = requestedPath.replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+/g, '/');
+export async function getWorkspacePathFacts(
+  spaceRoot: string,
+  requestedPath: string,
+): Promise<WorkspacePathFacts> {
+  const canonicalRelativePath = requestedPath
+    .replace(/\\/g, "/")
+    .replace(/^\/+/, "")
+    .replace(/\/+/g, "/");
   const validation = canonicalRelativePath
     ? validatePath(canonicalRelativePath, spaceRoot)
     : { valid: true, resolvedPath: path.resolve(spaceRoot) };
@@ -131,7 +155,7 @@ export async function getWorkspacePathFacts(spaceRoot: string, requestedPath: st
     return {
       requestedPath,
       canonicalRelativePath,
-      targetType: 'missing',
+      targetType: "missing",
       exists: false,
       contained: false,
       hidden: isInternalWorkspacePath(canonicalRelativePath),
@@ -140,16 +164,20 @@ export async function getWorkspacePathFacts(spaceRoot: string, requestedPath: st
   }
 
   const stats = await fsPromises.stat(validation.resolvedPath).catch(() => null);
-  const targetType = stats?.isDirectory() ? 'directory' : stats ? 'file' : 'missing';
+  const targetType = stats?.isDirectory() ? "directory" : stats ? "file" : "missing";
   return {
     requestedPath,
     canonicalRelativePath,
     targetType,
     exists: Boolean(stats),
     contained: true,
-    hidden: isInternalWorkspacePath(canonicalRelativePath) || isInternalResolvedPath(spaceRoot, validation.resolvedPath),
+    hidden:
+      isInternalWorkspacePath(canonicalRelativePath) ||
+      isInternalResolvedPath(spaceRoot, validation.resolvedPath),
     symlinkEscaped: false,
-    ...(stats?.isFile() ? { size: stats.size, contentType: detectContentType(validation.resolvedPath) } : {}),
+    ...(stats?.isFile()
+      ? { size: stats.size, contentType: detectContentType(validation.resolvedPath) }
+      : {}),
   };
 }
 
@@ -158,20 +186,20 @@ export async function readWorkspaceFile(
   filePath: string,
 ): Promise<{ content: string; contentType: string }> {
   const validation = validatePath(filePath, spaceRoot);
-  if (!validation.valid) throw new Error('Access denied: path outside workspace');
+  if (!validation.valid) throw new Error("Access denied: path outside workspace");
 
   const fullPath = validation.resolvedPath!;
   if (!fs.existsSync(fullPath)) throw new Error(`File not found: ${filePath}`);
 
   const stats = fs.statSync(fullPath);
-  if (stats.isDirectory()) throw new Error('Cannot read directory as file');
+  if (stats.isDirectory()) throw new Error("Cannot read directory as file");
 
   const contentType = detectContentType(fullPath);
   const isBinary = /^(image|application\/pdf)/.test(contentType);
 
   const content = isBinary
-    ? (await fsPromises.readFile(fullPath)).toString('base64')
-    : await fsPromises.readFile(fullPath, 'utf-8');
+    ? (await fsPromises.readFile(fullPath)).toString("base64")
+    : await fsPromises.readFile(fullPath, "utf-8");
 
   return { content, contentType };
 }
@@ -180,27 +208,27 @@ export async function writeWorkspaceFile(
   spaceRoot: string,
   filePath: string,
   content: string,
-  encoding: 'utf-8' | 'base64' = 'utf-8',
+  encoding: "utf-8" | "base64" = "utf-8",
 ): Promise<void> {
   const validation = validatePath(filePath, spaceRoot);
-  if (!validation.valid) throw new Error('Access denied: path outside workspace');
+  if (!validation.valid) throw new Error("Access denied: path outside workspace");
 
   const fullPath = validation.resolvedPath!;
   const dir = path.dirname(fullPath);
   await fsPromises.mkdir(dir, { recursive: true });
 
-  const tmpPath = path.join(dir, '.' + path.basename(fullPath) + '.tmp');
-  if (encoding === 'base64') {
-    await fsPromises.writeFile(tmpPath, Buffer.from(content, 'base64'));
+  const tmpPath = path.join(dir, `.${path.basename(fullPath)}.tmp`);
+  if (encoding === "base64") {
+    await fsPromises.writeFile(tmpPath, Buffer.from(content, "base64"));
   } else {
-    await fsPromises.writeFile(tmpPath, content, 'utf-8');
+    await fsPromises.writeFile(tmpPath, content, "utf-8");
   }
   await fsPromises.rename(tmpPath, fullPath);
 }
 
 export async function deleteWorkspaceFile(spaceRoot: string, filePath: string): Promise<void> {
   const validation = validatePath(filePath, spaceRoot);
-  if (!validation.valid) throw new Error('Access denied: path outside workspace');
+  if (!validation.valid) throw new Error("Access denied: path outside workspace");
   const fullPath = validation.resolvedPath!;
   if (!fs.existsSync(fullPath)) throw new Error(`File not found: ${filePath}`);
   await fsPromises.unlink(fullPath);
@@ -213,8 +241,8 @@ export async function renameWorkspacePath(
 ): Promise<void> {
   const fromValidation = validatePath(fromPath, spaceRoot);
   const toValidation = validatePath(toPath, spaceRoot);
-  if (!fromValidation.valid) throw new Error('Access denied: source path outside workspace');
-  if (!toValidation.valid) throw new Error('Access denied: target path outside workspace');
+  if (!fromValidation.valid) throw new Error("Access denied: source path outside workspace");
+  if (!toValidation.valid) throw new Error("Access denied: target path outside workspace");
   const toDir = path.dirname(toValidation.resolvedPath!);
   await fsPromises.mkdir(toDir, { recursive: true });
   await fsPromises.rename(fromValidation.resolvedPath!, toValidation.resolvedPath!);
@@ -222,22 +250,22 @@ export async function renameWorkspacePath(
 
 export async function createWorkspaceDirectory(spaceRoot: string, dirPath: string): Promise<void> {
   const validation = validatePath(dirPath, spaceRoot);
-  if (!validation.valid) throw new Error('Access denied: path outside workspace');
+  if (!validation.valid) throw new Error("Access denied: path outside workspace");
   await fsPromises.mkdir(validation.resolvedPath!, { recursive: true });
 }
 
 export async function deleteWorkspaceDirectory(spaceRoot: string, dirPath: string): Promise<void> {
   const validation = validatePath(dirPath, spaceRoot);
-  if (!validation.valid) throw new Error('Access denied: path outside workspace');
+  if (!validation.valid) throw new Error("Access denied: path outside workspace");
   const fullPath = validation.resolvedPath!;
   if (!fs.existsSync(fullPath)) throw new Error(`Directory not found: ${dirPath}`);
   await fsPromises.rm(fullPath, { recursive: true, force: true });
 }
 
 export async function getWorkspaceMetadata(spaceRoot: string): Promise<SpaceMetadata> {
-  const metadataPath = path.join(spaceRoot, '.space', 'metadata.json');
+  const metadataPath = path.join(spaceRoot, ".space", "metadata.json");
   try {
-    const raw = await fsPromises.readFile(metadataPath, 'utf-8');
+    const raw = await fsPromises.readFile(metadataPath, "utf-8");
     const parsed = SpaceMetadataSchema.safeParse(JSON.parse(raw));
     return parsed.success ? parsed.data : { files: {} };
   } catch {
@@ -249,12 +277,12 @@ export async function patchWorkspaceMetadata(
   spaceRoot: string,
   filesPatch: Record<string, Partial<FileMetadataEntry>>,
 ): Promise<void> {
-  const metadataPath = path.join(spaceRoot, '.space', 'metadata.json');
+  const metadataPath = path.join(spaceRoot, ".space", "metadata.json");
   await fsPromises.mkdir(path.dirname(metadataPath), { recursive: true });
 
   let existing: SpaceMetadata = { files: {} };
   try {
-    const raw = await fsPromises.readFile(metadataPath, 'utf-8');
+    const raw = await fsPromises.readFile(metadataPath, "utf-8");
     const parsed = SpaceMetadataSchema.safeParse(JSON.parse(raw));
     if (parsed.success) existing = parsed.data;
   } catch {
@@ -275,5 +303,5 @@ export async function patchWorkspaceMetadata(
     }
   }
 
-  await fsPromises.writeFile(metadataPath, JSON.stringify(merged, null, 2), 'utf-8');
+  await fsPromises.writeFile(metadataPath, JSON.stringify(merged, null, 2), "utf-8");
 }

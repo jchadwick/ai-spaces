@@ -1,34 +1,49 @@
-import * as crypto from 'crypto';
-import type { Agent, AgentSideConnection, InitializeRequest, InitializeResponse, NewSessionRequest, NewSessionResponse, LoadSessionRequest, LoadSessionResponse, PromptRequest, PromptResponse, CancelNotification, AuthenticateRequest, AuthenticateResponse, SessionNotification } from '@agentclientprotocol/sdk';
-import { PROTOCOL_VERSION } from '@agentclientprotocol/sdk';
-import type { SpaceRole, FileMetadataEntry } from '@ai-spaces/shared';
-import { ACP_WORKSPACE_METHODS } from '@ai-spaces/shared';
-import { getSpace, resolveSpaceRoot } from '../space-store.js';
-import { getOrCreateSession, addMessageToSession, getSessionMessages } from '../chat-history.js';
-import { openClawAcpClient, type SessionUpdateParams } from './openclaw-client.js';
+import * as crypto from "node:crypto";
+import type {
+  Agent,
+  AgentSideConnection,
+  AuthenticateRequest,
+  AuthenticateResponse,
+  CancelNotification,
+  InitializeRequest,
+  InitializeResponse,
+  LoadSessionRequest,
+  LoadSessionResponse,
+  NewSessionRequest,
+  NewSessionResponse,
+  PromptRequest,
+  PromptResponse,
+  SessionNotification,
+} from "@agentclientprotocol/sdk";
+import { PROTOCOL_VERSION } from "@agentclientprotocol/sdk";
+import type { FileMetadataEntry, SpaceRole } from "@ai-spaces/shared";
+import { ACP_WORKSPACE_METHODS } from "@ai-spaces/shared";
+import { addMessageToSession, getOrCreateSession, getSessionMessages } from "../chat-history.js";
+import { logger as rootLogger } from "../logger.js";
+import { getSpace, resolveSpaceRoot } from "../space-store.js";
 import {
   buildChatSystemPrompt,
   classifyPrompt,
-  sanitizeAssistantText,
   formatWorkspaceSummary,
-  removeInternalFiles,
   REFUSAL_MESSAGE,
-} from './chat-policy.js';
+  removeInternalFiles,
+  sanitizeAssistantText,
+} from "./chat-policy.js";
+import { openClawAcpClient, type SessionUpdateParams } from "./openclaw-client.js";
 import {
-  listWorkspaceFiles,
-  readWorkspaceFile,
-  writeWorkspaceFile,
-  deleteWorkspaceFile,
-  renameWorkspacePath,
   createWorkspaceDirectory,
   deleteWorkspaceDirectory,
+  deleteWorkspaceFile,
   getWorkspaceMetadata,
-  patchWorkspaceMetadata,
   getWorkspacePathFacts,
-} from './workspace-ops.js';
-import { logger as rootLogger } from '../logger.js';
+  listWorkspaceFiles,
+  patchWorkspaceMetadata,
+  readWorkspaceFile,
+  renameWorkspacePath,
+  writeWorkspaceFile,
+} from "./workspace-ops.js";
 
-const log = rootLogger.child({ component: 'acp-agent' });
+const log = rootLogger.child({ component: "acp-agent" });
 
 interface SessionState {
   sessionId: string;
@@ -41,12 +56,12 @@ interface SessionState {
 }
 
 function normalizeTopicPath(topicPath: string): string {
-  return topicPath.replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+/g, '/');
+  return topicPath.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+/g, "/");
 }
 
 function getServerContext(params: { _meta?: { [key: string]: unknown } | null }): string {
   const value = params._meta?.aiSpacesSystemContext;
-  return typeof value === 'string' ? value : '';
+  return typeof value === "string" ? value : "";
 }
 
 /**
@@ -85,7 +100,7 @@ export class AISpacesAgent implements Agent {
     };
   }
 
-  async authenticate(_params: AuthenticateRequest): Promise<AuthenticateResponse | void> {
+  async authenticate(_params: AuthenticateRequest): Promise<AuthenticateResponse | undefined> {
     // Auth is handled by the server before the WebSocket upgrade
     return {};
   }
@@ -93,34 +108,52 @@ export class AISpacesAgent implements Agent {
   async newSession(params: NewSessionRequest): Promise<NewSessionResponse> {
     const sessionId = crypto.randomUUID();
     const spaceId = this.spaceId;
-    const topicPath = normalizeTopicPath(params.cwd ?? '');
-    const userId = (params as unknown as Record<string, string>).userId ?? 'unknown';
+    const topicPath = normalizeTopicPath(params.cwd ?? "");
+    const userId = (params as unknown as Record<string, string>).userId ?? "unknown";
 
-    this.sessions.set(sessionId, { sessionId, spaceId, userId, role: this.role, topicPath, abort: null, systemContext: getServerContext(params) });
+    this.sessions.set(sessionId, {
+      sessionId,
+      spaceId,
+      userId,
+      role: this.role,
+      topicPath,
+      abort: null,
+      systemContext: getServerContext(params),
+    });
 
     // Ensure an ACP session exists in OpenClaw for this space
     if (spaceId) {
       const space = getSpace(spaceId);
       if (space) {
         const spaceRoot = resolveSpaceRoot(space);
-        await openClawAcpClient.getOrCreateSession(this.runtimeSessionKey(spaceId, topicPath), spaceId, spaceRoot).catch((err) => {
-          log.warn({ err, spaceId }, 'could not create OpenClaw session — prompts will fail');
-        });
+        await openClawAcpClient
+          .getOrCreateSession(this.runtimeSessionKey(spaceId, topicPath), spaceId, spaceRoot)
+          .catch((err) => {
+            log.warn({ err, spaceId }, "could not create OpenClaw session — prompts will fail");
+          });
       }
     }
 
-    log.info({ sessionId, spaceId }, 'new ACP session');
+    log.info({ sessionId, spaceId }, "new ACP session");
     return { sessionId };
   }
 
   async loadSession(params: LoadSessionRequest): Promise<LoadSessionResponse> {
     const sessionId = params.sessionId;
     const spaceId = this.spaceId;
-    const topicPath = normalizeTopicPath(params.cwd ?? '');
-    const userId = (params as unknown as Record<string, string>).userId ?? 'unknown';
+    const topicPath = normalizeTopicPath(params.cwd ?? "");
+    const userId = (params as unknown as Record<string, string>).userId ?? "unknown";
 
     // Re-register the session state
-    this.sessions.set(sessionId, { sessionId, spaceId, userId, role: this.role, topicPath, abort: null, systemContext: getServerContext(params) });
+    this.sessions.set(sessionId, {
+      sessionId,
+      spaceId,
+      userId,
+      role: this.role,
+      topicPath,
+      abort: null,
+      systemContext: getServerContext(params),
+    });
 
     // Replay chat history — OpenClaw does not do this itself
     if (spaceId) {
@@ -129,33 +162,33 @@ export class AISpacesAgent implements Agent {
         const spaceRoot = resolveSpaceRoot(space);
         const history = getSessionMessages(spaceRoot, this.historyUserKey(userId, topicPath));
         for (const msg of history) {
-          const updateType = msg.role === 'user' ? 'user_message_chunk' : 'agent_message_chunk';
+          const updateType = msg.role === "user" ? "user_message_chunk" : "agent_message_chunk";
           await this.conn.sessionUpdate({
             sessionId,
             update: {
               sessionUpdate: updateType,
-              content: { type: 'text', text: msg.content },
-            } as unknown as SessionNotification['update'],
+              content: { type: "text", text: msg.content },
+            } as unknown as SessionNotification["update"],
           });
         }
       }
     }
 
-    log.info({ sessionId, spaceId }, 'loaded ACP session with history replay');
+    log.info({ sessionId, spaceId }, "loaded ACP session with history replay");
     return {};
   }
 
   async prompt(params: PromptRequest): Promise<PromptResponse> {
     const state = this.sessions.get(params.sessionId);
     if (!state) {
-      return { stopReason: 'end_turn' };
+      return { stopReason: "end_turn" };
     }
     state.systemContext = getServerContext(params) || state.systemContext;
 
     const promptText = params.prompt
-      .filter((p: unknown) => (p as Record<string, string>).type === 'text')
+      .filter((p: unknown) => (p as Record<string, string>).type === "text")
       .map((p: unknown) => (p as Record<string, string>).text)
-      .join('\n');
+      .join("\n");
 
     const abort = new AbortController();
     state.abort = abort;
@@ -169,47 +202,50 @@ export class AISpacesAgent implements Agent {
         getOrCreateSession(spaceRoot, historyUserKey);
         addMessageToSession(spaceRoot, historyUserKey, {
           id: crypto.randomUUID(),
-          role: 'user',
+          role: "user",
           content: promptText,
           timestamp: new Date().toISOString(),
         });
 
         const decision = classifyPrompt(promptText, state.role);
-        if (decision.action === 'refuse') {
+        if (decision.action === "refuse") {
           await this.conn.sessionUpdate({
             sessionId: params.sessionId,
             update: {
-              sessionUpdate: 'agent_message_chunk',
-              content: { type: 'text', text: decision.message },
-            } as unknown as SessionNotification['update'],
+              sessionUpdate: "agent_message_chunk",
+              content: { type: "text", text: decision.message },
+            } as unknown as SessionNotification["update"],
           });
           addMessageToSession(spaceRoot, historyUserKey, {
             id: crypto.randomUUID(),
-            role: 'assistant',
+            role: "assistant",
             content: decision.message,
             timestamp: new Date().toISOString(),
           });
-          return { stopReason: 'end_turn' };
+          return { stopReason: "end_turn" };
         }
 
-        if (decision.action === 'workspace_summary') {
+        if (decision.action === "workspace_summary") {
           const effectiveRole = state.role;
-          const files = removeInternalFiles(await listWorkspaceFiles(spaceRoot, false, ''), effectiveRole);
+          const files = removeInternalFiles(
+            await listWorkspaceFiles(spaceRoot, false, ""),
+            effectiveRole,
+          );
           const summary = formatWorkspaceSummary(files, effectiveRole);
           await this.conn.sessionUpdate({
             sessionId: params.sessionId,
             update: {
-              sessionUpdate: 'agent_message_chunk',
-              content: { type: 'text', text: summary },
-            } as unknown as SessionNotification['update'],
+              sessionUpdate: "agent_message_chunk",
+              content: { type: "text", text: summary },
+            } as unknown as SessionNotification["update"],
           });
           addMessageToSession(spaceRoot, historyUserKey, {
             id: crypto.randomUUID(),
-            role: 'assistant',
+            role: "assistant",
             content: summary,
             timestamp: new Date().toISOString(),
           });
-          return { stopReason: 'end_turn' };
+          return { stopReason: "end_turn" };
         }
 
         const space_ = getSpace(state.spaceId);
@@ -217,7 +253,7 @@ export class AISpacesAgent implements Agent {
           ? `${buildChatSystemPrompt(space_.config)}\n\n${state.systemContext}`
           : REFUSAL_MESSAGE;
 
-        let accumulated = '';
+        let accumulated = "";
 
         try {
           const stopReason = await openClawAcpClient.forwardPrompt(
@@ -229,14 +265,15 @@ export class AISpacesAgent implements Agent {
             },
             async (update: SessionUpdateParams) => {
               // Relay session/update notifications upstream
-              if (update.update.sessionUpdate === 'agent_message_chunk') {
-                const text = (update.update as unknown as { content: { text: string } }).content?.text ?? '';
+              if (update.update.sessionUpdate === "agent_message_chunk") {
+                const text =
+                  (update.update as unknown as { content: { text: string } }).content?.text ?? "";
                 accumulated += text;
               } else {
                 // Relay all other update types (tool_call, plan, etc.) as-is
                 await this.conn.sessionUpdate({
                   sessionId: params.sessionId,
-                  update: update.update as SessionNotification['update'],
+                  update: update.update as SessionNotification["update"],
                 });
               }
             },
@@ -247,38 +284,38 @@ export class AISpacesAgent implements Agent {
           await this.conn.sessionUpdate({
             sessionId: params.sessionId,
             update: {
-              sessionUpdate: 'agent_message_chunk',
-              content: { type: 'text', text: sanitized },
-            } as unknown as SessionNotification['update'],
+              sessionUpdate: "agent_message_chunk",
+              content: { type: "text", text: sanitized },
+            } as unknown as SessionNotification["update"],
           });
 
           // Store assistant message
           addMessageToSession(spaceRoot, historyUserKey, {
             id: crypto.randomUUID(),
-            role: 'assistant',
+            role: "assistant",
             content: sanitized,
             timestamp: new Date().toISOString(),
           });
 
-          return { stopReason: stopReason as PromptResponse['stopReason'] };
+          return { stopReason: stopReason as PromptResponse["stopReason"] };
         } catch (err) {
-          if (abort.signal.aborted) return { stopReason: 'cancelled' };
-          log.error({ err, spaceId: state.spaceId }, 'prompt forwarding error');
+          if (abort.signal.aborted) return { stopReason: "cancelled" };
+          log.error({ err, spaceId: state.spaceId }, "prompt forwarding error");
           await this.conn.sessionUpdate({
             sessionId: params.sessionId,
             update: {
-              sessionUpdate: 'agent_message_chunk',
-              content: { type: 'text', text: `\n[Error: ${(err as Error).message}]` },
-            } as unknown as SessionNotification['update'],
+              sessionUpdate: "agent_message_chunk",
+              content: { type: "text", text: `\n[Error: ${(err as Error).message}]` },
+            } as unknown as SessionNotification["update"],
           });
-          return { stopReason: 'end_turn' };
+          return { stopReason: "end_turn" };
         } finally {
           if (state.abort === abort) state.abort = null;
         }
       }
     }
 
-    return { stopReason: 'end_turn' };
+    return { stopReason: "end_turn" };
   }
 
   async cancel(params: CancelNotification): Promise<void> {
@@ -289,9 +326,12 @@ export class AISpacesAgent implements Agent {
   }
 
   // Extension method handler — routes workspace/* calls to file operations
-  async extMethod(method: string, params: Record<string, unknown>): Promise<Record<string, unknown>> {
+  async extMethod(
+    method: string,
+    params: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
     const spaceId = this.spaceId;
-    if (!spaceId) throw new Error('spaceId required');
+    if (!spaceId) throw new Error("spaceId required");
 
     const space = getSpace(spaceId);
     if (!space) throw new Error(`Space not found: ${spaceId}`);
@@ -299,13 +339,16 @@ export class AISpacesAgent implements Agent {
 
     switch (method) {
       case ACP_WORKSPACE_METHODS.RESOLVE_PATH:
-        return await getWorkspacePathFacts(spaceRoot, (params.path as string) ?? '') as unknown as Record<string, unknown>;
+        return (await getWorkspacePathFacts(
+          spaceRoot,
+          (params.path as string) ?? "",
+        )) as unknown as Record<string, unknown>;
 
       case ACP_WORKSPACE_METHODS.LIST_FILES: {
         const files = await listWorkspaceFiles(
           spaceRoot,
           params.includeHidden === true,
-          (params.path as string) ?? '',
+          (params.path as string) ?? "",
         );
         return { files };
       }
@@ -320,7 +363,7 @@ export class AISpacesAgent implements Agent {
           spaceRoot,
           params.path as string,
           params.content as string,
-          (params.encoding as 'utf-8' | 'base64') ?? 'utf-8',
+          (params.encoding as "utf-8" | "base64") ?? "utf-8",
         );
         return {};
       }
@@ -364,10 +407,10 @@ export class AISpacesAgent implements Agent {
   }
 
   private runtimeSessionKey(spaceId: string, topicPath: string): string {
-    return `${spaceId}:${topicPath || '/'}`;
+    return `${spaceId}:${topicPath || "/"}`;
   }
 
   private historyUserKey(userId: string, topicPath: string): string {
-    return `${userId}:${topicPath || '/'}`;
+    return `${userId}:${topicPath || "/"}`;
   }
 }

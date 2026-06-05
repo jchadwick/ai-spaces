@@ -1,13 +1,13 @@
-import WebSocket from 'ws';
-import jwt from 'jsonwebtoken';
-import { ClientSideConnection, ndJsonStream, PROTOCOL_VERSION } from '@agentclientprotocol/sdk';
-import { wsToAcpStream } from '../acp/ws-transport.js';
-import { getServerById } from '../db/queries.js';
-import type { SpaceRecord } from '../space-store.js';
-import { logger as rootLogger } from '../logger.js';
-import { config } from '../config.js';
+import { ClientSideConnection, ndJsonStream, PROTOCOL_VERSION } from "@agentclientprotocol/sdk";
+import jwt from "jsonwebtoken";
+import WebSocket from "ws";
+import { wsToAcpStream } from "../acp/ws-transport.js";
+import { config } from "../config.js";
+import { getServerById } from "../db/queries.js";
+import { logger as rootLogger } from "../logger.js";
+import type { SpaceRecord } from "../space-store.js";
 
-const log = rootLogger.child({ component: 'acp-connection-pool' });
+const log = rootLogger.child({ component: "acp-connection-pool" });
 
 interface PoolEntry {
   connection: ClientSideConnection;
@@ -38,21 +38,19 @@ export class ACPConnectionPool {
     const server = getServerById(space.serverId);
     if (!server?.pluginUrl) throw new Error(`No plugin URL for server ${space.serverId}`);
 
-    const wsUrl = `${server.pluginUrl.replace(/^http/, 'ws')}/api/spaces/${space.id}/acp`;
-    log.info({ spaceId: space.id, wsUrl }, 'connecting to plugin ACP');
+    const wsUrl = `${server.pluginUrl.replace(/^http/, "ws")}/api/spaces/${space.id}/acp`;
+    log.info({ spaceId: space.id, wsUrl }, "connecting to plugin ACP");
 
-    const forwardToken = jwt.sign(
-      { userId: 'server', role: 'owner' },
-      config.JWT_SECRET,
-      { expiresIn: '1h' },
-    );
+    const forwardToken = jwt.sign({ userId: "server", role: "owner" }, config.JWT_SECRET, {
+      expiresIn: "1h",
+    });
     const ws = new WebSocket(wsUrl, {
       headers: { Authorization: `Bearer ${forwardToken}` },
     });
 
     await new Promise<void>((resolve, reject) => {
-      ws.once('open', resolve);
-      ws.once('error', reject);
+      ws.once("open", resolve);
+      ws.once("error", reject);
     });
 
     const { output, input } = wsToAcpStream(ws);
@@ -61,7 +59,7 @@ export class ACPConnectionPool {
     const connection = new ClientSideConnection(
       (_conn) => ({
         // Server never receives requestPermission or sessionUpdate from the plugin in this direction
-        requestPermission: async () => ({ outcome: { outcome: 'cancelled' as const } }),
+        requestPermission: async () => ({ outcome: { outcome: "cancelled" as const } }),
         sessionUpdate: async () => {},
       }),
       stream,
@@ -75,21 +73,21 @@ export class ACPConnectionPool {
     const entry: PoolEntry = { connection, ws };
     this.pool.set(space.id, entry);
 
-    ws.on('close', () => {
+    ws.on("close", () => {
       if (this.pool.get(space.id) === entry) {
         this.pool.delete(space.id);
-        log.info({ spaceId: space.id }, 'ACP connection closed, will reconnect on next use');
+        log.info({ spaceId: space.id }, "ACP connection closed, will reconnect on next use");
       }
     });
 
-    ws.on('error', (err) => {
-      log.warn({ err, spaceId: space.id }, 'ACP connection error');
+    ws.on("error", (err) => {
+      log.warn({ err, spaceId: space.id }, "ACP connection error");
       if (this.pool.get(space.id) === entry) {
         this.pool.delete(space.id);
       }
     });
 
-    log.info({ spaceId: space.id }, 'ACP connection established');
+    log.info({ spaceId: space.id }, "ACP connection established");
     return connection;
   }
 

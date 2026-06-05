@@ -13,10 +13,22 @@ const bannedPatterns = [
   { name: "legacy surface token", pattern: /surface-container|on-surface/g },
   { name: "legacy font utility", pattern: /\bfont-(?:display|ui)\b/g },
   { name: "legacy serif family", pattern: /Instrument Serif/g },
-  { name: "runtime theme picker", pattern: /ThemePicker|ThemeProvider|ThemeContext|PALETTES|useTheme|ai-spaces-theme/g },
-  { name: "camelCase Tailwind token utility", pattern: /\b(?:bg|text|border|hover:bg|hover:text)-t-[A-Za-z]*[A-Z][A-Za-z-]*\b/g },
-  { name: "legacy error utility", pattern: /\b(?:bg-error-container|text-error|border-error|hover:bg-error)\b/g },
-  { name: "legacy primary foreground utility", pattern: /\b(?:text-on-primary|border-on-primary|border-t-on-primary)\b/g },
+  {
+    name: "runtime theme picker",
+    pattern: /ThemePicker|ThemeProvider|ThemeContext|PALETTES|useTheme|ai-spaces-theme/g,
+  },
+  {
+    name: "camelCase Tailwind token utility",
+    pattern: /\b(?:bg|text|border|hover:bg|hover:text)-t-[A-Za-z]*[A-Z][A-Za-z-]*\b/g,
+  },
+  {
+    name: "legacy error utility",
+    pattern: /\b(?:bg-error-container|text-error|border-error|hover:bg-error)\b/g,
+  },
+  {
+    name: "legacy primary foreground utility",
+    pattern: /\b(?:text-on-primary|border-on-primary|border-t-on-primary)\b/g,
+  },
   { name: "old rust rgba", pattern: /rgba\(\s*194\s*,\s*65\s*,\s*12\s*,/g },
   { name: "old rust hex", pattern: /#C2410C|#c2410c/g },
 ];

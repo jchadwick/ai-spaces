@@ -1,6 +1,6 @@
-import LexicalEditor from './LexicalEditor'
-import type { EditorProps } from './types'
+import LexicalEditor from "./LexicalEditor";
+import type { EditorProps } from "./types";
 
 export default function LexicalTextEditor(props: EditorProps) {
-  return <LexicalEditor {...props} format="text" />
+  return <LexicalEditor {...props} format="text" />;
 }

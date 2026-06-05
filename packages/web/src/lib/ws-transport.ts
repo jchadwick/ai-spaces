@@ -15,7 +15,9 @@ export function wsToAcpStream(ws: WebSocket): {
   const output = new WritableStream<Uint8Array>({
     write(chunk) {
       if (!isClosed && ws.readyState === WebSocket.OPEN) {
-        ws.send(chunk.buffer.slice(chunk.byteOffset, chunk.byteOffset + chunk.byteLength) as ArrayBuffer);
+        ws.send(
+          chunk.buffer.slice(chunk.byteOffset, chunk.byteOffset + chunk.byteLength) as ArrayBuffer,
+        );
       }
     },
     close() {
@@ -46,7 +48,7 @@ export function wsToAcpStream(ws: WebSocket): {
         if (isClosed) return;
         const messageEvent = event as MessageEvent;
         let chunk: Uint8Array;
-        if (typeof messageEvent.data === 'string') {
+        if (typeof messageEvent.data === "string") {
           chunk = encoder.encode(messageEvent.data);
         } else if (messageEvent.data instanceof ArrayBuffer) {
           chunk = new Uint8Array(messageEvent.data);
@@ -63,25 +65,33 @@ export function wsToAcpStream(ws: WebSocket): {
       const onClose = () => {
         if (!isClosed) {
           isClosed = true;
-          try { controller.close(); } catch { /* ignore */ }
+          try {
+            controller.close();
+          } catch {
+            /* ignore */
+          }
         }
       };
 
       const onError = () => {
         if (!isClosed) {
           isClosed = true;
-          try { controller.error(new Error('WebSocket error')); } catch { /* ignore */ }
+          try {
+            controller.error(new Error("WebSocket error"));
+          } catch {
+            /* ignore */
+          }
         }
       };
 
-      ws.addEventListener('message', onMessage);
-      ws.addEventListener('close', onClose);
-      ws.addEventListener('error', onError);
+      ws.addEventListener("message", onMessage);
+      ws.addEventListener("close", onClose);
+      ws.addEventListener("error", onError);
 
       detachListeners = () => {
-        ws.removeEventListener('message', onMessage);
-        ws.removeEventListener('close', onClose);
-        ws.removeEventListener('error', onError);
+        ws.removeEventListener("message", onMessage);
+        ws.removeEventListener("close", onClose);
+        ws.removeEventListener("error", onError);
       };
     },
     cancel() {

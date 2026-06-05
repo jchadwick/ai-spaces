@@ -1,8 +1,8 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import * as crypto from 'crypto';
-import type { User, UserRole } from '@ai-spaces/shared';
-import { config } from './config.js';
+import * as crypto from "node:crypto";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import type { User, UserRole } from "@ai-spaces/shared";
+import { config } from "./config.js";
 
 interface StoredUser extends User {
   passwordHash: string;
@@ -14,25 +14,25 @@ interface UserStore {
   byEmail: Record<string, string>;
 }
 
-export { hashPassword, verifyPassword } from './password-utils.js';
+export { hashPassword, verifyPassword } from "./password-utils.js";
 
 function getOpenClawHome(): string {
   return config.OPENCLAW_HOME;
 }
 
 function getUsersFilePath(): string {
-  return path.join(getOpenClawHome(), 'users.json');
+  return path.join(getOpenClawHome(), "users.json");
 }
 
 function loadStore(): UserStore {
   const filePath = getUsersFilePath();
-  
+
   if (!fs.existsSync(filePath)) {
     return { users: {}, byEmail: {} };
   }
-  
+
   try {
-    const content = fs.readFileSync(filePath, 'utf-8');
+    const content = fs.readFileSync(filePath, "utf-8");
     return JSON.parse(content);
   } catch {
     return { users: {}, byEmail: {} };
@@ -42,18 +42,18 @@ function loadStore(): UserStore {
 function saveStore(store: UserStore): void {
   const filePath = getUsersFilePath();
   const openclawHome = getOpenClawHome();
-  
+
   if (!fs.existsSync(openclawHome)) {
     fs.mkdirSync(openclawHome, { recursive: true });
   }
-  
-  const tmp = filePath + '.tmp';
+
+  const tmp = `${filePath}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(store, null, 2));
   fs.renameSync(tmp, filePath);
 }
 
 export function generateUserId(): string {
-  return crypto.randomBytes(16).toString('hex');
+  return crypto.randomBytes(16).toString("hex");
 }
 
 export interface CreateUserOptions {
@@ -63,7 +63,12 @@ export interface CreateUserOptions {
   displayName?: string;
 }
 
-export function createUser(email: string, passwordHash: string, role: UserRole, displayName?: string): StoredUser {
+export function createUser(
+  email: string,
+  passwordHash: string,
+  role: UserRole,
+  displayName?: string,
+): StoredUser {
   const store = loadStore();
 
   if (store.byEmail[email]) {
@@ -113,7 +118,10 @@ export function listUsers(): StoredUser[] {
   return Object.values(store.users);
 }
 
-export function updateUser(id: string, updates: Partial<Omit<StoredUser, 'id' | 'createdAt'>>): StoredUser | null {
+export function updateUser(
+  id: string,
+  updates: Partial<Omit<StoredUser, "id" | "createdAt">>,
+): StoredUser | null {
   const store = loadStore();
   const user = store.users[id];
 
@@ -136,15 +144,15 @@ export function updateUser(id: string, updates: Partial<Omit<StoredUser, 'id' | 
 export function deleteUser(id: string): boolean {
   const store = loadStore();
   const user = store.users[id];
-  
+
   if (!user) {
     return false;
   }
-  
+
   delete store.byEmail[user.email];
   delete store.users[id];
-  
+
   saveStore(store);
-  
+
   return true;
 }

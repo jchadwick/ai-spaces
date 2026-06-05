@@ -1,49 +1,55 @@
-import { useState, useCallback, type ReactNode } from 'react';
-import { ToastContext, type ToastContextType } from './use-toast.js';
+import { type ReactNode, useCallback, useState } from "react";
+import { ToastContext, type ToastContextType } from "./use-toast.js";
 
 interface Toast {
   id: string;
   message: ReactNode;
-  type: 'info' | 'success' | 'warning' | 'error';
+  type: "info" | "success" | "warning" | "error";
   duration?: number;
 }
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const showToast = useCallback((message: ReactNode, type: Toast['type'] = 'info', duration: number = 3000) => {
-    const id = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
-    const toast: Toast = { id, message, type, duration };
+  const showToast = useCallback(
+    (message: ReactNode, type: Toast["type"] = "info", duration: number = 3000) => {
+      const id =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : Math.random().toString(36).slice(2);
+      const toast: Toast = { id, message, type, duration };
 
-    setToasts(prev => [...prev, toast]);
+      setToasts((prev) => [...prev, toast]);
 
-    if (duration > 0) {
-      setTimeout(() => {
-        setToasts(prev => prev.filter(t => t.id !== id));
-      }, duration);
-    }
-  }, []);
+      if (duration > 0) {
+        setTimeout(() => {
+          setToasts((prev) => prev.filter((t) => t.id !== id));
+        }, duration);
+      }
+    },
+    [],
+  );
 
   const removeToast = useCallback((id: string) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
+    setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const getToastStyles = (type: Toast['type']): string => {
-    const styles: Record<Toast['type'], string> = {
-      info: 'bg-blue-500 text-white',
-      success: 'bg-emerald-500 text-white',
-      warning: 'bg-amber-500 text-white',
-      error: 'bg-red-500 text-white',
+  const getToastStyles = (type: Toast["type"]): string => {
+    const styles: Record<Toast["type"], string> = {
+      info: "bg-blue-500 text-white",
+      success: "bg-emerald-500 text-white",
+      warning: "bg-amber-500 text-white",
+      error: "bg-red-500 text-white",
     };
     return styles[type];
   };
 
-  const getToastIcon = (type: Toast['type']): string => {
-    const icons: Record<Toast['type'], string> = {
-      info: 'info',
-      success: 'check_circle',
-      warning: 'warning',
-      error: 'error',
+  const getToastIcon = (type: Toast["type"]): string => {
+    const icons: Record<Toast["type"], string> = {
+      info: "info",
+      success: "check_circle",
+      warning: "warning",
+      error: "error",
     };
     return icons[type];
   };
@@ -55,7 +61,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
 
       <div className="fixed bottom-20 right-4 z-[100] flex flex-col gap-2">
-        {toasts.map(toast => (
+        {toasts.map((toast) => (
           <div
             key={toast.id}
             className={`${getToastStyles(toast.type)} px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 min-w-64 max-w-[28rem] animate-in slide-in-from-right`}

@@ -1,10 +1,10 @@
-import type { FileNodeType, SpaceMetadata } from '@ai-spaces/shared';
-import { SpaceMetadataSchema } from '@ai-spaces/shared';
-import { agentAdapter } from './agent-adapter-instance.js';
-import type { SpaceRecord } from './space-store.js';
+import type { FileNodeType, SpaceMetadata } from "@ai-spaces/shared";
+import { SpaceMetadataSchema } from "@ai-spaces/shared";
+import { agentAdapter } from "./agent-adapter-instance.js";
+import type { SpaceRecord } from "./space-store.js";
 
 function normalizeRelativePath(input: string): string {
-  return input.replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+$/, '');
+  return input.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "");
 }
 
 export async function loadSpaceMetadata(space: SpaceRecord): Promise<SpaceMetadata> {
@@ -17,7 +17,10 @@ export async function loadSpaceMetadata(space: SpaceRecord): Promise<SpaceMetada
   }
 }
 
-export function restrictedAncestorForPath(metadata: SpaceMetadata, requestedPath: string): string | null {
+export function restrictedAncestorForPath(
+  metadata: SpaceMetadata,
+  requestedPath: string,
+): string | null {
   const normalized = normalizeRelativePath(requestedPath);
   for (const [path, entry] of Object.entries(metadata.files)) {
     if (!(entry as { restricted?: boolean }).restricted) continue;
@@ -34,7 +37,10 @@ export function isPathRestricted(metadata: SpaceMetadata, requestedPath: string)
   return restrictedAncestorForPath(metadata, requestedPath) !== null;
 }
 
-export function filterRestrictedNodes(nodes: FileNodeType[], metadata: SpaceMetadata): FileNodeType[] {
+export function filterRestrictedNodes(
+  nodes: FileNodeType[],
+  metadata: SpaceMetadata,
+): FileNodeType[] {
   return nodes
     .filter((node) => !isPathRestricted(metadata, node.path))
     .map((node) => ({

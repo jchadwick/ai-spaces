@@ -1,12 +1,11 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import type { SpaceConfig } from '@ai-spaces/shared';
-import { SpaceConfigSchema } from '@ai-spaces/shared';
-import { computeSpaceId } from '@ai-spaces/shared';
-import { logAudit } from './audit.js';
-import { db, schema } from './db/connection.js';
-import { eq, and, sql } from 'drizzle-orm';
-import { DEFAULT_SERVER_ID } from './db/constants.js';
+import * as fs from "node:fs";
+import * as path from "node:path";
+import type { SpaceConfig } from "@ai-spaces/shared";
+import { computeSpaceId, SpaceConfigSchema } from "@ai-spaces/shared";
+import { and, eq, sql } from "drizzle-orm";
+import { logAudit } from "./audit.js";
+import { db, schema } from "./db/connection.js";
+import { DEFAULT_SERVER_ID } from "./db/constants.js";
 
 export interface SpaceRecord {
   id: string;
@@ -28,17 +27,19 @@ export interface CreateSpaceInput {
   serverId?: string;
 }
 
-export type CreateSpaceResult = {
-  success: true;
-  space: SpaceRecord;
-} | {
-  success: false;
-  error: string;
-  details?: string;
-};
+export type CreateSpaceResult =
+  | {
+      success: true;
+      space: SpaceRecord;
+    }
+  | {
+      success: false;
+      error: string;
+      details?: string;
+    };
 
 function rowToRecord(row: typeof schema.spaces.$inferSelect): SpaceRecord {
-  let parsedConfig: SpaceConfig = { name: '' };
+  let parsedConfig: SpaceConfig = { name: "" };
   try {
     parsedConfig = JSON.parse(row.config) as SpaceConfig;
   } catch {
@@ -57,19 +58,23 @@ function rowToRecord(row: typeof schema.spaces.$inferSelect): SpaceRecord {
   };
 }
 
-export function validateSpacePath(inputPath: string): { valid: true; config: SpaceConfig; absolutePath: string; relativePath: string } | { valid: false; error: string; details?: string } {
+export function validateSpacePath(
+  inputPath: string,
+):
+  | { valid: true; config: SpaceConfig; absolutePath: string; relativePath: string }
+  | { valid: false; error: string; details?: string } {
   if (!fs.existsSync(inputPath)) {
-    return { valid: false, error: 'Path does not exist', details: inputPath };
+    return { valid: false, error: "Path does not exist", details: inputPath };
   }
 
-  const configPath = path.join(inputPath, '.space', 'spaces.json');
+  const configPath = path.join(inputPath, ".space", "spaces.json");
 
   if (!fs.existsSync(configPath)) {
-    return { valid: false, error: 'Space config not found', details: configPath };
+    return { valid: false, error: "Space config not found", details: configPath };
   }
 
   try {
-    const configContent = fs.readFileSync(configPath, 'utf-8');
+    const configContent = fs.readFileSync(configPath, "utf-8");
     const rawConfig = JSON.parse(configContent);
 
     const parseResult = SpaceConfigSchema.safeParse(rawConfig);
@@ -77,8 +82,10 @@ export function validateSpacePath(inputPath: string): { valid: true; config: Spa
     if (!parseResult.success) {
       return {
         valid: false,
-        error: 'Invalid space config schema',
-        details: parseResult.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')
+        error: "Invalid space config schema",
+        details: parseResult.error.issues
+          .map((i) => `${i.path.join(".")}: ${i.message}`)
+          .join("; "),
       };
     }
 
@@ -86,25 +93,25 @@ export function validateSpacePath(inputPath: string): { valid: true; config: Spa
       valid: true,
       config: parseResult.data,
       absolutePath: inputPath,
-      relativePath: path.basename(inputPath)
+      relativePath: path.basename(inputPath),
     };
   } catch (err) {
     return {
       valid: false,
-      error: 'Failed to read space config',
-      details: err instanceof Error ? err.message : 'Unknown error'
+      error: "Failed to read space config",
+      details: err instanceof Error ? err.message : "Unknown error",
     };
   }
 }
 
-export function createSpace(input: CreateSpaceInput, userId: string = 'system'): CreateSpaceResult {
+export function createSpace(input: CreateSpaceInput, userId: string = "system"): CreateSpaceResult {
   const validation = validateSpacePath(input.path);
 
   if (!validation.valid) {
     return {
       success: false,
       error: validation.error,
-      details: validation.details
+      details: validation.details,
     };
   }
 
@@ -113,27 +120,29 @@ export function createSpace(input: CreateSpaceInput, userId: string = 'system'):
   if (existing) {
     return {
       success: false,
-      error: 'Space already registered',
-      details: `Space ID: ${existing.id}, Path: ${existing.path}`
+      error: "Space already registered",
+      details: `Space ID: ${existing.id}, Path: ${existing.path}`,
     };
   }
 
   const id = validation.config.id ?? computeSpaceId(input.agentId, validation.relativePath);
   const now = new Date().toISOString();
-  const configPath = path.join(validation.absolutePath, '.space', 'spaces.json');
+  const configPath = path.join(validation.absolutePath, ".space", "spaces.json");
 
   const serverId = input.serverId ?? DEFAULT_SERVER_ID;
-  db.insert(schema.spaces).values({
-    id,
-    serverId,
-    agentId: input.agentId,
-    agentType: input.agentType,
-    path: validation.relativePath,
-    configPath,
-    config: JSON.stringify(validation.config),
-    createdAt: now,
-    updatedAt: now,
-  }).run();
+  db.insert(schema.spaces)
+    .values({
+      id,
+      serverId,
+      agentId: input.agentId,
+      agentType: input.agentType,
+      path: validation.relativePath,
+      configPath,
+      config: JSON.stringify(validation.config),
+      createdAt: now,
+      updatedAt: now,
+    })
+    .run();
 
   const space: SpaceRecord = {
     id,
@@ -147,7 +156,7 @@ export function createSpace(input: CreateSpaceInput, userId: string = 'system'):
     updatedAt: now,
   };
 
-  logAudit('space.create', userId, { spaceId: id, path: space.path });
+  logAudit("space.create", userId, { spaceId: id, path: space.path });
 
   return { success: true, space };
 }
@@ -164,26 +173,29 @@ export function insertSpace(data: {
   serverId?: string;
 }): SpaceRecord {
   const serverId = data.serverId ?? DEFAULT_SERVER_ID;
-  db.insert(schema.spaces).values({
-    id: data.id,
-    serverId,
-    agentId: data.agentId,
-    agentType: data.agentType,
-    path: data.path,
-    configPath: data.configPath ?? null,
-    config: JSON.stringify(data.config),
-    createdAt: data.createdAt,
-    updatedAt: data.updatedAt,
-  }).onConflictDoUpdate({
-    target: schema.spaces.id,
-    set: {
+  db.insert(schema.spaces)
+    .values({
+      id: data.id,
       serverId,
+      agentId: data.agentId,
+      agentType: data.agentType,
       path: data.path,
       configPath: data.configPath ?? null,
       config: JSON.stringify(data.config),
-      updatedAt: sql`CURRENT_TIMESTAMP`,
-    },
-  }).run();
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt,
+    })
+    .onConflictDoUpdate({
+      target: schema.spaces.id,
+      set: {
+        serverId,
+        path: data.path,
+        configPath: data.configPath ?? null,
+        config: JSON.stringify(data.config),
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+      },
+    })
+    .run();
 
   return {
     id: data.id,
@@ -198,19 +210,21 @@ export function insertSpace(data: {
   };
 }
 
-export function getSpace(id: string, userId: string = 'system'): SpaceRecord | null {
+export function getSpace(id: string, userId: string = "system"): SpaceRecord | null {
   const row = db.select().from(schema.spaces).where(eq(schema.spaces.id, id)).get();
 
   if (!row) return null;
 
   const space = rowToRecord(row);
-  logAudit('space.access', userId, { spaceId: id, path: space.path });
+  logAudit("space.access", userId, { spaceId: id, path: space.path });
 
   return space;
 }
 
 export function getSpaceByPath(agentId: string, spacePath: string): SpaceRecord | null {
-  const row = db.select().from(schema.spaces)
+  const row = db
+    .select()
+    .from(schema.spaces)
     .where(and(eq(schema.spaces.agentId, agentId), eq(schema.spaces.path, spacePath)))
     .get();
 
@@ -230,25 +244,31 @@ export function listSpacesByServerId(serverId: string): SpaceRecord[] {
   return rows.map(rowToRecord);
 }
 
-export function deleteSpace(id: string, userId: string = 'system'): boolean {
+export function deleteSpace(id: string, userId: string = "system"): boolean {
   const row = db.select().from(schema.spaces).where(eq(schema.spaces.id, id)).get();
 
   if (!row) return false;
 
   db.delete(schema.spaces).where(eq(schema.spaces.id, id)).run();
 
-  logAudit('space.delete', userId, { spaceId: id, path: row.path });
+  logAudit("space.delete", userId, { spaceId: id, path: row.path });
 
   return true;
 }
 
-export function updateSpaceConfig(id: string, config: SpaceConfig, userId: string = 'system'): SpaceRecord | null {
+export function updateSpaceConfig(
+  id: string,
+  config: SpaceConfig,
+  userId: string = "system",
+): SpaceRecord | null {
   const row = db.select().from(schema.spaces).where(eq(schema.spaces.id, id)).get();
   if (!row) return null;
 
   const validated = SpaceConfigSchema.safeParse(config);
   if (!validated.success) {
-    throw new Error(`Invalid config: ${validated.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
+    throw new Error(
+      `Invalid config: ${validated.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`,
+    );
   }
 
   db.update(schema.spaces)
@@ -259,7 +279,7 @@ export function updateSpaceConfig(id: string, config: SpaceConfig, userId: strin
     .where(eq(schema.spaces.id, id))
     .run();
 
-  logAudit('space.config.update', userId, { spaceId: id });
+  logAudit("space.config.update", userId, { spaceId: id });
 
   return rowToRecord(db.select().from(schema.spaces).where(eq(schema.spaces.id, id)).get()!);
 }

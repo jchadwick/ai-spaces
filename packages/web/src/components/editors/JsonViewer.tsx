@@ -1,11 +1,11 @@
-import type { ViewerProps } from './types'
+import type { ViewerProps } from "./types";
 
 function prettyPrint(content: string | null): string {
-  if (content === null) return ''
+  if (content === null) return "";
   try {
-    return JSON.stringify(JSON.parse(content), null, 2)
+    return JSON.stringify(JSON.parse(content), null, 2);
   } catch {
-    return content
+    return content;
   }
 }
 
@@ -18,7 +18,7 @@ export default function JsonViewer({ content }: ViewerProps) {
           <p className="text-body-md">Empty file</p>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -27,5 +27,5 @@ export default function JsonViewer({ content }: ViewerProps) {
         {prettyPrint(content)}
       </pre>
     </div>
-  )
+  );
 }

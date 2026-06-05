@@ -1,7 +1,6 @@
-import type { IncomingMessage } from 'http';
-import jwt from 'jsonwebtoken';
-import { config } from './config.js';
-
+import type { IncomingMessage } from "node:http";
+import jwt from "jsonwebtoken";
+import { config } from "./config.js";
 
 /**
  * Extended IncomingMessage with user info
@@ -17,7 +16,7 @@ export interface AuthenticatedRequest extends IncomingMessage {
 /**
  * Session validation middleware
  * Validates JWT tokens from Authorization header
- * 
+ *
  * @param req - The incoming HTTP request
  * @returns The decoded token payload if valid, or null if invalid/missing
  */
@@ -29,8 +28,8 @@ export function validateSession(req: IncomingMessage): jwt.JwtPayload | null {
   }
 
   // Expect format: "Bearer <token>"
-  const parts = authHeader.split(' ');
-  if (parts.length !== 2 || parts[0] !== 'Bearer') {
+  const parts = authHeader.split(" ");
+  if (parts.length !== 2 || parts[0] !== "Bearer") {
     return null;
   }
 
@@ -46,7 +45,7 @@ export function validateSession(req: IncomingMessage): jwt.JwtPayload | null {
 
 /**
  * Create authenticated request by attaching user info to the request object
- * 
+ *
  * @param req - The incoming HTTP request
  * @returns The authenticated request with user info attached, or original request if invalid
  */

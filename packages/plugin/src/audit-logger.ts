@@ -1,10 +1,18 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import { config } from './config.js';
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { config } from "./config.js";
 
 export interface AuditLogEntry {
   timestamp: string;
-  event: 'path_escape_attempt' | 'access_denied' | 'invalid_path' | 'login' | 'logout' | 'file_access' | 'space_created' | 'space_accessed';
+  event:
+    | "path_escape_attempt"
+    | "access_denied"
+    | "invalid_path"
+    | "login"
+    | "logout"
+    | "file_access"
+    | "space_created"
+    | "space_accessed";
   sessionId?: string;
   userId?: string;
   spaceId?: string;
@@ -15,34 +23,34 @@ export interface AuditLogEntry {
   message: string;
 }
 
-const AUDIT_LOG_FILE = 'ai-spaces-audit.log';
+const AUDIT_LOG_FILE = "ai-spaces-audit.log";
 
 function getAuditLogPath(): string {
-  return path.join(config.OPENCLAW_HOME, 'logs', AUDIT_LOG_FILE);
+  return path.join(config.OPENCLAW_HOME, "logs", AUDIT_LOG_FILE);
 }
 
 function ensureLogDirectory(): void {
   const logPath = getAuditLogPath();
   const logDir = path.dirname(logPath);
-  
+
   if (!fs.existsSync(logDir)) {
     fs.mkdirSync(logDir, { recursive: true });
   }
 }
 
-export function logSecurityEvent(entry: Omit<AuditLogEntry, 'timestamp'>): void {
+export function logSecurityEvent(entry: Omit<AuditLogEntry, "timestamp">): void {
   try {
     ensureLogDirectory();
-    
+
     const logEntry: AuditLogEntry = {
       ...entry,
       timestamp: new Date().toISOString(),
     };
-    
-    const logLine = JSON.stringify(logEntry) + '\n';
+
+    const logLine = `${JSON.stringify(logEntry)}\n`;
     const logPath = getAuditLogPath();
-    
-    fs.appendFileSync(logPath, logLine, 'utf-8');
+
+    fs.appendFileSync(logPath, logLine, "utf-8");
   } catch {
     // Silently fail - don't expose errors to client
   }
@@ -53,10 +61,10 @@ export function logPathEscapeAttempt(
   attemptedPath: string,
   resolvedPath: string | null,
   sessionId?: string,
-  clientIp?: string
+  clientIp?: string,
 ): void {
   logSecurityEvent({
-    event: 'path_escape_attempt',
+    event: "path_escape_attempt",
     spaceId,
     sessionId,
     attemptedPath,
@@ -70,10 +78,10 @@ export function logAccessDenied(
   spaceId: string,
   reason: string,
   sessionId?: string,
-  clientIp?: string
+  clientIp?: string,
 ): void {
   logSecurityEvent({
-    event: 'access_denied',
+    event: "access_denied",
     spaceId,
     sessionId,
     message: reason,
@@ -86,24 +94,22 @@ export function logLogin(
   success: boolean,
   sessionId?: string,
   clientIp?: string,
-  reason?: string
+  reason?: string,
 ): void {
   logSecurityEvent({
-    event: 'login',
+    event: "login",
     userId,
     sessionId,
     clientIp,
-    message: success ? `User ${userId} logged in successfully` : `Login failed for user ${userId}: ${reason}`,
+    message: success
+      ? `User ${userId} logged in successfully`
+      : `Login failed for user ${userId}: ${reason}`,
   });
 }
 
-export function logLogout(
-  userId: string,
-  sessionId?: string,
-  clientIp?: string
-): void {
+export function logLogout(userId: string, sessionId?: string, clientIp?: string): void {
   logSecurityEvent({
-    event: 'logout',
+    event: "logout",
     userId,
     sessionId,
     clientIp,
@@ -115,12 +121,12 @@ export function logFileAccess(
   spaceId: string,
   userId: string,
   filePath: string,
-  action: 'read' | 'write',
+  action: "read" | "write",
   sessionId?: string,
-  clientIp?: string
+  clientIp?: string,
 ): void {
   logSecurityEvent({
-    event: 'file_access',
+    event: "file_access",
     userId,
     spaceId,
     sessionId,
@@ -133,12 +139,12 @@ export function logFileAccess(
 export function logSpaceAccessed(
   spaceId: string,
   userId: string,
-  action: 'view' | 'create' | 'delete',
+  action: "view" | "create" | "delete",
   sessionId?: string,
-  clientIp?: string
+  clientIp?: string,
 ): void {
   logSecurityEvent({
-    event: action === 'create' ? 'space_created' : 'space_accessed',
+    event: action === "create" ? "space_created" : "space_accessed",
     userId,
     spaceId,
     sessionId,

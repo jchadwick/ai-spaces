@@ -1,13 +1,13 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
   DialogDescription,
   DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAPI } from "@/hooks/useAPI";
 
@@ -19,11 +19,7 @@ interface SpaceSettingsDialogProps {
   onPatternsUpdated: (patterns: string[]) => void;
 }
 
-const DEFAULT_PATTERNS = [
-  ".space/chat-history.json",
-  ".space/history.json",
-  ".space/spaces.json",
-];
+const DEFAULT_PATTERNS = [".space/chat-history.json", ".space/history.json", ".space/spaces.json"];
 
 export default function SpaceSettingsDialog({
   spaceId,
@@ -86,14 +82,13 @@ export default function SpaceSettingsDialog({
         <DialogHeader>
           <DialogTitle>Notification Settings</DialogTitle>
           <DialogDescription>
-            Manage which file paths should be excluded from notifications. Patterns support exact paths, prefix matches (ending with /), and * wildcards.
+            Manage which file paths should be excluded from notifications. Patterns support exact
+            paths, prefix matches (ending with /), and * wildcards.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3 py-2">
-          <div className="text-sm font-medium text-t-ink">
-            Ignore patterns
-          </div>
+          <div className="text-sm font-medium text-t-ink">Ignore patterns</div>
 
           <div className="space-y-1.5 max-h-48 overflow-y-auto">
             {DEFAULT_PATTERNS.map((pattern) => (
@@ -144,9 +139,7 @@ export default function SpaceSettingsDialog({
           </form>
         </div>
 
-        {error && (
-          <div className="text-sm text-t-accent">{error}</div>
-        )}
+        {error && <div className="text-sm text-t-accent">{error}</div>}
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>

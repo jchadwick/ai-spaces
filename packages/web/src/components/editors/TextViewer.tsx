@@ -1,4 +1,4 @@
-import type { ViewerProps } from './types'
+import type { ViewerProps } from "./types";
 
 export default function TextViewer({ content }: ViewerProps) {
   if (content === null) {
@@ -9,7 +9,7 @@ export default function TextViewer({ content }: ViewerProps) {
           <p className="text-body-md">Empty file</p>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -18,5 +18,5 @@ export default function TextViewer({ content }: ViewerProps) {
         {content}
       </pre>
     </div>
-  )
+  );
 }

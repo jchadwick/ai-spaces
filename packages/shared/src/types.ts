@@ -1,6 +1,16 @@
-import type { z } from 'zod';
-import type { SpaceConfigSchema, SpaceSchema, SessionContextSchema, UserRoleSchema, UserSchema, SessionSchema, AuthTokensSchema, FileMetadataEntrySchema, SpaceMetadataSchema } from './schemas.js';
-import type { FileNodeType } from './schemas.js';
+import type { z } from "zod";
+import type {
+  AuthTokensSchema,
+  FileMetadataEntrySchema,
+  FileNodeType,
+  SessionContextSchema,
+  SessionSchema,
+  SpaceConfigSchema,
+  SpaceMetadataSchema,
+  SpaceSchema,
+  UserRoleSchema,
+  UserSchema,
+} from "./schemas.js";
 
 export type SpaceConfig = z.infer<typeof SpaceConfigSchema>;
 export type Space = z.infer<typeof SpaceSchema>;
@@ -20,14 +30,13 @@ export interface AgentConfig {
 
 export interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant';
+  role: "user" | "assistant";
   content: string;
   timestamp: string;
 }
 
-
-export type UserRole = 'admin' | 'user';
-export type ServerRole = 'admin' | 'user';
+export type UserRole = "admin" | "user";
+export type ServerRole = "admin" | "user";
 
 export interface User {
   id: string;

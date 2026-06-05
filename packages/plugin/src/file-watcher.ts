@@ -1,9 +1,9 @@
-import chokidar, { FSWatcher } from 'chokidar';
-import { EventEmitter } from 'events';
-import * as fs from 'fs';
-import * as path from 'path';
+import { EventEmitter } from "node:events";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import chokidar, { FSWatcher } from "chokidar";
 
-export type FileAction = 'created' | 'modified' | 'deleted';
+export type FileAction = "created" | "modified" | "deleted";
 
 export interface FileChangedEvent {
   spaceId: string;
@@ -34,29 +34,40 @@ export class FileWatcher extends EventEmitter {
         awaitWriteFinish: { stabilityThreshold: 100, pollInterval: 50 },
       });
 
-      watcher.on('add', (filePath) => {
+      watcher.on("add", (filePath) => {
         const relativePath = path.relative(dirPath, filePath);
-        this.emit('file:changed', { spaceId, path: relativePath, action: 'created' } satisfies FileChangedEvent);
+        this.emit("file:changed", {
+          spaceId,
+          path: relativePath,
+          action: "created",
+        } satisfies FileChangedEvent);
       });
 
-      watcher.on('change', (filePath) => {
+      watcher.on("change", (filePath) => {
         const relativePath = path.relative(dirPath, filePath);
-        this.emit('file:changed', { spaceId, path: relativePath, action: 'modified' } satisfies FileChangedEvent);
+        this.emit("file:changed", {
+          spaceId,
+          path: relativePath,
+          action: "modified",
+        } satisfies FileChangedEvent);
       });
 
-      watcher.on('unlink', (filePath) => {
+      watcher.on("unlink", (filePath) => {
         const relativePath = path.relative(dirPath, filePath);
-        this.emit('file:changed', { spaceId, path: relativePath, action: 'deleted' } satisfies FileChangedEvent);
+        this.emit("file:changed", {
+          spaceId,
+          path: relativePath,
+          action: "deleted",
+        } satisfies FileChangedEvent);
       });
 
-      watcher.on('error', (err: unknown) => {
+      watcher.on("error", (err: unknown) => {
         const message = err instanceof Error ? err.message : String(err);
         console.error(`[FileWatcher] Watcher error for space ${spaceId}:`, message);
         this.unwatch(spaceId);
       });
 
       this.watchers.set(spaceId, { watcher, dirPath });
-      console.log(`[FileWatcher] Watching space ${spaceId} at ${dirPath}`);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.error(`[FileWatcher] Failed to watch ${dirPath}:`, message);
@@ -73,7 +84,6 @@ export class FileWatcher extends EventEmitter {
     });
 
     this.watchers.delete(spaceId);
-    console.log(`[FileWatcher] Stopped watching space ${spaceId}`);
   }
 
   unwatchAll(): void {

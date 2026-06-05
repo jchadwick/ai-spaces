@@ -1,6 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { useAuth } from "@/contexts/AuthContext";
-import { getAccessToken } from "@/contexts/AuthContext";
+import { useCallback, useEffect, useState } from "react";
+import { getAccessToken, useAuth } from "@/contexts/AuthContext";
 
 interface ManagedUser {
   id: string;
@@ -72,7 +71,13 @@ export default function UserManagement() {
 
   if (isLoading) {
     return (
-      <div style={{ padding: 32, fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif", color: 'var(--t-inkMid)' }}>
+      <div
+        style={{
+          padding: 32,
+          fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif",
+          color: "var(--t-inkMid)",
+        }}
+      >
         Loading users…
       </div>
     );
@@ -80,7 +85,13 @@ export default function UserManagement() {
 
   if (loadError) {
     return (
-      <div style={{ padding: 32, fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif", color: 'var(--t-accent)' }}>
+      <div
+        style={{
+          padding: 32,
+          fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif",
+          color: "var(--t-accent)",
+        }}
+      >
         {loadError}
       </div>
     );
@@ -88,20 +99,64 @@ export default function UserManagement() {
 
   return (
     <div style={{ fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif" }}>
-      <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--t-ink)', margin: 0 }}>Users</h2>
-        {roleError && (
-          <span style={{ fontSize: 13, color: 'var(--t-accent)' }}>{roleError}</span>
-        )}
+      <div
+        style={{
+          marginBottom: 16,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
+        <h2 style={{ fontSize: 18, fontWeight: 600, color: "var(--t-ink)", margin: 0 }}>Users</h2>
+        {roleError && <span style={{ fontSize: 13, color: "var(--t-accent)" }}>{roleError}</span>}
       </div>
 
-      <div style={{ border: '1px solid var(--t-hair)', borderRadius: 10, overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+      <div style={{ border: "1px solid var(--t-hair)", borderRadius: 10, overflow: "hidden" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
           <thead>
-            <tr style={{ background: 'var(--t-bgAlt)', borderBottom: '1px solid var(--t-hair)' }}>
-              <th style={{ padding: '10px 16px', textAlign: 'left', color: 'var(--t-inkDim)', fontWeight: 500, fontFamily: "'JetBrains Mono', ui-monospace, monospace", fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>Email</th>
-              <th style={{ padding: '10px 16px', textAlign: 'left', color: 'var(--t-inkDim)', fontWeight: 500, fontFamily: "'JetBrains Mono', ui-monospace, monospace", fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>Display Name</th>
-              <th style={{ padding: '10px 16px', textAlign: 'left', color: 'var(--t-inkDim)', fontWeight: 500, fontFamily: "'JetBrains Mono', ui-monospace, monospace", fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>Role</th>
+            <tr style={{ background: "var(--t-bgAlt)", borderBottom: "1px solid var(--t-hair)" }}>
+              <th
+                style={{
+                  padding: "10px 16px",
+                  textAlign: "left",
+                  color: "var(--t-inkDim)",
+                  fontWeight: 500,
+                  fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+                  fontSize: 11,
+                  textTransform: "uppercase",
+                  letterSpacing: 1,
+                }}
+              >
+                Email
+              </th>
+              <th
+                style={{
+                  padding: "10px 16px",
+                  textAlign: "left",
+                  color: "var(--t-inkDim)",
+                  fontWeight: 500,
+                  fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+                  fontSize: 11,
+                  textTransform: "uppercase",
+                  letterSpacing: 1,
+                }}
+              >
+                Display Name
+              </th>
+              <th
+                style={{
+                  padding: "10px 16px",
+                  textAlign: "left",
+                  color: "var(--t-inkDim)",
+                  fontWeight: 500,
+                  fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+                  fontSize: 11,
+                  textTransform: "uppercase",
+                  letterSpacing: 1,
+                }}
+              >
+                Role
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -109,42 +164,45 @@ export default function UserManagement() {
               <tr
                 key={u.id}
                 style={{
-                  borderBottom: users && i < (users.length - 1) ? '1px solid var(--t-hair)' : undefined,
-                  background: 'var(--t-bgRaised)',
+                  borderBottom:
+                    users && i < users.length - 1 ? "1px solid var(--t-hair)" : undefined,
+                  background: "var(--t-bgRaised)",
                 }}
               >
-                <td style={{ padding: '10px 16px', color: 'var(--t-ink)' }}>{u.email}</td>
-                <td style={{ padding: '10px 16px', color: 'var(--t-inkMid)' }}>{u.displayName ?? '—'}</td>
-                <td style={{ padding: '10px 16px' }}>
+                <td style={{ padding: "10px 16px", color: "var(--t-ink)" }}>{u.email}</td>
+                <td style={{ padding: "10px 16px", color: "var(--t-inkMid)" }}>
+                  {u.displayName ?? "—"}
+                </td>
+                <td style={{ padding: "10px 16px" }}>
                   {currentUser?.id === u.id ? (
-                    <span style={{
-                      fontSize: 12,
-                      fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-                      textTransform: 'uppercase',
-                      letterSpacing: 1,
-                      color: 'var(--t-inkDim)',
-                      padding: '3px 8px',
-                      background: 'var(--t-bgWell)',
-                      borderRadius: 4,
-                    }}>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+                        textTransform: "uppercase",
+                        letterSpacing: 1,
+                        color: "var(--t-inkDim)",
+                        padding: "3px 8px",
+                        background: "var(--t-bgWell)",
+                        borderRadius: 4,
+                      }}
+                    >
                       {u.serverRole}
                     </span>
                   ) : (
                     <select
                       value={u.serverRole}
                       disabled={updatingId === u.id}
-                      onChange={(e) =>
-                        handleRoleChange(u.id, e.target.value as 'admin' | 'user')
-                      }
+                      onChange={(e) => handleRoleChange(u.id, e.target.value as "admin" | "user")}
                       style={{
                         fontSize: 13,
                         fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif",
-                        padding: '3px 8px',
+                        padding: "3px 8px",
                         borderRadius: 6,
-                        border: '1px solid var(--t-hair)',
-                        background: 'var(--t-bgWell)',
-                        color: 'var(--t-ink)',
-                        cursor: 'pointer',
+                        border: "1px solid var(--t-hair)",
+                        background: "var(--t-bgWell)",
+                        color: "var(--t-ink)",
+                        cursor: "pointer",
                       }}
                     >
                       <option value="user">user</option>
@@ -156,7 +214,10 @@ export default function UserManagement() {
             ))}
             {users?.length === 0 && (
               <tr>
-                <td colSpan={3} style={{ padding: '16px', textAlign: 'center', color: 'var(--t-inkDim)' }}>
+                <td
+                  colSpan={3}
+                  style={{ padding: "16px", textAlign: "center", color: "var(--t-inkDim)" }}
+                >
                   No users found.
                 </td>
               </tr>

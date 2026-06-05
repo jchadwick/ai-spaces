@@ -1,5 +1,5 @@
-import Editor from '@monaco-editor/react'
-import type { EditorProps } from './types'
+import Editor from "@monaco-editor/react";
+import type { EditorProps } from "./types";
 
 export default function MonacoEditor({ content, onChange }: EditorProps) {
   return (
@@ -9,15 +9,15 @@ export default function MonacoEditor({ content, onChange }: EditorProps) {
         language="json"
         theme="vs"
         value={content}
-        onChange={(value) => onChange(value ?? '')}
+        onChange={(value) => onChange(value ?? "")}
         options={{
           minimap: { enabled: false },
           fontSize: 13,
-          lineNumbers: 'on',
+          lineNumbers: "on",
           scrollBeyondLastLine: false,
-          wordWrap: 'on',
+          wordWrap: "on",
         }}
       />
     </div>
-  )
+  );
 }

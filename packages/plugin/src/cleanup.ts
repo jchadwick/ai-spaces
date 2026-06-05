@@ -1,8 +1,8 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import { logger as rootLogger } from './logger.js';
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { logger as rootLogger } from "./logger.js";
 
-const log = rootLogger.child({ component: 'cleanup' });
+const log = rootLogger.child({ component: "cleanup" });
 
 const STALE_AGE_MS = 5 * 60 * 1000; // 5 minutes
 const MAX_DEPTH = 10;
@@ -19,7 +19,7 @@ function* findOrphans(dir: string, depth: number): Generator<string> {
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
       yield* findOrphans(fullPath, depth + 1);
-    } else if (entry.isFile() && (entry.name.endsWith('.tmp') || entry.name.endsWith('.lock'))) {
+    } else if (entry.isFile() && (entry.name.endsWith(".tmp") || entry.name.endsWith(".lock"))) {
       yield fullPath;
     }
   }
@@ -37,13 +37,16 @@ export function cleanOrphanedFiles(workspaceRoot: string): void {
       if (now - stats.mtimeMs < STALE_AGE_MS) continue;
       fs.unlinkSync(filePath);
       removed++;
-      log.info({ filePath }, 'Removed orphaned file');
+      log.info({ filePath }, "Removed orphaned file");
     } catch (err) {
-      log.warn({ filePath, err: err instanceof Error ? err.message : String(err) }, 'Failed to remove orphaned file');
+      log.warn(
+        { filePath, err: err instanceof Error ? err.message : String(err) },
+        "Failed to remove orphaned file",
+      );
     }
   }
 
   if (found > 0) {
-    log.info({ found, removed }, 'Orphan cleanup complete');
+    log.info({ found, removed }, "Orphan cleanup complete");
   }
 }

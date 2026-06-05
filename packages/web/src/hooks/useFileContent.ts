@@ -1,162 +1,172 @@
-import { useState, useEffect, useRef, useMemo } from 'react'
-import { useAPI } from './useAPI'
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useAPI } from "./useAPI";
 
-export type FileType = 'markdown' | 'text' | 'json' | 'image' | 'binary' | 'pdf' | 'unknown'
+export type FileType = "markdown" | "text" | "json" | "image" | "binary" | "pdf" | "unknown";
 
 export interface FileInfo {
-  name: string
-  path: string
-  type: FileType
-  modifiedAt?: string
-  size?: number
+  name: string;
+  path: string;
+  type: FileType;
+  modifiedAt?: string;
+  size?: number;
 }
 
 export interface FileContent {
-  content: string | null
-  fileInfo: FileInfo | null
-  loading: boolean
-  error: string | null
+  content: string | null;
+  fileInfo: FileInfo | null;
+  loading: boolean;
+  error: string | null;
 }
 
-function detectFileType(contentType: string | null, xFileContentType: string | null, fileName: string): FileType {
+function detectFileType(
+  contentType: string | null,
+  xFileContentType: string | null,
+  fileName: string,
+): FileType {
   // Prefer the server's explicit file content type header
-  if (xFileContentType === 'image') return 'image'
-  if (xFileContentType === 'binary') return 'binary'
-  if (xFileContentType === 'markdown') return 'markdown'
-  if (xFileContentType === 'pdf') return 'pdf'
+  if (xFileContentType === "image") return "image";
+  if (xFileContentType === "binary") return "binary";
+  if (xFileContentType === "markdown") return "markdown";
+  if (xFileContentType === "pdf") return "pdf";
 
-  const mimeType = contentType?.split(';')[0].trim()
-  if (mimeType?.startsWith('image/')) return 'image'
-  if (mimeType === 'application/octet-stream') return 'binary'
-  if (mimeType === 'application/pdf') return 'pdf'
-  if (mimeType === 'text/markdown') return 'markdown'
-  if (mimeType === 'application/json') return 'json'
-  if (mimeType?.startsWith('text/')) return 'text'
+  const mimeType = contentType?.split(";")[0].trim();
+  if (mimeType?.startsWith("image/")) return "image";
+  if (mimeType === "application/octet-stream") return "binary";
+  if (mimeType === "application/pdf") return "pdf";
+  if (mimeType === "text/markdown") return "markdown";
+  if (mimeType === "application/json") return "json";
+  if (mimeType?.startsWith("text/")) return "text";
 
-  const ext = fileName.split('.').pop()?.toLowerCase()
-  if (ext === 'md' || ext === 'markdown') return 'markdown'
-  if (ext === 'pdf') return 'pdf'
-  if (ext === 'json') return 'json'
-  if (['txt', 'js', 'ts', 'jsx', 'tsx', 'css', 'html', 'xml', 'yaml', 'yml'].includes(ext || '')) return 'text'
-  if (['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'].includes(ext || '')) return 'image'
+  const ext = fileName.split(".").pop()?.toLowerCase();
+  if (ext === "md" || ext === "markdown") return "markdown";
+  if (ext === "pdf") return "pdf";
+  if (ext === "json") return "json";
+  if (["txt", "js", "ts", "jsx", "tsx", "css", "html", "xml", "yaml", "yml"].includes(ext || ""))
+    return "text";
+  if (["png", "jpg", "jpeg", "gif", "svg", "webp"].includes(ext || "")) return "image";
 
-  return 'unknown'
+  return "unknown";
 }
 
 interface UseFileContentOptions {
   refreshKey?: number;
 }
 
-export function useFileContent(spaceId: string | undefined, filePath: string | undefined, options?: UseFileContentOptions): FileContent {
+export function useFileContent(
+  spaceId: string | undefined,
+  filePath: string | undefined,
+  options?: UseFileContentOptions,
+): FileContent {
   const refreshKey = options?.refreshKey ?? 0;
-  const apiFetch = useAPI()
+  const apiFetch = useAPI();
 
-  const [content, setContent] = useState<string | null>(null)
-  const [fileInfo, setFileInfo] = useState<FileInfo | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const abortRef = useRef<AbortController | null>(null)
-  const fetchIdRef = useRef(0)
-  
+  const [content, setContent] = useState<string | null>(null);
+  const [fileInfo, setFileInfo] = useState<FileInfo | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const fetchIdRef = useRef(0);
+
   const fetchKey = useMemo(() => {
-    if (!spaceId || !filePath) return null
-    return `${spaceId}:${filePath}:${refreshKey}`
-  }, [spaceId, filePath, refreshKey])
+    if (!spaceId || !filePath) return null;
+    return `${spaceId}:${filePath}:${refreshKey}`;
+  }, [spaceId, filePath, refreshKey]);
 
   useEffect(() => {
     if (!fetchKey) {
-      return
+      return;
     }
 
-    const currentFetchId = ++fetchIdRef.current
-    abortRef.current?.abort()
-    const controller = new AbortController()
-    abortRef.current = controller
+    const currentFetchId = ++fetchIdRef.current;
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     const fetchData = async () => {
       try {
-        const [currentSpaceId, currentFilePath] = fetchKey.split(':')
-        const encodedPath = encodeURIComponent(currentFilePath)
+        const [currentSpaceId, currentFilePath] = fetchKey.split(":");
+        const encodedPath = encodeURIComponent(currentFilePath);
         const response = await apiFetch(`/api/spaces/${currentSpaceId}/files/${encodedPath}`, {
           signal: controller.signal,
-        })
+        });
 
-        if (controller.signal.aborted || currentFetchId !== fetchIdRef.current) return
+        if (controller.signal.aborted || currentFetchId !== fetchIdRef.current) return;
 
         if (!response.ok) {
-          throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`)
+          throw new Error(`Failed to fetch file: ${response.status} ${response.statusText}`);
         }
 
-        const contentType = response.headers.get('content-type')
-        const xFileContentType = response.headers.get('x-file-content-type')
-        const xFileModified = response.headers.get('x-file-modified') ?? undefined
-        const fileName = currentFilePath.split('/').pop() || currentFilePath
-        const fileType = detectFileType(contentType, xFileContentType, fileName)
+        const contentType = response.headers.get("content-type");
+        const xFileContentType = response.headers.get("x-file-content-type");
+        const xFileModified = response.headers.get("x-file-modified") ?? undefined;
+        const fileName = currentFilePath.split("/").pop() || currentFilePath;
+        const fileType = detectFileType(contentType, xFileContentType, fileName);
 
-        if (fileType === 'image' || fileType === 'pdf') {
-          const blob = await response.blob()
-          if (controller.signal.aborted || currentFetchId !== fetchIdRef.current) return
-          const typedBlob = fileType === 'pdf' && blob.type !== 'application/pdf'
-            ? new Blob([blob], { type: 'application/pdf' })
-            : blob
-          const url = URL.createObjectURL(typedBlob)
-          setContent(url)
+        if (fileType === "image" || fileType === "pdf") {
+          const blob = await response.blob();
+          if (controller.signal.aborted || currentFetchId !== fetchIdRef.current) return;
+          const typedBlob =
+            fileType === "pdf" && blob.type !== "application/pdf"
+              ? new Blob([blob], { type: "application/pdf" })
+              : blob;
+          const url = URL.createObjectURL(typedBlob);
+          setContent(url);
           setFileInfo({
             name: fileName,
             path: currentFilePath,
             type: fileType,
             modifiedAt: xFileModified,
-          })
-          setLoading(false)
-          return
+          });
+          setLoading(false);
+          return;
         }
 
-        if (fileType === 'binary') {
-          if (controller.signal.aborted || currentFetchId !== fetchIdRef.current) return
-          setContent(null)
+        if (fileType === "binary") {
+          if (controller.signal.aborted || currentFetchId !== fetchIdRef.current) return;
+          setContent(null);
           setFileInfo({
             name: fileName,
             path: currentFilePath,
             type: fileType,
             modifiedAt: xFileModified,
-          })
-          setLoading(false)
-          return
+          });
+          setLoading(false);
+          return;
         }
 
-        const text = await response.text()
-        if (controller.signal.aborted || currentFetchId !== fetchIdRef.current) return
+        const text = await response.text();
+        if (controller.signal.aborted || currentFetchId !== fetchIdRef.current) return;
 
-        setContent(text)
+        setContent(text);
         setFileInfo({
           name: fileName,
           path: currentFilePath,
           type: fileType,
           modifiedAt: xFileModified,
-        })
-        setLoading(false)
+        });
+        setLoading(false);
       } catch (err) {
-        if (controller.signal.aborted || currentFetchId !== fetchIdRef.current) return
-        const message = err instanceof Error ? err.message : 'Unknown error'
-        setError(message)
-        setContent(null)
-        setFileInfo(null)
-        setLoading(false)
+        if (controller.signal.aborted || currentFetchId !== fetchIdRef.current) return;
+        const message = err instanceof Error ? err.message : "Unknown error";
+        setError(message);
+        setContent(null);
+        setFileInfo(null);
+        setLoading(false);
       }
-    }
+    };
 
-    setLoading(true)
-    setError(null)
-    fetchData()
+    setLoading(true);
+    setError(null);
+    fetchData();
 
     return () => {
-      controller.abort()
-    }
-  }, [fetchKey, apiFetch])
+      controller.abort();
+    };
+  }, [fetchKey, apiFetch]);
 
   if (!spaceId || !filePath) {
-    return { content: null, fileInfo: null, loading: false, error: null }
+    return { content: null, fileInfo: null, loading: false, error: null };
   }
 
-  return { content, fileInfo, loading, error }
+  return { content, fileInfo, loading, error };
 }

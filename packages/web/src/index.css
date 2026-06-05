@@ -1,4 +1,4 @@
-@import 'tailwindcss';
+@import "tailwindcss";
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
 @import "shadcn/tailwind.css";
@@ -212,7 +212,8 @@ html {
   display: flex;
   background: var(--t-bg);
   color: var(--t-ink);
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   letter-spacing: 0;
 }
 
@@ -223,7 +224,7 @@ html {
 }
 
 .rooms-rise {
-  animation: roomsRiseIn 240ms cubic-bezier(.2,.7,.3,1);
+  animation: roomsRiseIn 240ms cubic-bezier(0.2, 0.7, 0.3, 1);
 }
 
 .rooms-fade {
@@ -250,19 +251,27 @@ html {
 }
 
 @keyframes roomsRiseIn {
-  from { transform: translateY(9px); }
-  to { transform: translateY(0); }
+  from {
+    transform: translateY(9px);
+  }
+  to {
+    transform: translateY(0);
+  }
 }
 
 @keyframes roomsFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .rooms-rise,
   .rooms-fade {
-    animation: none !important;
+    animation: none;
   }
 }
 
@@ -282,7 +291,7 @@ html {
 
 /* Material Symbols */
 .material-symbols-outlined {
-  font-family: 'Material Symbols Outlined';
+  font-family: "Material Symbols Outlined";
   font-weight: normal;
   font-style: normal;
   line-height: 1;
@@ -300,46 +309,110 @@ html {
    to resolve to tiny spacing values (e.g. max-w-md → 1rem) instead of the expected
    container presets. Override here so named max-w-* classes work correctly project-wide. */
 @layer utilities {
-  .max-w-xs  { max-width: 20rem; }
-  .max-w-sm  { max-width: 24rem; }
-  .max-w-md  { max-width: 28rem; }
-  .max-w-lg  { max-width: 32rem; }
-  .max-w-xl  { max-width: 36rem; }
-  .max-w-2xl { max-width: 42rem; }
-  .max-w-3xl { max-width: 48rem; }
-  .max-w-4xl { max-width: 56rem; }
-  .max-w-5xl { max-width: 64rem; }
-  .max-w-6xl { max-width: 72rem; }
-  .max-w-7xl { max-width: 80rem; }
+  .max-w-xs {
+    max-width: 20rem;
+  }
+  .max-w-sm {
+    max-width: 24rem;
+  }
+  .max-w-md {
+    max-width: 28rem;
+  }
+  .max-w-lg {
+    max-width: 32rem;
+  }
+  .max-w-xl {
+    max-width: 36rem;
+  }
+  .max-w-2xl {
+    max-width: 42rem;
+  }
+  .max-w-3xl {
+    max-width: 48rem;
+  }
+  .max-w-4xl {
+    max-width: 56rem;
+  }
+  .max-w-5xl {
+    max-width: 64rem;
+  }
+  .max-w-6xl {
+    max-width: 72rem;
+  }
+  .max-w-7xl {
+    max-width: 80rem;
+  }
   @media (width >= 40rem) {
-    .sm\:max-w-xs  { max-width: 20rem; }
-    .sm\:max-w-sm  { max-width: 24rem; }
-    .sm\:max-w-md  { max-width: 28rem; }
-    .sm\:max-w-lg  { max-width: 32rem; }
-    .sm\:max-w-xl  { max-width: 36rem; }
-    .sm\:max-w-2xl { max-width: 42rem; }
-    .sm\:max-w-3xl { max-width: 48rem; }
+    .sm\:max-w-xs {
+      max-width: 20rem;
+    }
+    .sm\:max-w-sm {
+      max-width: 24rem;
+    }
+    .sm\:max-w-md {
+      max-width: 28rem;
+    }
+    .sm\:max-w-lg {
+      max-width: 32rem;
+    }
+    .sm\:max-w-xl {
+      max-width: 36rem;
+    }
+    .sm\:max-w-2xl {
+      max-width: 42rem;
+    }
+    .sm\:max-w-3xl {
+      max-width: 48rem;
+    }
   }
   @media (width >= 48rem) {
-    .md\:max-w-xs  { max-width: 20rem; }
-    .md\:max-w-sm  { max-width: 24rem; }
-    .md\:max-w-md  { max-width: 28rem; }
-    .md\:max-w-lg  { max-width: 32rem; }
-    .md\:max-w-xl  { max-width: 36rem; }
-    .md\:max-w-2xl { max-width: 42rem; }
-    .md\:max-w-3xl { max-width: 48rem; }
+    .md\:max-w-xs {
+      max-width: 20rem;
+    }
+    .md\:max-w-sm {
+      max-width: 24rem;
+    }
+    .md\:max-w-md {
+      max-width: 28rem;
+    }
+    .md\:max-w-lg {
+      max-width: 32rem;
+    }
+    .md\:max-w-xl {
+      max-width: 36rem;
+    }
+    .md\:max-w-2xl {
+      max-width: 42rem;
+    }
+    .md\:max-w-3xl {
+      max-width: 48rem;
+    }
   }
   @media (width >= 64rem) {
-    .lg\:max-w-xs  { max-width: 20rem; }
-    .lg\:max-w-sm  { max-width: 24rem; }
-    .lg\:max-w-md  { max-width: 28rem; }
-    .lg\:max-w-lg  { max-width: 32rem; }
-    .lg\:max-w-xl  { max-width: 36rem; }
-    .lg\:max-w-2xl { max-width: 42rem; }
-    .lg\:max-w-3xl { max-width: 48rem; }
+    .lg\:max-w-xs {
+      max-width: 20rem;
+    }
+    .lg\:max-w-sm {
+      max-width: 24rem;
+    }
+    .lg\:max-w-md {
+      max-width: 28rem;
+    }
+    .lg\:max-w-lg {
+      max-width: 32rem;
+    }
+    .lg\:max-w-xl {
+      max-width: 36rem;
+    }
+    .lg\:max-w-2xl {
+      max-width: 42rem;
+    }
+    .lg\:max-w-3xl {
+      max-width: 48rem;
+    }
   }
 }
 
 .font-mono {
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
 }

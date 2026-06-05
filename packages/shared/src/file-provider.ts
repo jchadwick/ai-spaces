@@ -1,6 +1,6 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import type { FileProvider, FileEntry } from './types.js';
+import * as fs from "node:fs";
+import * as path from "node:path";
+import type { FileEntry, FileProvider } from "./types.js";
 
 export class LocalFileProvider implements FileProvider {
   private readonly rootPath: string;
@@ -13,7 +13,7 @@ export class LocalFileProvider implements FileProvider {
     const fullPath = path.normalize(path.resolve(this.rootPath, requestedPath));
 
     if (!fullPath.startsWith(this.rootPath)) {
-      throw new Error('Access denied: path outside root directory');
+      throw new Error("Access denied: path outside root directory");
     }
 
     return fullPath;
@@ -23,15 +23,15 @@ export class LocalFileProvider implements FileProvider {
     const fullPath = this.validatePath(filePath);
 
     if (!fs.existsSync(fullPath)) {
-      throw new Error('File not found');
+      throw new Error("File not found");
     }
 
     const stats = fs.statSync(fullPath);
     if (stats.isDirectory()) {
-      throw new Error('Cannot read directory as file');
+      throw new Error("Cannot read directory as file");
     }
 
-    return fs.readFileSync(fullPath, 'utf-8');
+    return fs.readFileSync(fullPath, "utf-8");
   }
 
   async write(filePath: string, content: string): Promise<void> {
@@ -42,8 +42,8 @@ export class LocalFileProvider implements FileProvider {
       fs.mkdirSync(dir, { recursive: true });
     }
 
-    const tmpPath = path.join(dir, '.' + path.basename(fullPath) + '.tmp');
-    fs.writeFileSync(tmpPath, content, 'utf-8');
+    const tmpPath = path.join(dir, `.${path.basename(fullPath)}.tmp`);
+    fs.writeFileSync(tmpPath, content, "utf-8");
     fs.renameSync(tmpPath, fullPath);
   }
 
@@ -51,16 +51,16 @@ export class LocalFileProvider implements FileProvider {
     const fullPath = this.validatePath(dirPath);
 
     if (!fs.existsSync(fullPath)) {
-      throw new Error('Directory not found');
+      throw new Error("Directory not found");
     }
 
     const stats = fs.statSync(fullPath);
     if (!stats.isDirectory()) {
-      throw new Error('Path is not a directory');
+      throw new Error("Path is not a directory");
     }
 
     const entries = fs.readdirSync(fullPath, { withFileTypes: true });
-    return entries.map(entry => ({
+    return entries.map((entry) => ({
       name: entry.name,
       isDirectory: entry.isDirectory(),
     }));
@@ -70,7 +70,7 @@ export class LocalFileProvider implements FileProvider {
     const fullPath = this.validatePath(filePath);
 
     if (!fs.existsSync(fullPath)) {
-      throw new Error('File not found');
+      throw new Error("File not found");
     }
 
     const stats = fs.statSync(fullPath);

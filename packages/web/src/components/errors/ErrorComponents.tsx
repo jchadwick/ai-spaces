@@ -1,17 +1,25 @@
-import { Button } from '../ui/button'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card'
+import { Button } from "../ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../ui/card";
 
 interface BaseErrorProps {
-  title: string
-  description?: string
-  icon?: string
-  onRetry?: () => void
-  retryLabel?: string
-  onSecondary?: () => void
-  secondaryLabel?: string
+  title: string;
+  description?: string;
+  icon?: string;
+  onRetry?: () => void;
+  retryLabel?: string;
+  onSecondary?: () => void;
+  secondaryLabel?: string;
 }
 
-function BaseErrorCard({ title, description, icon, onRetry, retryLabel = 'Try Again', onSecondary, secondaryLabel }: BaseErrorProps) {
+function BaseErrorCard({
+  title,
+  description,
+  icon,
+  onRetry,
+  retryLabel = "Try Again",
+  onSecondary,
+  secondaryLabel,
+}: BaseErrorProps) {
   return (
     <div className="min-h-[200px] flex items-center justify-center p-8">
       <Card className="max-w-[28rem] w-full shadow-ambient">
@@ -25,9 +33,7 @@ function BaseErrorCard({ title, description, icon, onRetry, retryLabel = 'Try Ag
           )}
           <CardTitle className="text-title-md">{title}</CardTitle>
           {description && (
-            <CardDescription className="text-body-md mt-xs">
-              {description}
-            </CardDescription>
+            <CardDescription className="text-body-md mt-xs">{description}</CardDescription>
           )}
         </CardHeader>
         <CardContent className="pt-md">
@@ -47,17 +53,17 @@ function BaseErrorCard({ title, description, icon, onRetry, retryLabel = 'Try Ag
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
 
-export function GenericError({ 
+export function GenericError({
   onRetry,
   onSecondary,
-  secondaryLabel 
-}: { 
-  onRetry?: () => void
-  onSecondary?: () => void
-  secondaryLabel?: string
+  secondaryLabel,
+}: {
+  onRetry?: () => void;
+  onSecondary?: () => void;
+  secondaryLabel?: string;
 }) {
   return (
     <BaseErrorCard
@@ -69,15 +75,15 @@ export function GenericError({
       onSecondary={onSecondary}
       secondaryLabel={secondaryLabel}
     />
-  )
+  );
 }
 
-export function LoadingError({ 
+export function LoadingError({
   onRetry,
-  itemName = "content"
-}: { 
-  onRetry?: () => void
-  itemName?: string
+  itemName = "content",
+}: {
+  onRetry?: () => void;
+  itemName?: string;
 }) {
   return (
     <BaseErrorCard
@@ -87,17 +93,17 @@ export function LoadingError({
       onRetry={onRetry}
       retryLabel="Retry"
     />
-  )
+  );
 }
 
-export function ConnectionError({ 
+export function ConnectionError({
   onRetry,
   onSecondary,
-  secondaryLabel = "Go Back"
-}: { 
-  onRetry?: () => void
-  onSecondary?: () => void
-  secondaryLabel?: string
+  secondaryLabel = "Go Back",
+}: {
+  onRetry?: () => void;
+  onSecondary?: () => void;
+  secondaryLabel?: string;
 }) {
   return (
     <BaseErrorCard
@@ -109,17 +115,17 @@ export function ConnectionError({
       onSecondary={onSecondary}
       secondaryLabel={secondaryLabel}
     />
-  )
+  );
 }
 
-export function WebSocketError({ 
+export function WebSocketError({
   onRetry,
   onSecondary,
-  secondaryLabel = "Go Back"
-}: { 
-  onRetry?: () => void
-  onSecondary?: () => void
-  secondaryLabel?: string
+  secondaryLabel = "Go Back",
+}: {
+  onRetry?: () => void;
+  onSecondary?: () => void;
+  secondaryLabel?: string;
 }) {
   return (
     <BaseErrorCard
@@ -131,26 +137,21 @@ export function WebSocketError({
       onSecondary={onSecondary}
       secondaryLabel={secondaryLabel}
     />
-  )
+  );
 }
 
-export function EditorError({ 
-  onRetry,
-  fileName
-}: { 
-  onRetry?: () => void
-  fileName?: string
-}) {
+export function EditorError({ onRetry, fileName }: { onRetry?: () => void; fileName?: string }) {
   return (
     <BaseErrorCard
       icon="warning"
       title="Editor error"
-      description={fileName 
-        ? `Failed to load ${fileName}. The file may have been moved or deleted.`
-        : "Failed to load the file. It may have been moved or deleted."
+      description={
+        fileName
+          ? `Failed to load ${fileName}. The file may have been moved or deleted.`
+          : "Failed to load the file. It may have been moved or deleted."
       }
       onRetry={onRetry}
       retryLabel="Retry"
     />
-  )
+  );
 }

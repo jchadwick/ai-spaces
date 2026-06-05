@@ -1,9 +1,9 @@
 import { useEffect, useId, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AgentGlyph from "@/components/AgentGlyph";
-import { getAccessToken, useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { getAccessToken, useAuth } from "@/contexts/AuthContext";
 import {
   clearPendingInviteToken,
   createBearerFetch,
@@ -22,9 +22,7 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [authProviders, setAuthProviders] = useState<AuthProviders | null>(
-    null,
-  );
+  const [authProviders, setAuthProviders] = useState<AuthProviders | null>(null);
 
   const emailId = useId();
   const passwordId = useId();
@@ -74,7 +72,8 @@ function LoginPage() {
           if (isTerminalInviteError(inviteError)) {
             clearPendingInviteToken();
           }
-          const message = inviteError instanceof Error ? inviteError.message : "Invite redemption failed";
+          const message =
+            inviteError instanceof Error ? inviteError.message : "Invite redemption failed";
           throw new Error(`Signed in, but the invite could not be accepted: ${message}`);
         }
       }
@@ -121,9 +120,7 @@ function LoginPage() {
 
         <div className="rounded-xl border border-t-hair bg-t-bg-raised p-xl shadow-ambient">
           <div className="text-center mb-xl">
-            <h2 className="font-sans text-title-md font-semibold text-t-ink mb-sm">
-              Sign In
-            </h2>
+            <h2 className="font-sans text-title-md font-semibold text-t-ink mb-sm">Sign In</h2>
             <p className="text-body-md text-t-ink-dim">
               Enter your credentials to access your spaces
             </p>
@@ -174,19 +171,14 @@ function LoginPage() {
                     <div className="w-full border-t border-t-hair/30"></div>
                   </div>
                   <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-t-bg-raised px-md text-t-ink-dim">
-                      Or continue with
-                    </span>
+                    <span className="bg-t-bg-raised px-md text-t-ink-dim">Or continue with</span>
                   </div>
                 </div>
               </>
             )}
 
             <div className="space-y-sm">
-              <label
-                htmlFor={emailId}
-                className="block text-body-sm font-medium text-t-ink"
-              >
+              <label htmlFor={emailId} className="block text-body-sm font-medium text-t-ink">
                 Email
               </label>
               <Input
@@ -202,10 +194,7 @@ function LoginPage() {
             </div>
 
             <div className="space-y-sm">
-              <label
-                htmlFor={passwordId}
-                className="block text-body-sm font-medium text-t-ink"
-              >
+              <label htmlFor={passwordId} className="block text-body-sm font-medium text-t-ink">
                 Password
               </label>
               <Input
@@ -220,11 +209,7 @@ function LoginPage() {
               />
             </div>
 
-            <Button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full h-10 justify-center"
-            >
+            <Button type="submit" disabled={isSubmitting} className="w-full h-10 justify-center">
               {isSubmitting ? (
                 <span className="flex items-center justify-center gap-sm">
                   <div className="animate-spin rounded-full w-4 h-4 border-2 border-t-primary-foreground border-t-transparent"></div>

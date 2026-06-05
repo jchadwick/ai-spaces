@@ -1,12 +1,12 @@
-import * as path from 'path';
-import { scanWorkspace } from '@ai-spaces/shared';
-import type { WorkspaceSpaceRecord } from '@ai-spaces/shared';
-import { logger as rootLogger } from './logger.js';
+import * as path from "node:path";
+import type { WorkspaceSpaceRecord } from "@ai-spaces/shared";
+import { scanWorkspace } from "@ai-spaces/shared";
+import { logger as rootLogger } from "./logger.js";
 
-const log = rootLogger.child({ component: 'space-store' });
+const log = rootLogger.child({ component: "space-store" });
 
 export type SpaceRecord = WorkspaceSpaceRecord;
-export { WorkspaceSpaceRecord };
+export type { WorkspaceSpaceRecord };
 
 type AgentWorkspace = { agentId: string; workspaceRoot: string };
 
@@ -26,7 +26,10 @@ function getAllSpaces(): SpaceRecord[] {
     try {
       results.push(...scanWorkspace(workspaceRoot, workspaceRoot, agentId));
     } catch (err) {
-      log.warn({ err: err instanceof Error ? err.message : String(err), workspaceRoot, agentId }, 'Workspace scan failed; skipping workspace');
+      log.warn(
+        { err: err instanceof Error ? err.message : String(err), workspaceRoot, agentId },
+        "Workspace scan failed; skipping workspace",
+      );
     }
   }
 
@@ -34,16 +37,16 @@ function getAllSpaces(): SpaceRecord[] {
 }
 
 export function resolveSpaceRoot(space: SpaceRecord): string {
-  const entry = agentWorkspaces.find(w => w.agentId === space.agentId);
-  const workspaceRoot = entry?.workspaceRoot ?? '';
+  const entry = agentWorkspaces.find((w) => w.agentId === space.agentId);
+  const workspaceRoot = entry?.workspaceRoot ?? "";
   return path.join(workspaceRoot, space.path);
 }
 
 export function getSpace(id: string): SpaceRecord | null {
-  return getAllSpaces().find(s => s.id === id) ?? null;
+  return getAllSpaces().find((s) => s.id === id) ?? null;
 }
 
 export function listSpaces(agentId?: string): SpaceRecord[] {
   const all = getAllSpaces();
-  return agentId ? all.filter(s => s.agentId === agentId) : all;
+  return agentId ? all.filter((s) => s.agentId === agentId) : all;
 }

@@ -4,7 +4,7 @@
  * Run with: node packages/plugin/scripts/ws-server.mjs
  * OPENCLAW_HOME must be set.
  */
-import { startWebSocketServer } from '../dist/routes/space-ws.js';
+import { startWebSocketServer } from "../dist/routes/space-ws.js";
 
-const port = parseInt(process.env.AI_SPACES_WS_PORT ?? '3002', 10);
+const port = parseInt(process.env.AI_SPACES_WS_PORT ?? "3002", 10);
 startWebSocketServer(port);

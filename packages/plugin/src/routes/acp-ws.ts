@@ -1,17 +1,16 @@
-import * as http from 'http';
-import type { IncomingMessage } from 'http';
-import type { Duplex } from 'stream';
-import { WebSocketServer, WebSocket as WsWebSocket } from 'ws';
-import { AgentSideConnection, ndJsonStream } from '@agentclientprotocol/sdk';
-import { toSpaceRole } from '@ai-spaces/shared';
-import { wsToAcpStream } from '../acp/ws-transport.js';
-import { AISpacesAgent } from '../acp/agent.js';
-import { validateSession } from '../session-middleware.js';
-import { getSpace, resolveSpaceRoot } from '../space-store.js';
-import { fileWatcher, type FileChangedEvent } from '../file-watcher.js';
-import { logger as rootLogger } from '../logger.js';
+import type { IncomingMessage } from "node:http";
+import type { Duplex } from "node:stream";
+import { AgentSideConnection, ndJsonStream } from "@agentclientprotocol/sdk";
+import { toSpaceRole } from "@ai-spaces/shared";
+import { WebSocketServer, WebSocket as WsWebSocket } from "ws";
+import { AISpacesAgent } from "../acp/agent.js";
+import { wsToAcpStream } from "../acp/ws-transport.js";
+import { type FileChangedEvent, fileWatcher } from "../file-watcher.js";
+import { logger as rootLogger } from "../logger.js";
+import { validateSession } from "../session-middleware.js";
+import { getSpace, resolveSpaceRoot } from "../space-store.js";
 
-const log = rootLogger.child({ component: 'acp-ws' });
+const log = rootLogger.child({ component: "acp-ws" });
 
 function safeDestroySocket(socket: Duplex): void {
   try {
@@ -47,7 +46,10 @@ function addConnection(spaceId: string, conn: AgentSideConnection): void {
       const space = getSpace(spaceId);
       if (space) fileWatcher.watch(spaceId, resolveSpaceRoot(space));
     } catch (err) {
-      log.warn({ err: err instanceof Error ? err.message : String(err), spaceId }, 'Could not start file watcher for space');
+      log.warn(
+        { err: err instanceof Error ? err.message : String(err), spaceId },
+        "Could not start file watcher for space",
+      );
     }
   }
 }
@@ -61,13 +63,16 @@ function removeConnection(spaceId: string, conn: AgentSideConnection): void {
     try {
       fileWatcher.unwatch(spaceId);
     } catch (err) {
-      log.warn({ err: err instanceof Error ? err.message : String(err), spaceId }, 'Could not unwatch space');
+      log.warn(
+        { err: err instanceof Error ? err.message : String(err), spaceId },
+        "Could not unwatch space",
+      );
     }
   }
 }
 
 // Forward file change events to all connected clients as ACP ext notifications
-fileWatcher.on('file:changed', (event: FileChangedEvent) => {
+fileWatcher.on("file:changed", (event: FileChangedEvent) => {
   try {
     const conns = spaceConnections.get(event.spaceId);
     if (!conns?.size) return;
@@ -76,16 +81,19 @@ fileWatcher.on('file:changed', (event: FileChangedEvent) => {
       spaceId: event.spaceId,
       path: event.path,
       action: event.action,
-      triggeredBy: 'agent' as const,
+      triggeredBy: "agent" as const,
     };
 
     for (const conn of conns) {
-      conn.extNotification?.('workspace/file_changed', payload).catch((err) => {
-        log.warn({ err }, 'failed to send file_changed notification');
+      conn.extNotification?.("workspace/file_changed", payload).catch((err) => {
+        log.warn({ err }, "failed to send file_changed notification");
       });
     }
   } catch (err) {
-    log.warn({ err: err instanceof Error ? err.message : String(err) }, 'file:changed handler failed');
+    log.warn(
+      { err: err instanceof Error ? err.message : String(err) },
+      "file:changed handler failed",
+    );
   }
 });
 
@@ -110,72 +118,92 @@ export function handleAcpUpgrade(
   try {
     const space = getSpace(spaceId);
     if (!space) {
-      safeWriteHttpError(socket, 'HTTP/1.1 404 Not Found');
+      safeWriteHttpError(socket, "HTTP/1.1 404 Not Found");
       return;
     }
 
     const session = validateSession(req);
     if (!session) {
-      safeWriteHttpError(socket, 'HTTP/1.1 401 Unauthorized');
+      safeWriteHttpError(socket, "HTTP/1.1 401 Unauthorized");
       return;
     }
 
     wss.handleUpgrade(req, socket, head, (ws: WsWebSocket) => {
       try {
-        setupAcpConnection(ws, spaceId, String(session.userId ?? 'unknown'), String(session.role ?? 'viewer'));
+        setupAcpConnection(
+          ws,
+          spaceId,
+          String(session.userId ?? "unknown"),
+          String(session.role ?? "viewer"),
+        );
       } catch (err) {
-        log.warn({ err: err instanceof Error ? err.message : String(err), spaceId }, 'Failed to setup ACP connection');
-        try { ws.close(1011, 'internal error'); } catch { /* ignore */ }
+        log.warn(
+          { err: err instanceof Error ? err.message : String(err), spaceId },
+          "Failed to setup ACP connection",
+        );
+        try {
+          ws.close(1011, "internal error");
+        } catch {
+          /* ignore */
+        }
       }
     });
   } catch (err) {
-    log.warn({ err: err instanceof Error ? err.message : String(err), spaceId }, 'ACP upgrade handler failed');
-    safeWriteHttpError(socket, 'HTTP/1.1 500 Internal Server Error');
+    log.warn(
+      { err: err instanceof Error ? err.message : String(err), spaceId },
+      "ACP upgrade handler failed",
+    );
+    safeWriteHttpError(socket, "HTTP/1.1 500 Internal Server Error");
   }
 }
 
-function setupAcpConnection(
-  ws: WsWebSocket,
-  spaceId: string,
-  userId: string,
-  role: string,
-): void {
+function setupAcpConnection(ws: WsWebSocket, spaceId: string, userId: string, role: string): void {
   let conn: AgentSideConnection | null = null;
   try {
     const { output, input } = wsToAcpStream(ws);
     const stream = ndJsonStream(output, input);
 
-    conn = new AgentSideConnection(
-      (connection) => {
-        const agent = new AISpacesAgent(connection, spaceId, toSpaceRole(role));
-        return agent;
-      },
-      stream,
-    );
+    conn = new AgentSideConnection((connection) => {
+      const agent = new AISpacesAgent(connection, spaceId, toSpaceRole(role));
+      return agent;
+    }, stream);
   } catch (err) {
-    log.warn({ err: err instanceof Error ? err.message : String(err), spaceId }, 'Failed initializing ACP stream/connection');
-    try { ws.close(1011, 'connection init failed'); } catch { /* ignore */ }
+    log.warn(
+      { err: err instanceof Error ? err.message : String(err), spaceId },
+      "Failed initializing ACP stream/connection",
+    );
+    try {
+      ws.close(1011, "connection init failed");
+    } catch {
+      /* ignore */
+    }
     return;
   }
 
   addConnection(spaceId, conn);
-  log.info({ spaceId, userId }, 'ACP connection established');
+  log.info({ spaceId, userId }, "ACP connection established");
 
-  ws.on('close', () => {
+  ws.on("close", () => {
     try {
       removeConnection(spaceId, conn);
     } catch (err) {
-      log.warn({ err: err instanceof Error ? err.message : String(err), spaceId }, 'Failed during ACP connection close cleanup');
+      log.warn(
+        { err: err instanceof Error ? err.message : String(err), spaceId },
+        "Failed during ACP connection close cleanup",
+      );
     }
-    log.info({ spaceId, userId }, 'ACP connection closed');
+    log.info({ spaceId, userId }, "ACP connection closed");
   });
 
-  ws.on('error', (err) => {
-    log.warn({ err, spaceId }, 'ACP WebSocket error');
+  ws.on("error", (err) => {
+    log.warn({ err, spaceId }, "ACP WebSocket error");
     try {
       removeConnection(spaceId, conn);
     } catch (cleanupErr) {
-      log.warn({ err: cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr), spaceId }, 'Failed during ACP socket error cleanup');
+      log.warn(
+        { err: cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr), spaceId },
+        "Failed during ACP socket error cleanup",
+      );
     }
   });
 }

@@ -1,9 +1,9 @@
-import type { APIRequestContext } from '@playwright/test';
+import type { APIRequestContext } from "@playwright/test";
 
-export const ADMIN_EMAIL = 'admin@ai-spaces.test';
-export const ADMIN_PASSWORD = 'ai-spaces';
-export const USER_EMAIL = 'user@ai-spaces.test';
-export const USER_PASSWORD = 'ai-spaces';
+export const ADMIN_EMAIL = "admin@ai-spaces.test";
+export const ADMIN_PASSWORD = "ai-spaces";
+export const USER_EMAIL = "user@ai-spaces.test";
+export const USER_PASSWORD = "ai-spaces";
 
 export interface LoginResponse {
   accessToken: string;
@@ -16,8 +16,12 @@ export interface LoginResponse {
   };
 }
 
-async function loginAs(request: APIRequestContext, email: string, password: string): Promise<LoginResponse> {
-  const response = await request.post('/api/auth/login', {
+async function loginAs(
+  request: APIRequestContext,
+  email: string,
+  password: string,
+): Promise<LoginResponse> {
+  const response = await request.post("/api/auth/login", {
     data: { email, password },
   });
 
@@ -36,7 +40,7 @@ export async function loginAsUser(request: APIRequestContext): Promise<LoginResp
   return loginAs(request, USER_EMAIL, USER_PASSWORD);
 }
 
-export function uniqueTestEmail(prefix = 'user'): string {
+export function uniqueTestEmail(prefix = "user"): string {
   return `${prefix}.${Date.now()}.${Math.random().toString(36).slice(2)}@ai-spaces.test`;
 }
 
@@ -44,9 +48,9 @@ export async function registerUser(
   request: APIRequestContext,
   email: string,
   password: string,
-  displayName = 'E2E User',
+  displayName = "E2E User",
 ): Promise<void> {
-  const response = await request.post('/api/auth/register', {
+  const response = await request.post("/api/auth/register", {
     data: { email, password, displayName },
   });
 

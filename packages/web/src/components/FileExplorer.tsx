@@ -1,20 +1,14 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import { useFileTree } from "../hooks/useFileTree";
-import { useToast } from "./ui/use-toast";
-import { useFileMetadata } from "../contexts/FileMetadataContext";
-import { getFileNodeIcon } from "../lib/fileIcons";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "./ui/dialog";
-import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { useAPI } from "@/hooks/useAPI";
 import type { FileNode, SpaceRole } from "@ai-spaces/shared";
 import { hasPermission } from "@ai-spaces/shared";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useAPI } from "@/hooks/useAPI";
+import { useFileMetadata } from "../contexts/FileMetadataContext";
+import { useFileTree } from "../hooks/useFileTree";
+import { getFileNodeIcon } from "../lib/fileIcons";
+import { Button } from "./ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
+import { Input } from "./ui/input";
+import { useToast } from "./ui/use-toast";
 
 interface FileExplorerProps {
   spaceId: string | undefined;
@@ -24,7 +18,7 @@ interface FileExplorerProps {
   onTopicSelect: (topicPath: string) => void;
   onSpaceSettingsSelect: () => void;
   promotedTopicPaths: ReadonlySet<string>;
-  onPromoteTopic: (topicPath: string, targetType: 'file' | 'directory') => Promise<void>;
+  onPromoteTopic: (topicPath: string, targetType: "file" | "directory") => Promise<void>;
   onArchiveTopic: (topicPath: string) => Promise<void>;
   onPathDeleted: (topicPath: string) => Promise<void>;
   onPathRenamed: (fromPath: string, toPath: string) => Promise<void>;
@@ -35,7 +29,6 @@ interface ContextMenuState {
   y: number;
   node: FileNode;
 }
-
 
 function FileTreeNode({
   node,
@@ -134,28 +127,26 @@ function FileTreeNode({
     paddingTop: 5,
     paddingBottom: 5,
     background: isDragTarget
-      ? 'color-mix(in srgb, var(--t-accent) 8%, transparent)'
+      ? "color-mix(in srgb, var(--t-accent) 8%, transparent)"
       : isSelected
-        ? 'var(--t-accentSoft)'
-        : 'transparent',
-    color: isDragTarget
-      ? 'var(--t-accent)'
-      : isSelected
-        ? 'var(--t-accentInk)'
-        : 'var(--t-inkMid)',
-    borderLeft: isSelected ? '2px solid var(--t-accent)' : '2px solid transparent',
+        ? "var(--t-accentSoft)"
+        : "transparent",
+    color: isDragTarget ? "var(--t-accent)" : isSelected ? "var(--t-accentInk)" : "var(--t-inkMid)",
+    borderLeft: isSelected ? "2px solid var(--t-accent)" : "2px solid transparent",
     fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif",
     fontSize: 14,
-    fontStyle: isHidden && !isSpaceFolder ? 'italic' : 'normal',
+    fontStyle: isHidden && !isSpaceFolder ? "italic" : "normal",
     opacity: isHidden && !isSpaceFolder ? 0.7 : 1,
-    cursor: 'pointer',
-    width: '100%',
-    display: 'flex',
-    alignItems: 'center',
+    cursor: "pointer",
+    width: "100%",
+    display: "flex",
+    alignItems: "center",
     gap: 4,
-    textAlign: 'left',
-    outline: isDragTarget ? '1px solid color-mix(in srgb, var(--t-accent) 30%, transparent)' : 'none',
-    transition: 'background 0.1s',
+    textAlign: "left",
+    outline: isDragTarget
+      ? "1px solid color-mix(in srgb, var(--t-accent) 30%, transparent)"
+      : "none",
+    transition: "background 0.1s",
     borderRadius: isSelected ? 0 : 4,
   };
 
@@ -181,29 +172,61 @@ function FileTreeNode({
         onDragLeave={isDirectory ? () => onFolderDragLeave(node.path) : undefined}
         onDrop={isDirectory ? (e) => onFolderDrop(e, node.path) : undefined}
         style={nodeStyle}
-        onMouseEnter={(e) => { if (!isSelected && !isDragTarget) (e.currentTarget as HTMLElement).style.background = 'rgba(26,23,20,0.04)'; }}
-        onMouseLeave={(e) => { if (!isSelected && !isDragTarget) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+        onMouseEnter={(e) => {
+          if (!isSelected && !isDragTarget)
+            (e.currentTarget as HTMLElement).style.background = "rgba(26,23,20,0.04)";
+        }}
+        onMouseLeave={(e) => {
+          if (!isSelected && !isDragTarget)
+            (e.currentTarget as HTMLElement).style.background = "transparent";
+        }}
       >
         {isDirectory && !isSpaceFolder && (
-          <span className="material-symbols-outlined" style={{ fontSize: 16, color: isSelected ? 'var(--t-accent)' : 'var(--t-inkDim)' }}>
+          <span
+            className="material-symbols-outlined"
+            style={{ fontSize: 16, color: isSelected ? "var(--t-accent)" : "var(--t-inkDim)" }}
+          >
             {isExpanded ? "folder_open" : "folder"}
           </span>
         )}
         {isSpaceFolder && (
-          <span className="material-symbols-outlined" style={{ fontSize: 16, color: isSelected ? 'var(--t-accent)' : 'var(--t-inkDim)' }}>
+          <span
+            className="material-symbols-outlined"
+            style={{ fontSize: 16, color: isSelected ? "var(--t-accent)" : "var(--t-inkDim)" }}
+          >
             settings
           </span>
         )}
         {isTopic && (
-          <span className="material-symbols-outlined" title="Topic" style={{ fontSize: 14, color: 'var(--t-agent)' }}>forum</span>
+          <span
+            className="material-symbols-outlined"
+            title="Topic"
+            style={{ fontSize: 14, color: "var(--t-agent)" }}
+          >
+            forum
+          </span>
         )}
         {!isDirectory && (
-          <span className="material-symbols-outlined" style={{ fontSize: 16, color: isSelected ? 'var(--t-accent)' : 'var(--t-inkDim)' }}>{icon}</span>
+          <span
+            className="material-symbols-outlined"
+            style={{ fontSize: 16, color: isSelected ? "var(--t-accent)" : "var(--t-inkDim)" }}
+          >
+            {icon}
+          </span>
         )}
         {isRenaming ? (
           <input
-            autoFocus
-            style={{ fontSize: 14, background: 'var(--t-bgRaised)', border: '1px solid var(--t-hair)', borderRadius: 4, padding: '0 4px', flex: 1, outline: 'none', color: 'var(--t-ink)', fontFamily: "'Inter Tight', sans-serif" }}
+            style={{
+              fontSize: 14,
+              background: "var(--t-bgRaised)",
+              border: "1px solid var(--t-hair)",
+              borderRadius: 4,
+              padding: "0 4px",
+              flex: 1,
+              outline: "none",
+              color: "var(--t-ink)",
+              fontFamily: "'Inter Tight', sans-serif",
+            }}
             value={renameValue}
             onChange={(e) => onRenameChange(e.target.value)}
             onClick={(e) => e.stopPropagation()}
@@ -215,62 +238,85 @@ function FileTreeNode({
             onBlur={onRenameCommit}
           />
         ) : (
-          <span style={{ fontWeight: isTopic && isDirectory ? 600 : isSelected ? 600 : 400, color: isSpaceFolder ? 'var(--t-inkMid)' : isTopic && isDirectory ? 'var(--primary)' : undefined }}>
-            {isSpaceFolder ? 'Space Settings' : ((!node.type || node.type === 'file') ? (getDisplayName(node.path) || node.name) : node.name)}
+          <span
+            style={{
+              fontWeight: isTopic && isDirectory ? 600 : isSelected ? 600 : 400,
+              color: isSpaceFolder
+                ? "var(--t-inkMid)"
+                : isTopic && isDirectory
+                  ? "var(--primary)"
+                  : undefined,
+            }}
+          >
+            {isSpaceFolder
+              ? "Space Settings"
+              : !node.type || node.type === "file"
+                ? getDisplayName(node.path) || node.name
+                : node.name}
           </span>
         )}
       </button>
 
       {isDirectory && isExpanded && !isSpaceFolder && node.children === undefined && (
         <div
-          style={{ fontSize: 12, color: 'var(--t-inkFaint)', fontStyle: 'italic', paddingTop: 2, paddingBottom: 2, paddingLeft: `${paddingLeft + 24}px` }}
+          style={{
+            fontSize: 12,
+            color: "var(--t-inkFaint)",
+            fontStyle: "italic",
+            paddingTop: 2,
+            paddingBottom: 2,
+            paddingLeft: `${paddingLeft + 24}px`,
+          }}
         >
           loading…
         </div>
       )}
 
-      {isDirectory &&
-        isExpanded &&
-        !isSpaceFolder &&
-        node.children &&
-        node.children.length > 0 && (
-          <div className="flex flex-col">
-            {node.children.map((child: FileNode) => (
-              <FileTreeNode
-                key={child.path}
-                node={child}
-                depth={depth + 1}
-                selectedFile={selectedFile}
-                selectedFolderPath={selectedFolderPath}
-                onFileSelect={onFileSelect}
-                onTopicSelect={onTopicSelect}
-                expandedFolders={expandedFolders}
-                toggleFolder={toggleFolder}
-                onLoadChildren={onLoadChildren}
-                onContextMenu={onContextMenu}
-                renamingPath={renamingPath}
-                renameValue={renameValue}
-                onRenameChange={onRenameChange}
-                onRenameCommit={onRenameCommit}
-                onRenameCancel={onRenameCancel}
-                dragOverFolder={dragOverFolder}
-                onFolderDragEnter={onFolderDragEnter}
-                onFolderDragLeave={onFolderDragLeave}
-                onFolderDrop={onFolderDrop}
-                getDisplayName={getDisplayName}
-                promotedTopicPaths={promotedTopicPaths}
-                onFolderSelect={onFolderSelect}
-                onDragStart={onDragStart}
-                onDragEnd={onDragEnd}
-                onSpaceSettingsSelect={onSpaceSettingsSelect}
-              />
-            ))}
-          </div>
-        )}
+      {isDirectory && isExpanded && !isSpaceFolder && node.children && node.children.length > 0 && (
+        <div className="flex flex-col">
+          {node.children.map((child: FileNode) => (
+            <FileTreeNode
+              key={child.path}
+              node={child}
+              depth={depth + 1}
+              selectedFile={selectedFile}
+              selectedFolderPath={selectedFolderPath}
+              onFileSelect={onFileSelect}
+              onTopicSelect={onTopicSelect}
+              expandedFolders={expandedFolders}
+              toggleFolder={toggleFolder}
+              onLoadChildren={onLoadChildren}
+              onContextMenu={onContextMenu}
+              renamingPath={renamingPath}
+              renameValue={renameValue}
+              onRenameChange={onRenameChange}
+              onRenameCommit={onRenameCommit}
+              onRenameCancel={onRenameCancel}
+              dragOverFolder={dragOverFolder}
+              onFolderDragEnter={onFolderDragEnter}
+              onFolderDragLeave={onFolderDragLeave}
+              onFolderDrop={onFolderDrop}
+              getDisplayName={getDisplayName}
+              promotedTopicPaths={promotedTopicPaths}
+              onFolderSelect={onFolderSelect}
+              onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
+              onSpaceSettingsSelect={onSpaceSettingsSelect}
+            />
+          ))}
+        </div>
+      )}
 
       {isDirectory && isExpanded && !isSpaceFolder && node.children?.length === 0 && (
         <div
-          style={{ fontSize: 12, color: 'var(--t-inkFaint)', fontStyle: 'italic', paddingTop: 2, paddingBottom: 2, paddingLeft: `${paddingLeft + 24}px` }}
+          style={{
+            fontSize: 12,
+            color: "var(--t-inkFaint)",
+            fontStyle: "italic",
+            paddingTop: 2,
+            paddingBottom: 2,
+            paddingLeft: `${paddingLeft + 24}px`,
+          }}
         >
           (empty)
         </div>
@@ -294,16 +340,11 @@ export default function FileExplorer({
 }: FileExplorerProps) {
   const apiFetch = useAPI();
   const { files, loading, error, refresh, loadChildren } = useFileTree(spaceId);
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
-    new Set(),
-  );
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
   const { showToast } = useToast();
   const { getEntry } = useFileMetadata();
 
-  const getDisplayName = useCallback(
-    (path: string) => getEntry(path)?.displayName,
-    [getEntry],
-  );
+  const getDisplayName = useCallback((path: string) => getEntry(path)?.displayName, [getEntry]);
 
   // Modal states
   const [showFolderModal, setShowFolderModal] = useState(false);
@@ -323,9 +364,7 @@ export default function FileExplorer({
 
   // Rename state
   const [renamingPath, setRenamingPath] = useState<string | null>(null);
-  const [renamingType, setRenamingType] = useState<"file" | "directory">(
-    "file",
-  );
+  const [renamingType, setRenamingType] = useState<"file" | "directory">("file");
   const [renameValue, setRenameValue] = useState("");
 
   // Delete confirmation state
@@ -338,19 +377,16 @@ export default function FileExplorer({
   const dragCounter = useRef(0);
   const folderDragCounter = useRef<Record<string, number>>({});
 
-  const canWrite = hasPermission(role, 'files:write');
+  const canWrite = hasPermission(role, "files:write");
   const isViewer = !canWrite;
-  const isOwner = hasPermission(role, 'space:manage');
+  const isOwner = hasPermission(role, "space:manage");
 
   // Dismiss context menu on outside click or Escape
   useEffect(() => {
     if (!contextMenu) return;
 
     const handleClickOutside = (e: MouseEvent) => {
-      if (
-        contextMenuRef.current &&
-        !contextMenuRef.current.contains(e.target as Node)
-      ) {
+      if (contextMenuRef.current && !contextMenuRef.current.contains(e.target as Node)) {
         setContextMenu(null);
       }
     };
@@ -392,9 +428,7 @@ export default function FileExplorer({
     const parentPath = renamingPath.includes("/")
       ? renamingPath.substring(0, renamingPath.lastIndexOf("/"))
       : "";
-    const newPath = parentPath
-      ? `${parentPath}/${renameValue.trim()}`
-      : renameValue.trim();
+    const newPath = parentPath ? `${parentPath}/${renameValue.trim()}` : renameValue.trim();
 
     if (newPath === renamingPath) {
       setRenamingPath(null);
@@ -402,16 +436,12 @@ export default function FileExplorer({
     }
 
     try {
-      const resourceType =
-        renamingType === "directory" ? "directories" : "files";
-      const response = await apiFetch(
-        `/api/spaces/${spaceId}/${resourceType}/${renamingPath}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ newPath }),
-        },
-      );
+      const resourceType = renamingType === "directory" ? "directories" : "files";
+      const response = await apiFetch(`/api/spaces/${spaceId}/${resourceType}/${renamingPath}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newPath }),
+      });
 
       if (!response.ok) {
         const data = await response.json();
@@ -486,10 +516,7 @@ export default function FileExplorer({
       }
 
       showToast(`Deleted "${deleteTarget.name}"`, "success", 3000);
-      if (
-        selectedFile === deleteTarget.path ||
-        selectedFile?.startsWith(deleteTarget.path + "/")
-      ) {
+      if (selectedFile === deleteTarget.path || selectedFile?.startsWith(`${deleteTarget.path}/`)) {
         onFileSelect(null);
       }
       refresh();
@@ -512,25 +539,35 @@ export default function FileExplorer({
     onPathDeleted,
   ]);
 
-  const handlePromoteTopic = useCallback(async (node: FileNode) => {
-    setContextMenu(null);
-    try {
-      await onPromoteTopic(node.path, node.type === 'directory' ? 'directory' : 'file');
-      showToast(`Promoted "${node.name}" to topic`, 'success', 3000);
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Failed to promote topic', 'error', 4000);
-    }
-  }, [onPromoteTopic, showToast]);
+  const handlePromoteTopic = useCallback(
+    async (node: FileNode) => {
+      setContextMenu(null);
+      try {
+        await onPromoteTopic(node.path, node.type === "directory" ? "directory" : "file");
+        showToast(`Promoted "${node.name}" to topic`, "success", 3000);
+      } catch (err) {
+        showToast(err instanceof Error ? err.message : "Failed to promote topic", "error", 4000);
+      }
+    },
+    [onPromoteTopic, showToast],
+  );
 
-  const handleArchiveTopic = useCallback(async (node: FileNode) => {
-    setContextMenu(null);
-    try {
-      await onArchiveTopic(node.path);
-      showToast(`Converted "${node.name}" back`, 'success', 3000);
-    } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Failed to convert topic back', 'error', 4000);
-    }
-  }, [onArchiveTopic, showToast]);
+  const handleArchiveTopic = useCallback(
+    async (node: FileNode) => {
+      setContextMenu(null);
+      try {
+        await onArchiveTopic(node.path);
+        showToast(`Converted "${node.name}" back`, "success", 3000);
+      } catch (err) {
+        showToast(
+          err instanceof Error ? err.message : "Failed to convert topic back",
+          "error",
+          4000,
+        );
+      }
+    },
+    [onArchiveTopic, showToast],
+  );
 
   useEffect(() => {
     const handleFileModified = (
@@ -573,15 +610,9 @@ export default function FileExplorer({
       }
     };
 
-    window.addEventListener(
-      "fileModified",
-      handleFileModified as EventListener,
-    );
+    window.addEventListener("fileModified", handleFileModified as EventListener);
     return () => {
-      window.removeEventListener(
-        "fileModified",
-        handleFileModified as EventListener,
-      );
+      window.removeEventListener("fileModified", handleFileModified as EventListener);
     };
   }, [refresh, loadChildren, showToast, onFileSelect]);
 
@@ -597,70 +628,83 @@ export default function FileExplorer({
     });
   };
 
-  const uploadFiles = useCallback(async (fileList: FileList, targetFolder: string) => {
-    if (!spaceId || isViewer) return;
+  const uploadFiles = useCallback(
+    async (fileList: FileList, targetFolder: string) => {
+      if (!spaceId || isViewer) return;
 
-    const uploads = Array.from(fileList).map(async (file) => {
-      const isBinary = file.type.startsWith("image/") || file.type.startsWith("audio/") || file.type.startsWith("video/") || file.type === "application/octet-stream";
-      const filePath = targetFolder ? `${targetFolder}/${file.name}` : file.name;
-      let body: string;
-      if (isBinary) {
-        const buffer = await file.arrayBuffer();
-        const bytes = new Uint8Array(buffer);
-        let binary = '';
-        for (let i = 0; i < bytes.length; i += 8192) {
-          binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+      const uploads = Array.from(fileList).map(async (file) => {
+        const isBinary =
+          file.type.startsWith("image/") ||
+          file.type.startsWith("audio/") ||
+          file.type.startsWith("video/") ||
+          file.type === "application/octet-stream";
+        const filePath = targetFolder ? `${targetFolder}/${file.name}` : file.name;
+        let body: string;
+        if (isBinary) {
+          const buffer = await file.arrayBuffer();
+          const bytes = new Uint8Array(buffer);
+          let binary = "";
+          for (let i = 0; i < bytes.length; i += 8192) {
+            binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+          }
+          body = JSON.stringify({ content: btoa(binary), encoding: "base64" });
+        } else {
+          body = JSON.stringify({ content: await file.text() });
         }
-        body = JSON.stringify({ content: btoa(binary), encoding: "base64" });
-      } else {
-        body = JSON.stringify({ content: await file.text() });
-      }
-      const response = await apiFetch(`/api/spaces/${spaceId}/files/${filePath}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body,
+        const response = await apiFetch(`/api/spaces/${spaceId}/files/${filePath}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body,
+        });
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || `Failed to upload ${file.name}`);
+        }
+        return file.name;
       });
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || `Failed to upload ${file.name}`);
+
+      try {
+        const names = await Promise.all(uploads);
+        const label = names.length === 1 ? `"${names[0]}"` : `${names.length} files`;
+        showToast(`Uploaded ${label}`, "success", 3000);
+        if (targetFolder) {
+          setExpandedFolders((prev) => new Set(prev).add(targetFolder));
+          loadChildren(targetFolder);
+        } else {
+          refresh();
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Upload failed";
+        showToast(message, "error", 4000);
       }
-      return file.name;
-    });
+    },
+    [spaceId, isViewer, apiFetch, showToast, loadChildren, refresh],
+  );
 
-    try {
-      const names = await Promise.all(uploads);
-      const label = names.length === 1 ? `"${names[0]}"` : `${names.length} files`;
-      showToast(`Uploaded ${label}`, "success", 3000);
-      if (targetFolder) {
-        setExpandedFolders((prev) => new Set(prev).add(targetFolder));
-        loadChildren(targetFolder);
-      } else {
-        refresh();
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Upload failed";
-      showToast(message, "error", 4000);
-    }
-  }, [spaceId, isViewer, apiFetch, showToast, loadChildren, refresh]);
+  const handleDragEnter = useCallback(
+    (e: React.DragEvent) => {
+      if (isViewer) return;
+      const isInternalMove = e.dataTransfer.types.includes("ai-spaces/move");
+      const isExternalUpload = e.dataTransfer.types.includes("Files");
+      if (!isInternalMove && !isExternalUpload) return;
+      e.preventDefault();
+      dragCounter.current++;
+      setIsDragOver(true);
+    },
+    [isViewer],
+  );
 
-  const handleDragEnter = useCallback((e: React.DragEvent) => {
-    if (isViewer) return;
-    const isInternalMove = e.dataTransfer.types.includes("ai-spaces/move");
-    const isExternalUpload = e.dataTransfer.types.includes("Files");
-    if (!isInternalMove && !isExternalUpload) return;
-    e.preventDefault();
-    dragCounter.current++;
-    setIsDragOver(true);
-  }, [isViewer]);
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    if (isViewer) return;
-    const isInternalMove = e.dataTransfer.types.includes("ai-spaces/move");
-    const isExternalUpload = e.dataTransfer.types.includes("Files");
-    if (!isInternalMove && !isExternalUpload) return;
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-  }, [isViewer]);
+  const handleDragOver = useCallback(
+    (e: React.DragEvent) => {
+      if (isViewer) return;
+      const isInternalMove = e.dataTransfer.types.includes("ai-spaces/move");
+      const isExternalUpload = e.dataTransfer.types.includes("Files");
+      if (!isInternalMove && !isExternalUpload) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+    },
+    [isViewer],
+  );
 
   const handleDragLeave = useCallback(() => {
     dragCounter.current--;
@@ -669,82 +713,96 @@ export default function FileExplorer({
     }
   }, []);
 
-  const handleMoveItem = useCallback(async (source: { path: string; type: 'file' | 'directory' }, targetFolder: string) => {
-    if (!spaceId) return;
+  const handleMoveItem = useCallback(
+    async (source: { path: string; type: "file" | "directory" }, targetFolder: string) => {
+      if (!spaceId) return;
 
-    // Prevent dropping a folder into itself or its descendants
-    if (source.type === 'directory' && (targetFolder === source.path || targetFolder.startsWith(source.path + '/'))) {
-      showToast("Cannot move a folder into itself", "error", 3000);
-      return;
-    }
+      // Prevent dropping a folder into itself or its descendants
+      if (
+        source.type === "directory" &&
+        (targetFolder === source.path || targetFolder.startsWith(`${source.path}/`))
+      ) {
+        showToast("Cannot move a folder into itself", "error", 3000);
+        return;
+      }
 
-    // Prevent moving to the same location
-    const sourceParent = source.path.includes('/') ? source.path.substring(0, source.path.lastIndexOf('/')) : '';
-    if (sourceParent === targetFolder) {
-      return; // Already in this folder, nothing to do
-    }
+      // Prevent moving to the same location
+      const sourceParent = source.path.includes("/")
+        ? source.path.substring(0, source.path.lastIndexOf("/"))
+        : "";
+      if (sourceParent === targetFolder) {
+        return; // Already in this folder, nothing to do
+      }
 
-    const newName = source.path.includes('/') ? source.path.substring(source.path.lastIndexOf('/') + 1) : source.path;
-    const newPath = targetFolder ? `${targetFolder}/${newName}` : newName;
+      const newName = source.path.includes("/")
+        ? source.path.substring(source.path.lastIndexOf("/") + 1)
+        : source.path;
+      const newPath = targetFolder ? `${targetFolder}/${newName}` : newName;
 
-    if (newPath === source.path) return; // Same path, nothing to do
+      if (newPath === source.path) return; // Same path, nothing to do
 
-    try {
-      const resourceType = source.type === 'directory' ? 'directories' : 'files';
-      const response = await apiFetch(
-        `/api/spaces/${spaceId}/${resourceType}/${source.path}`,
-        {
+      try {
+        const resourceType = source.type === "directory" ? "directories" : "files";
+        const response = await apiFetch(`/api/spaces/${spaceId}/${resourceType}/${source.path}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ newPath }),
-        },
-      );
+        });
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to move");
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || "Failed to move");
+        }
+
+        showToast(
+          `Moved "${source.path.split("/").pop()}" to ${targetFolder || "root"}`,
+          "success",
+          3000,
+        );
+
+        // Update selected file if it was moved
+        if (selectedFile === source.path) {
+          onFileSelect(newPath);
+        }
+
+        // Refresh both old and new parent directories
+        if (sourceParent) loadChildren(sourceParent);
+        if (targetFolder) loadChildren(targetFolder);
+        if (!sourceParent || !targetFolder) refresh();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Failed to move";
+        showToast(message, "error", 4000);
+      }
+    },
+    [spaceId, showToast, apiFetch, selectedFile, onFileSelect, loadChildren, refresh],
+  );
+
+  const handleDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault();
+      dragCounter.current = 0;
+      folderDragCounter.current = {};
+      setIsDragOver(false);
+      setDragOverFolder(null);
+      if (isViewer) return;
+
+      // Check for internal move first (move to root)
+      const moveData = e.dataTransfer.getData("ai-spaces/move");
+      if (moveData) {
+        try {
+          const source = JSON.parse(moveData) as { path: string; type: "file" | "directory" };
+          await handleMoveItem(source, "");
+          return;
+        } catch {
+          // Fall through to external upload
+        }
       }
 
-      showToast(`Moved "${source.path.split('/').pop()}" to ${targetFolder || 'root'}`, "success", 3000);
-
-      // Update selected file if it was moved
-      if (selectedFile === source.path) {
-        onFileSelect(newPath);
-      }
-
-      // Refresh both old and new parent directories
-      if (sourceParent) loadChildren(sourceParent);
-      if (targetFolder) loadChildren(targetFolder);
-      if (!sourceParent || !targetFolder) refresh();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Failed to move";
-      showToast(message, "error", 4000);
-    }
-  }, [spaceId, showToast, apiFetch, selectedFile, onFileSelect, loadChildren, refresh]);
-
-  const handleDrop = useCallback(async (e: React.DragEvent) => {
-    e.preventDefault();
-    dragCounter.current = 0;
-    folderDragCounter.current = {};
-    setIsDragOver(false);
-    setDragOverFolder(null);
-    if (isViewer) return;
-
-    // Check for internal move first (move to root)
-    const moveData = e.dataTransfer.getData("ai-spaces/move");
-    if (moveData) {
-      try {
-        const source = JSON.parse(moveData) as { path: string; type: 'file' | 'directory' };
-        await handleMoveItem(source, "");
-        return;
-      } catch {
-        // Fall through to external upload
-      }
-    }
-
-    if (!e.dataTransfer.files.length) return;
-    await uploadFiles(e.dataTransfer.files, "");
-  }, [isViewer, uploadFiles, handleMoveItem]);
+      if (!e.dataTransfer.files.length) return;
+      await uploadFiles(e.dataTransfer.files, "");
+    },
+    [isViewer, uploadFiles, handleMoveItem],
+  );
 
   const handleFolderDragEnter = useCallback((path: string) => {
     folderDragCounter.current[path] = (folderDragCounter.current[path] ?? 0) + 1;
@@ -759,43 +817,52 @@ export default function FileExplorer({
     }
   }, []);
 
-  const handleFolderDrop = useCallback(async (e: React.DragEvent, path: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    dragCounter.current = 0;
-    folderDragCounter.current = {};
-    setIsDragOver(false);
-    setDragOverFolder(null);
-    if (isViewer) return;
+  const handleFolderDrop = useCallback(
+    async (e: React.DragEvent, path: string) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounter.current = 0;
+      folderDragCounter.current = {};
+      setIsDragOver(false);
+      setDragOverFolder(null);
+      if (isViewer) return;
 
-    // Check for internal move first
-    const moveData = e.dataTransfer.getData("ai-spaces/move");
-    if (moveData) {
-      try {
-        const source = JSON.parse(moveData) as { path: string; type: 'file' | 'directory' };
-        await handleMoveItem(source, path);
-        return;
-      } catch {
-        // Fall through to external upload
+      // Check for internal move first
+      const moveData = e.dataTransfer.getData("ai-spaces/move");
+      if (moveData) {
+        try {
+          const source = JSON.parse(moveData) as { path: string; type: "file" | "directory" };
+          await handleMoveItem(source, path);
+          return;
+        } catch {
+          // Fall through to external upload
+        }
       }
-    }
 
-    if (!e.dataTransfer.files.length) return;
-    await uploadFiles(e.dataTransfer.files, path);
-  }, [isViewer, uploadFiles, handleMoveItem]);
+      if (!e.dataTransfer.files.length) return;
+      await uploadFiles(e.dataTransfer.files, path);
+    },
+    [isViewer, uploadFiles, handleMoveItem],
+  );
 
-  const handleDragStart = useCallback((e: React.DragEvent, node: FileNode) => {
-    if (isViewer) return;
-    const source = { path: node.path, type: node.type === 'directory' ? 'directory' as const : 'file' as const };
-    e.dataTransfer.setData("ai-spaces/move", JSON.stringify(source));
-    e.dataTransfer.effectAllowed = "move";
-    // Make the drag image semi-transparent
-    (e.currentTarget as HTMLElement).style.opacity = "0.4";
-  }, [isViewer]);
+  const handleDragStart = useCallback(
+    (e: React.DragEvent, node: FileNode) => {
+      if (isViewer) return;
+      const source = {
+        path: node.path,
+        type: node.type === "directory" ? ("directory" as const) : ("file" as const),
+      };
+      e.dataTransfer.setData("ai-spaces/move", JSON.stringify(source));
+      e.dataTransfer.effectAllowed = "move";
+      // Make the drag image semi-transparent
+      (e.currentTarget as HTMLElement).style.opacity = "0.4";
+    },
+    [isViewer],
+  );
 
   const handleDragEnd = useCallback(() => {
     // Reset opacity on all tree nodes (browser handles this mostly, but be safe)
-    document.querySelectorAll('[draggable]').forEach((el) => {
+    document.querySelectorAll("[draggable]").forEach((el) => {
       (el as HTMLElement).style.opacity = "";
     });
   }, []);
@@ -833,8 +900,7 @@ export default function FileExplorer({
         refresh();
       }
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to create folder";
+      const message = err instanceof Error ? err.message : "Failed to create folder";
       showToast(message, "error", 4000);
     } finally {
       setIsCreating(false);
@@ -852,14 +918,11 @@ export default function FileExplorer({
       const filePath = newFileParentPath
         ? `${newFileParentPath}/${fileName.trim()}`
         : fileName.trim();
-      const response = await apiFetch(
-        `/api/spaces/${spaceId}/files/${filePath}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content: "" }),
-        },
-      );
+      const response = await apiFetch(`/api/spaces/${spaceId}/files/${filePath}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: "" }),
+      });
 
       if (!response.ok) {
         const data = await response.json();
@@ -867,9 +930,7 @@ export default function FileExplorer({
       }
 
       const displayName = fileName.trim();
-      const fullFilePath = newFileParentPath
-        ? `${newFileParentPath}/${displayName}`
-        : displayName;
+      const fullFilePath = newFileParentPath ? `${newFileParentPath}/${displayName}` : displayName;
       showToast(`File "${displayName}" created`, "success", 3000);
       setShowFileModal(false);
       setFileName("");
@@ -883,8 +944,7 @@ export default function FileExplorer({
 
       onFileSelect(fullFilePath);
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to create file";
+      const message = err instanceof Error ? err.message : "Failed to create file";
       showToast(message, "error", 4000);
     } finally {
       setIsCreating(false);
@@ -893,9 +953,12 @@ export default function FileExplorer({
 
   if (loading) {
     return (
-      <aside className="w-full h-full flex flex-col" style={{ background: 'var(--t-bgAlt)' }}>
+      <aside className="w-full h-full flex flex-col" style={{ background: "var(--t-bgAlt)" }}>
         <div className="p-4 flex items-center justify-center">
-          <div className="animate-spin rounded-full w-6 h-6 border-2 border-t-transparent" style={{ borderColor: 'var(--t-accent)', borderTopColor: 'transparent' }}></div>
+          <div
+            className="animate-spin rounded-full w-6 h-6 border-2 border-t-transparent"
+            style={{ borderColor: "var(--t-accent)", borderTopColor: "transparent" }}
+          ></div>
         </div>
       </aside>
     );
@@ -903,9 +966,17 @@ export default function FileExplorer({
 
   if (error) {
     return (
-      <aside className="w-full h-full flex flex-col" style={{ background: 'var(--t-bgAlt)' }}>
+      <aside className="w-full h-full flex flex-col" style={{ background: "var(--t-bgAlt)" }}>
         <div className="p-4">
-          <div style={{ background: 'color-mix(in srgb, var(--t-accent) 8%, transparent)', borderRadius: 8, padding: 12, color: 'var(--t-accent)', fontSize: 14 }}>
+          <div
+            style={{
+              background: "color-mix(in srgb, var(--t-accent) 8%, transparent)",
+              borderRadius: 8,
+              padding: 12,
+              color: "var(--t-accent)",
+              fontSize: 14,
+            }}
+          >
             {error}
           </div>
         </div>
@@ -917,7 +988,11 @@ export default function FileExplorer({
     <>
       <aside
         className="w-full h-full flex flex-col relative transition-colors"
-        style={{ background: isDragOver ? 'color-mix(in srgb, var(--t-accent) 3%, transparent)' : 'var(--t-bgAlt)' }}
+        style={{
+          background: isDragOver
+            ? "color-mix(in srgb, var(--t-accent) 3%, transparent)"
+            : "var(--t-bgAlt)",
+        }}
         onDragEnter={handleDragEnter}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -926,11 +1001,26 @@ export default function FileExplorer({
         <div className="p-4 flex flex-col gap-1 flex-1 overflow-auto">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <button type="button" onClick={() => onTopicSelect('/')} style={{ fontFamily: "'JetBrains Mono', ui-monospace, monospace", fontSize: 11, color: 'var(--t-inkDim)', textTransform: 'uppercase', letterSpacing: 1.4, fontWeight: 500, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
+              <button
+                type="button"
+                onClick={() => onTopicSelect("/")}
+                style={{
+                  fontFamily: "'JetBrains Mono', ui-monospace, monospace",
+                  fontSize: 11,
+                  color: "var(--t-inkDim)",
+                  textTransform: "uppercase",
+                  letterSpacing: 1.4,
+                  fontWeight: 500,
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                  cursor: "pointer",
+                }}
+              >
                 Files
               </button>
               {isViewer && (
-                <span style={{ fontSize: 11, color: 'var(--t-inkDim)', fontStyle: 'italic' }}>
+                <span style={{ fontSize: 11, color: "var(--t-inkDim)", fontStyle: "italic" }}>
                   (view only)
                 </span>
               )}
@@ -939,11 +1029,32 @@ export default function FileExplorer({
               <div className="flex items-center gap-1">
                 <button
                   type="button"
-                  style={{ color: 'var(--t-inkDim)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 4, borderRadius: 4 }}
-                  onClick={() => { setNewFileParentPath(selectedFolderPath || ""); setShowFileModal(true); }}
+                  style={{
+                    color: "var(--t-inkDim)",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    padding: 4,
+                    borderRadius: 4,
+                  }}
+                  onClick={() => {
+                    setNewFileParentPath(selectedFolderPath || "");
+                    setShowFileModal(true);
+                  }}
                   title="Create new file"
                 >
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <path d="M9 2H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V6L9 2z" />
                     <path d="M9 2v4h4" />
                     <line x1="8" y1="9" x2="8" y2="13" />
@@ -952,11 +1063,32 @@ export default function FileExplorer({
                 </button>
                 <button
                   type="button"
-                  style={{ color: 'var(--t-inkDim)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 4, borderRadius: 4 }}
-                  onClick={() => { setNewFolderParentPath(selectedFolderPath || ""); setShowFolderModal(true); }}
+                  style={{
+                    color: "var(--t-inkDim)",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    padding: 4,
+                    borderRadius: 4,
+                  }}
+                  onClick={() => {
+                    setNewFolderParentPath(selectedFolderPath || "");
+                    setShowFolderModal(true);
+                  }}
                   title="Create new folder"
                 >
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <path d="M1 4a1 1 0 0 1 1-1h4l2 2h6a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V4z" />
                     <line x1="8" y1="8" x2="8" y2="12" />
                     <line x1="6" y1="10" x2="10" y2="10" />
@@ -967,7 +1099,14 @@ export default function FileExplorer({
           </div>
 
           {files.length === 0 ? (
-            <div style={{ fontSize: 14, color: 'var(--t-inkDim)', fontStyle: 'italic', paddingLeft: 8 }}>
+            <div
+              style={{
+                fontSize: 14,
+                color: "var(--t-inkDim)",
+                fontStyle: "italic",
+                paddingLeft: 8,
+              }}
+            >
               No files found
             </div>
           ) : (
@@ -975,49 +1114,71 @@ export default function FileExplorer({
               {files
                 .filter((node) => isOwner || node.name !== ".space")
                 .map((node) => (
-                <FileTreeNode
-                  key={node.path}
-                  node={node}
-                  selectedFile={selectedFile}
-                  selectedFolderPath={selectedFolderPath}
-                  onFileSelect={onFileSelect}
-                  onTopicSelect={onTopicSelect}
-                  onSpaceSettingsSelect={onSpaceSettingsSelect}
-                  expandedFolders={expandedFolders}
-                  toggleFolder={toggleFolder}
-                  onLoadChildren={loadChildren}
-                  onContextMenu={handleContextMenu}
-                  renamingPath={renamingPath}
-                  renameValue={renameValue}
-                  onRenameChange={setRenameValue}
-                  onRenameCommit={commitRename}
-                  onRenameCancel={cancelRename}
-                  dragOverFolder={dragOverFolder}
-                  onFolderDragEnter={handleFolderDragEnter}
-                  onFolderDragLeave={handleFolderDragLeave}
-                  onFolderDrop={handleFolderDrop}
-                  getDisplayName={getDisplayName}
-                  promotedTopicPaths={promotedTopicPaths}
-                  onFolderSelect={(path) => setSelectedFolderPath(path)}
-                  onDragStart={handleDragStart}
-                  onDragEnd={handleDragEnd}
-                />
-              ))}
+                  <FileTreeNode
+                    key={node.path}
+                    node={node}
+                    selectedFile={selectedFile}
+                    selectedFolderPath={selectedFolderPath}
+                    onFileSelect={onFileSelect}
+                    onTopicSelect={onTopicSelect}
+                    onSpaceSettingsSelect={onSpaceSettingsSelect}
+                    expandedFolders={expandedFolders}
+                    toggleFolder={toggleFolder}
+                    onLoadChildren={loadChildren}
+                    onContextMenu={handleContextMenu}
+                    renamingPath={renamingPath}
+                    renameValue={renameValue}
+                    onRenameChange={setRenameValue}
+                    onRenameCommit={commitRename}
+                    onRenameCancel={cancelRename}
+                    dragOverFolder={dragOverFolder}
+                    onFolderDragEnter={handleFolderDragEnter}
+                    onFolderDragLeave={handleFolderDragLeave}
+                    onFolderDrop={handleFolderDrop}
+                    getDisplayName={getDisplayName}
+                    promotedTopicPaths={promotedTopicPaths}
+                    onFolderSelect={(path) => setSelectedFolderPath(path)}
+                    onDragStart={handleDragStart}
+                    onDragEnd={handleDragEnd}
+                  />
+                ))}
             </div>
           )}
         </div>
 
         {isDragOver && !isViewer && (
           <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-10">
-            <div className="absolute inset-2 rounded-lg" style={{ border: '2px dashed color-mix(in srgb, var(--t-accent) 40%, transparent)', background: 'color-mix(in srgb, var(--t-accentSoft) 50%, transparent)' }} />
+            <div
+              className="absolute inset-2 rounded-lg"
+              style={{
+                border: "2px dashed color-mix(in srgb, var(--t-accent) 40%, transparent)",
+                background: "color-mix(in srgb, var(--t-accentSoft) 50%, transparent)",
+              }}
+            />
             {!dragOverFolder && (
-              <div className="relative flex flex-col items-center gap-1.5" style={{ color: 'var(--t-accent)' }}>
-                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <div
+                className="relative flex flex-col items-center gap-1.5"
+                style={{ color: "var(--t-accent)" }}
+              >
+                <svg
+                  width="28"
+                  height="28"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                   <polyline points="17 8 12 3 7 8" />
                   <line x1="12" y1="3" x2="12" y2="15" />
                 </svg>
-                <span style={{ fontSize: 13, fontWeight: 500, fontFamily: "'Inter Tight', sans-serif" }}>Drop to upload</span>
+                <span
+                  style={{ fontSize: 13, fontWeight: 500, fontFamily: "'Inter Tight', sans-serif" }}
+                >
+                  Drop to upload
+                </span>
               </div>
             )}
           </div>
@@ -1042,9 +1203,7 @@ export default function FileExplorer({
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm text-t-ink hover:bg-t-bg-raised/80 transition-colors text-left"
                 onClick={() => startNewFileInFolder(contextMenu.node)}
               >
-                <span className="material-symbols-outlined text-base">
-                  note_add
-                </span>
+                <span className="material-symbols-outlined text-base">note_add</span>
                 New File
               </button>
               <button
@@ -1052,35 +1211,35 @@ export default function FileExplorer({
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm text-t-ink hover:bg-t-bg-raised/80 transition-colors text-left"
                 onClick={() => startNewFolderInFolder(contextMenu.node)}
               >
-                <span className="material-symbols-outlined text-base">
-                  create_new_folder
-                </span>
+                <span className="material-symbols-outlined text-base">create_new_folder</span>
                 New Folder
               </button>
             </>
           )}
-          {isOwner && contextMenu.node.type === "directory" && contextMenu.node.name !== ".space" && (
-            <button
-              type="button"
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-t-ink hover:bg-t-bg-raised/80 transition-colors text-left"
-              onClick={() => promotedTopicPaths.has(contextMenu.node.path)
-                ? void handleArchiveTopic(contextMenu.node)
-                : void handlePromoteTopic(contextMenu.node)}
-            >
-              <span className="material-symbols-outlined text-base">forum</span>
-              {promotedTopicPaths.has(contextMenu.node.path)
-                ? `Convert Back to ${contextMenu.node.type === 'directory' ? 'Folder' : 'File'}`
-                : 'Promote to Topic'}
-            </button>
-          )}
+          {isOwner &&
+            contextMenu.node.type === "directory" &&
+            contextMenu.node.name !== ".space" && (
+              <button
+                type="button"
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm text-t-ink hover:bg-t-bg-raised/80 transition-colors text-left"
+                onClick={() =>
+                  promotedTopicPaths.has(contextMenu.node.path)
+                    ? void handleArchiveTopic(contextMenu.node)
+                    : void handlePromoteTopic(contextMenu.node)
+                }
+              >
+                <span className="material-symbols-outlined text-base">forum</span>
+                {promotedTopicPaths.has(contextMenu.node.path)
+                  ? `Convert Back to ${contextMenu.node.type === "directory" ? "Folder" : "File"}`
+                  : "Promote to Topic"}
+              </button>
+            )}
           <button
             type="button"
             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-t-ink hover:bg-t-bg-raised/80 transition-colors text-left"
             onClick={() => startRename(contextMenu.node)}
           >
-            <span className="material-symbols-outlined text-base">
-              drive_file_rename_outline
-            </span>
+            <span className="material-symbols-outlined text-base">drive_file_rename_outline</span>
             Rename
           </button>
           <button
@@ -1095,12 +1254,15 @@ export default function FileExplorer({
       )}
 
       {/* Create Folder Modal */}
-      <Dialog open={showFolderModal} onOpenChange={(open) => {
-        if (!open) {
-          setShowFolderModal(false);
-          setNewFolderParentPath("");
-        }
-      }}>
+      <Dialog
+        open={showFolderModal}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowFolderModal(false);
+            setNewFolderParentPath("");
+          }
+        }}
+      >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
@@ -1133,10 +1295,7 @@ export default function FileExplorer({
             >
               Cancel
             </Button>
-            <Button
-              onClick={handleCreateFolder}
-              disabled={!folderName.trim() || isCreating}
-            >
+            <Button onClick={handleCreateFolder} disabled={!folderName.trim() || isCreating}>
               {isCreating ? "Creating..." : "Create"}
             </Button>
           </DialogFooter>
@@ -1155,9 +1314,7 @@ export default function FileExplorer({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              New File{newFileParentPath ? ` in ${newFileParentPath}` : ""}
-            </DialogTitle>
+            <DialogTitle>New File{newFileParentPath ? ` in ${newFileParentPath}` : ""}</DialogTitle>
           </DialogHeader>
           <div className="py-4">
             <Input
@@ -1185,10 +1342,7 @@ export default function FileExplorer({
             >
               Cancel
             </Button>
-            <Button
-              onClick={handleCreateFile}
-              disabled={!fileName.trim() || isCreating}
-            >
+            <Button onClick={handleCreateFile} disabled={!fileName.trim() || isCreating}>
               {isCreating ? "Creating..." : "Create"}
             </Button>
           </DialogFooter>
@@ -1210,10 +1364,7 @@ export default function FileExplorer({
           </DialogHeader>
           <div className="py-2 text-sm text-t-ink-dim">
             Are you sure you want to delete{" "}
-            <span className="font-semibold text-t-ink">
-              "{deleteTarget?.name}"
-            </span>
-            ?
+            <span className="font-semibold text-t-ink">"{deleteTarget?.name}"</span>?
             {deleteTarget?.type === "directory" && (
               <span className="block mt-1 text-destructive/80">
                 This will delete the folder and all its contents.
@@ -1222,18 +1373,10 @@ export default function FileExplorer({
             This action cannot be undone.
           </div>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setDeleteTarget(null)}
-              disabled={isDeleting}
-            >
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={isDeleting}>
               Cancel
             </Button>
-            <Button
-              variant="destructive"
-              onClick={confirmDelete}
-              disabled={isDeleting}
-            >
+            <Button variant="destructive" onClick={confirmDelete} disabled={isDeleting}>
               {isDeleting ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>

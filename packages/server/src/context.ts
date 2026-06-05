@@ -1,5 +1,5 @@
-import type { Context } from 'hono';
-import type { AuthVariables } from './middleware/auth.js';
+import type { Context } from "hono";
+import type { AuthVariables } from "./middleware/auth.js";
 
 export type AppContext = Context<{
   Variables: AuthVariables;
@@ -10,20 +10,20 @@ export interface UserPayload {
   email: string;
 }
 
-declare module 'hono' {
+declare module "hono" {
   interface ContextVariableMap extends AuthVariables {}
 }
 
 export function getUser(c: AppContext) {
-  return c.get('user');
+  return c.get("user");
 }
 
 export function getUserId(c: AppContext): string {
-  const user = c.get('user');
-  return user?.userId || '';
+  const user = c.get("user");
+  return user?.userId || "";
 }
 
 export function getUserEmail(c: AppContext): string {
-  const user = c.get('user');
-  return user?.email || '';
+  const user = c.get("user");
+  return user?.email || "";
 }

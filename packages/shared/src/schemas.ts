@@ -1,35 +1,37 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 export const SpaceConfigSchema = z.object({
   id: z.string().min(1).max(100).optional(),
   name: z.string().min(1).max(100),
   description: z.string().max(500).optional(),
-  agent: z.object({
-    capabilities: z.array(z.string()).optional(),
-    denied: z.array(z.string()).optional(),
-  }).optional(),
+  agent: z
+    .object({
+      capabilities: z.array(z.string()).optional(),
+      denied: z.array(z.string()).optional(),
+    })
+    .optional(),
   notificationIgnorePatterns: z.array(z.string()).optional(),
 });
 
 export const SpaceConfigJsonSchema = {
-  $schema: 'https://json-schema.org/draft/2020-12/schema',
-  title: 'SpaceManifest',
-  type: 'object',
+  $schema: "https://json-schema.org/draft/2020-12/schema",
+  title: "SpaceManifest",
+  type: "object",
   additionalProperties: false,
-  required: ['name'],
+  required: ["name"],
   properties: {
-    id: { type: 'string', minLength: 1, maxLength: 100 },
-    name: { type: 'string', minLength: 1, maxLength: 100 },
-    description: { type: 'string', maxLength: 500 },
+    id: { type: "string", minLength: 1, maxLength: 100 },
+    name: { type: "string", minLength: 1, maxLength: 100 },
+    description: { type: "string", maxLength: 500 },
     agent: {
-      type: 'object',
+      type: "object",
       additionalProperties: false,
       properties: {
-        capabilities: { type: 'array', items: { type: 'string' } },
-        denied: { type: 'array', items: { type: 'string' } },
+        capabilities: { type: "array", items: { type: "string" } },
+        denied: { type: "array", items: { type: "string" } },
       },
     },
-    notificationIgnorePatterns: { type: 'array', items: { type: 'string' } },
+    notificationIgnorePatterns: { type: "array", items: { type: "string" } },
   },
 } as const;
 
@@ -41,26 +43,26 @@ export const SpaceSchema = z.object({
 });
 
 export const SessionContextSchema = z.object({
-  type: z.literal('space'),
+  type: z.literal("space"),
   spaceId: z.string(),
   spacePath: z.string(),
   agentId: z.string(),
   userId: z.string(),
-  role: z.enum(['owner', 'editor', 'viewer']),
+  role: z.enum(["owner", "editor", "viewer"]),
   sessionKey: z.string(),
-  
+
   deniedTools: z.array(z.string()),
   allowedTools: z.array(z.string()),
-  
+
   skipFiles: z.array(z.string()),
   contextFiles: z.array(z.string()),
-  
+
   effectiveWorkspaceRoot: z.string(),
 });
 
 export interface FileNodeType {
   name: string;
-  type: 'file' | 'directory' | 'space';
+  type: "file" | "directory" | "space";
   path: string;
   spaceId?: string;
   children?: FileNodeType[];
@@ -70,7 +72,7 @@ export interface FileNodeType {
 
 export const FileNodeSchema: z.ZodType<FileNodeType> = z.object({
   name: z.string(),
-  type: z.enum(['file', 'directory', 'space']),
+  type: z.enum(["file", "directory", "space"]),
   path: z.string(),
   spaceId: z.string().optional(),
   children: z.lazy(() => z.array(FileNodeSchema)).optional(),
@@ -85,14 +87,14 @@ export const FileTreeResponseSchema = z.object({
 export const FileContentResponseSchema = z.object({
   path: z.string(),
   content: z.string().optional(),
-  contentType: z.enum(['markdown', 'text', 'image', 'binary']),
+  contentType: z.enum(["markdown", "text", "image", "binary"]),
   size: z.number().optional(),
   modified: z.string().optional(),
 });
 
-export const UserRoleSchema = z.enum(['admin', 'user']);
+export const UserRoleSchema = z.enum(["admin", "user"]);
 
-export const ServerRoleSchema = z.enum(['admin', 'user']);
+export const ServerRoleSchema = z.enum(["admin", "user"]);
 
 export const UserSchema = z.object({
   id: z.string(),

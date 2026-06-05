@@ -1,5 +1,5 @@
-import { useState, useId } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useId, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import AgentGlyph from "@/components/AgentGlyph";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -91,9 +91,7 @@ function RegisterPage() {
             <h2 className="font-sans text-title-md font-semibold text-t-ink mb-sm">
               Create Account
             </h2>
-            <p className="text-body-md text-t-ink-dim">
-              Sign up to access your spaces
-            </p>
+            <p className="text-body-md text-t-ink-dim">Sign up to access your spaces</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-lg">
@@ -107,10 +105,7 @@ function RegisterPage() {
             )}
 
             <div className="space-y-sm">
-              <label
-                htmlFor={emailId}
-                className="block text-body-sm font-medium text-t-ink"
-              >
+              <label htmlFor={emailId} className="block text-body-sm font-medium text-t-ink">
                 Email
               </label>
               <Input
@@ -126,10 +121,7 @@ function RegisterPage() {
             </div>
 
             <div className="space-y-sm">
-              <label
-                htmlFor={displayNameId}
-                className="block text-body-sm font-medium text-t-ink"
-              >
+              <label htmlFor={displayNameId} className="block text-body-sm font-medium text-t-ink">
                 Display Name <span className="text-t-ink-dim font-normal">(optional)</span>
               </label>
               <Input
@@ -144,10 +136,7 @@ function RegisterPage() {
             </div>
 
             <div className="space-y-sm">
-              <label
-                htmlFor={passwordId}
-                className="block text-body-sm font-medium text-t-ink"
-              >
+              <label htmlFor={passwordId} className="block text-body-sm font-medium text-t-ink">
                 Password
               </label>
               <Input
@@ -181,11 +170,7 @@ function RegisterPage() {
               />
             </div>
 
-            <Button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full h-10 justify-center"
-            >
+            <Button type="submit" disabled={isSubmitting} className="w-full h-10 justify-center">
               {isSubmitting ? (
                 <span className="flex items-center justify-center gap-sm">
                   <div className="animate-spin rounded-full w-4 h-4 border-2 border-t-primary-foreground border-t-transparent"></div>

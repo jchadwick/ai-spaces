@@ -1,26 +1,26 @@
-import type { SpaceConfig } from '@ai-spaces/shared';
-import { validatePath } from '@ai-spaces/shared';
-import { config } from '../config.js';
+import type { SpaceConfig } from "@ai-spaces/shared";
+import { validatePath } from "@ai-spaces/shared";
+import { config } from "../config.js";
 
 /**
  * Argument keys that are treated as file-system paths and validated
  * against the space root on every tool call.
  */
 const PATH_ARG_KEYS = new Set([
-  'path',
-  'file',
-  'filePath',
-  'file_path',
-  'target',
-  'destination',
-  'dest',
-  'source',
-  'src',
-  'dir',
-  'directory',
-  'dirPath',
-  'dir_path',
-  'filename',
+  "path",
+  "file",
+  "filePath",
+  "file_path",
+  "target",
+  "destination",
+  "dest",
+  "source",
+  "src",
+  "dir",
+  "directory",
+  "dirPath",
+  "dir_path",
+  "filename",
 ]);
 
 /**
@@ -47,8 +47,8 @@ interface BeforeToolCallResult {
 
 export type ToolHookHandler = (
   event: unknown,
-  ctx?: unknown
-) => Promise<BeforeToolCallResult | void> | BeforeToolCallResult | void;
+  ctx?: unknown,
+) => Promise<BeforeToolCallResult | undefined> | BeforeToolCallResult | undefined;
 
 export interface ToolHookConfig {
   spaceConfig: SpaceConfig;
@@ -68,21 +68,18 @@ export interface ToolHookConfig {
 export function createToolHook({ spaceConfig, spacePath }: ToolHookConfig): ToolHookHandler {
   // Build the effective denied-tools set (space config + global defaults).
   const configDenied = spaceConfig.agent?.denied ?? [];
-  const effectiveDenied = new Set([
-    ...configDenied,
-    ...config.DEFAULT_DENIED_TOOLS,
-  ]);
+  const effectiveDenied = new Set([...configDenied, ...config.DEFAULT_DENIED_TOOLS]);
 
-  return function toolHookHandler(rawEvent: unknown): BeforeToolCallResult | void {
+  return function toolHookHandler(rawEvent: unknown): BeforeToolCallResult | undefined {
     // Defensive type guard — the runtime passes a BeforeToolCallEvent object.
-    if (!rawEvent || typeof rawEvent !== 'object') {
+    if (!rawEvent || typeof rawEvent !== "object") {
       return;
     }
 
     const event = rawEvent as Partial<BeforeToolCallEvent>;
-    const toolName = typeof event.toolName === 'string' ? event.toolName : undefined;
+    const toolName = typeof event.toolName === "string" ? event.toolName : undefined;
     const params =
-      event.params && typeof event.params === 'object' && !Array.isArray(event.params)
+      event.params && typeof event.params === "object" && !Array.isArray(event.params)
         ? event.params
         : undefined;
 
@@ -102,32 +99,32 @@ export function createToolHook({ spaceConfig, spacePath }: ToolHookConfig): Tool
     // --- 2. Path containment check ---
     if (params) {
       for (const [key, value] of Object.entries(params)) {
-        if (typeof value !== 'string' || !value) continue;
+        if (typeof value !== "string" || !value) continue;
 
         // For known path keys, always validate.
         // For other string args, validate if they look like a filesystem path
         // (absolute path, home-dir reference, or contains traversal segments).
         const isKnownPathKey = PATH_ARG_KEYS.has(key);
         const looksLikePath =
-          value.startsWith('/') ||
-          value.startsWith('~/') ||
-          value.startsWith('~\\') ||
-          value.includes('..') ||
-          value.includes('./');
+          value.startsWith("/") ||
+          value.startsWith("~/") ||
+          value.startsWith("~\\") ||
+          value.includes("..") ||
+          value.includes("./");
 
         if (!isKnownPathKey && !looksLikePath) continue;
 
         const result = validatePath(value, spacePath);
         if (!result.valid) {
           console.warn(
-            `[ai-spaces] Blocked path traversal: tool="${toolName}" arg="${key}" value="${value}" error="${result.error}"`
+            `[ai-spaces] Blocked path traversal: tool="${toolName}" arg="${key}" value="${value}" error="${result.error}"`,
           );
           return {
             block: true,
             blockReason:
-              result.error === 'Access denied'
+              result.error === "Access denied"
                 ? `Path "${value}" is outside the space directory.`
-                : `Invalid path argument "${key}": ${result.error ?? 'invalid path'}.`,
+                : `Invalid path argument "${key}": ${result.error ?? "invalid path"}.`,
           };
         }
       }

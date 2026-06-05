@@ -1,12 +1,12 @@
-import { useFileContent } from "../hooks/useFileContent";
-import { writeSpaceFileHttp, renameSpaceFile } from "../api/spaceFiles";
-import { useToast } from "./ui/use-toast";
-import { useState, useEffect, useCallback, useRef } from "react";
+import MDEditor from "@uiw/react-md-editor";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import rehypeRaw from "rehype-raw";
-import MDEditor from "@uiw/react-md-editor";
+import remarkGfm from "remark-gfm";
+import { renameSpaceFile, writeSpaceFileHttp } from "../api/spaceFiles";
+import { useFileContent } from "../hooks/useFileContent";
+import { useToast } from "./ui/use-toast";
 import "highlight.js/styles/github.css";
 
 interface MarkdownEditorProps {
@@ -66,10 +66,7 @@ function saveDraft(spaceId: string, filePath: string, content: string): void {
   }
 }
 
-function loadDraft(
-  spaceId: string,
-  filePath: string,
-): { content: string; savedAt: string } | null {
+function loadDraft(spaceId: string, filePath: string): { content: string; savedAt: string } | null {
   try {
     const data = localStorage.getItem(getDraftKey(spaceId, filePath));
     if (data) {
@@ -99,11 +96,9 @@ export default function MarkdownEditor({
 }: MarkdownEditorProps) {
   const [fileVersion, setFileVersion] = useState(0);
 
-  const { content, fileInfo, loading, error } = useFileContent(
-    spaceId,
-    filePath,
-    { refreshKey: fileVersion + externalRefreshKey },
-  );
+  const { content, fileInfo, loading, error } = useFileContent(spaceId, filePath, {
+    refreshKey: fileVersion + externalRefreshKey,
+  });
   const { showToast } = useToast();
 
   const [editMode, setEditMode] = useState(false);
@@ -132,11 +127,7 @@ export default function MarkdownEditor({
     const handleFileModified = (
       event: CustomEvent<{ path: string; action: string; triggeredBy: string }>,
     ) => {
-      if (
-        editMode &&
-        event.detail?.path === filePath &&
-        event.detail?.triggeredBy === "agent"
-      ) {
+      if (editMode && event.detail?.path === filePath && event.detail?.triggeredBy === "agent") {
         const fileName = filePath.split("/").pop() || filePath;
         showToast(
           `${fileName} was modified by the AI while you were editing. Consider saving your changes or canceling to see the new version.`,
@@ -147,15 +138,9 @@ export default function MarkdownEditor({
       }
     };
 
-    window.addEventListener(
-      "fileModified",
-      handleFileModified as EventListener,
-    );
+    window.addEventListener("fileModified", handleFileModified as EventListener);
     return () => {
-      window.removeEventListener(
-        "fileModified",
-        handleFileModified as EventListener,
-      );
+      window.removeEventListener("fileModified", handleFileModified as EventListener);
     };
   }, [editMode, filePath, showToast]);
 
@@ -167,7 +152,7 @@ export default function MarkdownEditor({
     setDraftData(null);
     setRenamingFile(false);
     setRenameValue("");
-  }, [filePath]);
+  }, []);
 
   useEffect(() => {
     if (filePath && spaceId && content !== null && !editMode) {
@@ -336,9 +321,7 @@ export default function MarkdownEditor({
         <div className="bg-destructive/10 rounded-xl p-lg ">
           <div className="flex items-center gap-sm text-destructive">
             <span className="material-symbols-outlined">error</span>
-            <span className="text-body-md font-medium">
-              Failed to load file
-            </span>
+            <span className="text-body-md font-medium">Failed to load file</span>
           </div>
           <p className="text-body-sm text-t-ink-dim mt-xs">{error}</p>
         </div>
@@ -350,9 +333,7 @@ export default function MarkdownEditor({
     return (
       <section className="flex-1 flex flex-col bg-t-bg-raised items-center justify-center">
         <div className="flex flex-col items-center gap-3 text-t-ink-dim">
-          <span className="material-symbols-outlined text-4xl">
-            folder_open
-          </span>
+          <span className="material-symbols-outlined text-4xl">folder_open</span>
           <p className="text-body-md">File not found</p>
         </div>
       </section>
@@ -365,14 +346,11 @@ export default function MarkdownEditor({
         <div className="bg-t-bg-well rounded-xl p-lg  shadow-lg">
           <div className="flex items-center gap-sm text-t-ink">
             <span className="material-symbols-outlined">draft</span>
-            <span className="text-body-md font-medium">
-              Unsaved changes found
-            </span>
+            <span className="text-body-md font-medium">Unsaved changes found</span>
           </div>
           <p className="text-body-sm text-t-ink-dim mt-sm">
-            You have unsaved changes from{" "}
-            {formatRelativeTime(draftData.savedAt)}. Would you like to restore
-            them?
+            You have unsaved changes from {formatRelativeTime(draftData.savedAt)}. Would you like to
+            restore them?
           </p>
           <div className="flex gap-sm mt-md">
             <button
@@ -405,13 +383,10 @@ export default function MarkdownEditor({
                 {getFileIcon(fileInfo.type)}
               </span>
               <div className="flex flex-col">
-                <h2 className="text-title-sm font-medium text-t-ink">
-                  {fileInfo.name}
-                </h2>
+                <h2 className="text-title-sm font-medium text-t-ink">{fileInfo.name}</h2>
                 <span className="text-label-sm text-t-ink-dim uppercase tracking-wider">
                   {getFileTypeLabel(fileInfo.type)}
-                  {fileInfo.modifiedAt &&
-                    ` • Modified ${formatRelativeTime(fileInfo.modifiedAt)}`}
+                  {fileInfo.modifiedAt && ` • Modified ${formatRelativeTime(fileInfo.modifiedAt)}`}
                 </span>
               </div>
             </div>
@@ -439,13 +414,10 @@ export default function MarkdownEditor({
                 {getFileIcon(fileInfo.type)}
               </span>
               <div className="flex flex-col">
-                <h2 className="text-title-sm font-medium text-t-ink">
-                  {fileInfo.name}
-                </h2>
+                <h2 className="text-title-sm font-medium text-t-ink">{fileInfo.name}</h2>
                 <span className="text-label-sm text-t-ink-dim uppercase tracking-wider">
                   {getFileTypeLabel(fileInfo.type)}
-                  {fileInfo.modifiedAt &&
-                    ` • Modified ${formatRelativeTime(fileInfo.modifiedAt)}`}
+                  {fileInfo.modifiedAt && ` • Modified ${formatRelativeTime(fileInfo.modifiedAt)}`}
                 </span>
               </div>
             </div>
@@ -454,9 +426,7 @@ export default function MarkdownEditor({
 
         <div className="flex-1 overflow-y-auto custom-scrollbar flex items-center justify-center p-8">
           <div className="flex flex-col items-center gap-4 text-t-ink-dim">
-            <span className="material-symbols-outlined text-5xl">
-              hide_source
-            </span>
+            <span className="material-symbols-outlined text-5xl">hide_source</span>
             <p className="text-body-md">Cannot preview binary file</p>
             <p className="text-body-sm text-t-ink-dim/70">
               This file type cannot be displayed in the editor.
@@ -477,8 +447,8 @@ export default function MarkdownEditor({
           <div className="bg-warning-container border-b border-warning text-on-warning-container px-4 py-2 flex items-center gap-2">
             <span className="material-symbols-outlined text-sm">warning</span>
             <span className="text-sm font-medium">
-              This file was modified by the AI while you were editing. Save your
-              changes or cancel to see the new version.
+              This file was modified by the AI while you were editing. Save your changes or cancel
+              to see the new version.
             </span>
             <button
               type="button"
@@ -496,18 +466,14 @@ export default function MarkdownEditor({
                 {getFileIcon(fileInfo.type)}
               </span>
               <div className="flex flex-col">
-                <h2 className="text-title-sm font-medium text-t-ink">
-                  {fileInfo.name}
-                </h2>
+                <h2 className="text-title-sm font-medium text-t-ink">{fileInfo.name}</h2>
                 <span className="text-label-sm text-t-ink-dim uppercase tracking-wider">
                   Editing
                 </span>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {saveError && (
-                <span className="text-destructive text-sm">{saveError}</span>
-              )}
+              {saveError && <span className="text-destructive text-sm">{saveError}</span>}
               <button
                 type="button"
                 onClick={handleCancel}
@@ -529,9 +495,7 @@ export default function MarkdownEditor({
                   </>
                 ) : (
                   <>
-                    <span className="material-symbols-outlined text-sm">
-                      save
-                    </span>
+                    <span className="material-symbols-outlined text-sm">save</span>
                     Save
                   </>
                 )}
@@ -611,7 +575,6 @@ export default function MarkdownEditor({
               {renamingFile ? (
                 <input
                   type="text"
-                  autoFocus
                   value={renameValue}
                   onChange={(e) => setRenameValue(e.target.value)}
                   onKeyDown={(e) => {
@@ -631,8 +594,7 @@ export default function MarkdownEditor({
               )}
               <span className="text-label-sm text-t-ink-dim uppercase tracking-wider">
                 {getFileTypeLabel(fileInfo.type)}
-                {fileInfo.modifiedAt &&
-                  ` • Modified ${formatRelativeTime(fileInfo.modifiedAt)}`}
+                {fileInfo.modifiedAt && ` • Modified ${formatRelativeTime(fileInfo.modifiedAt)}`}
               </span>
             </div>
           </div>
@@ -667,9 +629,7 @@ function ContentRenderer({ fileInfo, content }: ContentRendererProps) {
     return (
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="flex flex-col items-center gap-3 text-t-ink-dim">
-          <span className="material-symbols-outlined text-4xl">
-            description
-          </span>
+          <span className="material-symbols-outlined text-4xl">description</span>
           <p className="text-body-md">Empty file</p>
         </div>
       </div>

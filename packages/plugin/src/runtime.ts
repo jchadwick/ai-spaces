@@ -1,7 +1,7 @@
-import { createPluginRuntimeStore } from 'openclaw/plugin-sdk/runtime-store';
-import type { PluginRuntime } from 'openclaw/plugin-sdk/runtime-store';
+import type { PluginRuntime } from "openclaw/plugin-sdk/runtime-store";
+import { createPluginRuntimeStore } from "openclaw/plugin-sdk/runtime-store";
 
-const store = createPluginRuntimeStore<PluginRuntime>('ai-spaces runtime not initialized');
+const store = createPluginRuntimeStore<PluginRuntime>("ai-spaces runtime not initialized");
 
 export function setRuntime(runtime: PluginRuntime): void {
   store.setRuntime(runtime);

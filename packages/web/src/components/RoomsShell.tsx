@@ -1,18 +1,5 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-  type ReactNode,
-} from "react";
-import {
-  useLocation,
-  useNavigate,
-  useParams,
-  useSearchParams,
-} from "react-router-dom";
+import type { FileMetadataEntry, FileNode, SpaceMetadata, SpaceRole } from "@ai-spaces/shared";
+import { hasPermission } from "@ai-spaces/shared";
 import {
   ArrowLeft,
   ArrowRight,
@@ -35,29 +22,16 @@ import {
   Users,
   X,
 } from "lucide-react";
-import type {
-  FileMetadataEntry,
-  FileNode,
-  SpaceMetadata,
-  SpaceRole,
-} from "@ai-spaces/shared";
-import { hasPermission } from "@ai-spaces/shared";
-import { useAPI } from "@/hooks/useAPI";
-import { useAuth } from "@/contexts/AuthContext";
-import { useFileTree } from "@/hooks/useFileTree";
-import { useToast } from "@/components/ui/use-toast";
-import { ToastProvider } from "@/components/ui/toast";
-import SpaceSettingsEditor from "@/components/SpaceSettingsEditor";
 import {
-  ConnectionStatusProvider,
-  useConnectionStatus,
-} from "@/contexts/ConnectionStatusContext";
-import {
-  FileMetadataProvider,
-  useFileMetadata,
-} from "@/contexts/FileMetadataContext";
-import AIChatPane from "@/components/AIChatPane";
-import RoomsContentPane from "@/components/RoomsContentPane";
+  type CSSProperties,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   archiveSpaceTopic,
   createSpaceDirectory,
@@ -70,10 +44,20 @@ import {
   patchFileMetadata,
   promoteSpaceTopic,
   renameSpacePath,
-  uploadSpaceFile,
   type SpaceMember,
   type SpaceTopic,
+  uploadSpaceFile,
 } from "@/api/spaceFiles";
+import AIChatPane from "@/components/AIChatPane";
+import RoomsContentPane from "@/components/RoomsContentPane";
+import SpaceSettingsEditor from "@/components/SpaceSettingsEditor";
+import { ToastProvider } from "@/components/ui/toast";
+import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { ConnectionStatusProvider, useConnectionStatus } from "@/contexts/ConnectionStatusContext";
+import { FileMetadataProvider, useFileMetadata } from "@/contexts/FileMetadataContext";
+import { useAPI } from "@/hooks/useAPI";
+import { useFileTree } from "@/hooks/useFileTree";
 
 interface SpaceSummary {
   id: string;
@@ -126,9 +110,7 @@ function basename(topicPath: string) {
 }
 
 function parentPath(filePath: string) {
-  return filePath.includes("/")
-    ? filePath.slice(0, filePath.lastIndexOf("/"))
-    : "";
+  return filePath.includes("/") ? filePath.slice(0, filePath.lastIndexOf("/")) : "";
 }
 
 function joinPath(parent: string | null | undefined, name: string) {
@@ -173,8 +155,7 @@ function firstFileNode(nodes: FileNode[]): FileNode | null {
 function movePath(path: string | null, fromPath: string, toPath: string) {
   if (!path) return path;
   if (path === fromPath) return toPath;
-  if (path.startsWith(`${fromPath}/`))
-    return `${toPath}/${path.slice(fromPath.length + 1)}`;
+  if (path.startsWith(`${fromPath}/`)) return `${toPath}/${path.slice(fromPath.length + 1)}`;
   return path;
 }
 
@@ -227,16 +208,10 @@ function uniqueSpaceAbbreviations(spaces: SpaceSummary[]) {
   for (let width = 3; width <= 4; width += 1) {
     const duplicateCounts = new Map<string, number>();
     abbreviations.forEach((abbreviation) => {
-      duplicateCounts.set(
-        abbreviation,
-        (duplicateCounts.get(abbreviation) ?? 0) + 1,
-      );
+      duplicateCounts.set(abbreviation, (duplicateCounts.get(abbreviation) ?? 0) + 1);
     });
     bases.forEach((base, index) => {
-      if (
-        (duplicateCounts.get(abbreviations[index]) ?? 0) > 1 &&
-        base.length >= width
-      ) {
+      if ((duplicateCounts.get(abbreviations[index]) ?? 0) > 1 && base.length >= width) {
         abbreviations[index] = base.slice(0, width);
       }
     });
@@ -251,8 +226,7 @@ function uniqueSpaceAbbreviations(spaces: SpaceSummary[]) {
   return new Map(
     spaces.map((space, index) => {
       const abbreviation = abbreviations[index];
-      if ((finalCounts.get(abbreviation) ?? 0) <= 1)
-        return [space.id, abbreviation] as const;
+      if ((finalCounts.get(abbreviation) ?? 0) <= 1) return [space.id, abbreviation] as const;
 
       const seenCount = seen.get(abbreviation) ?? 0;
       seen.set(abbreviation, seenCount + 1);
@@ -486,9 +460,7 @@ function InlineEditableText({
       await onSave(draft.trim());
       setEditing(false);
     } catch (saveError) {
-      setError(
-        saveError instanceof Error ? saveError.message : "Failed to save",
-      );
+      setError(saveError instanceof Error ? saveError.message : "Failed to save");
     } finally {
       setSaving(false);
     }
@@ -496,9 +468,7 @@ function InlineEditableText({
 
   if (!canEdit) {
     return (
-      <span
-        style={{ ...textStyle, ...(!normalizedValue ? emptyStyle : undefined) }}
-      >
+      <span style={{ ...textStyle, ...(!normalizedValue ? emptyStyle : undefined) }}>
         {displayValue}
       </span>
     );
@@ -573,21 +543,18 @@ function InlineEditableText({
         <textarea
           aria-label={ariaLabel}
           rows={3}
-          autoFocus
           value={draft}
           placeholder={placeholder}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Escape") setEditing(false);
-            if ((event.metaKey || event.ctrlKey) && event.key === "Enter")
-              void save();
+            if ((event.metaKey || event.ctrlKey) && event.key === "Enter") void save();
           }}
           style={inputStyle}
         />
       ) : (
         <input
           aria-label={ariaLabel}
-          autoFocus
           value={draft}
           placeholder={placeholder}
           onChange={(event) => setDraft(event.target.value)}
@@ -598,9 +565,7 @@ function InlineEditableText({
           style={inputStyle}
         />
       )}
-      <div
-        style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}
-      >
+      <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
         <Button
           variant="primary"
           size="sm"
@@ -621,25 +586,13 @@ function InlineEditableText({
           onClick={() => setEditing(false)}
           style={{ width: 34, height: 34, padding: 0, borderRadius: 9 }}
         />
-        {error && (
-          <span style={{ fontSize: 12.5, color: "var(--rooms-error)" }}>
-            {error}
-          </span>
-        )}
+        {error && <span style={{ fontSize: 12.5, color: "var(--rooms-error)" }}>{error}</span>}
       </div>
     </div>
   );
 }
 
-function Avatar({
-  label,
-  size = 30,
-  index = 0,
-}: {
-  label: string;
-  size?: number;
-  index?: number;
-}) {
+function Avatar({ label, size = 30, index = 0 }: { label: string; size?: number; index?: number }) {
   const tints = [
     "var(--rooms-avatar-0)",
     "var(--rooms-avatar-1)",
@@ -676,11 +629,7 @@ function AvatarStack({ members }: { members: SpaceMember[] }) {
     <span style={{ display: "inline-flex" }}>
       {visible.map((member, index) => (
         <span key={member.userId} style={{ marginLeft: index ? -8 : 0 }}>
-          <Avatar
-            label={member.displayName || member.email}
-            size={26}
-            index={index}
-          />
+          <Avatar label={member.displayName || member.email} size={26} index={index} />
         </span>
       ))}
     </span>
@@ -739,10 +688,7 @@ function Modal({
           }}
         >
           <div>
-            <h2
-              className="rooms-title"
-              style={{ margin: 0, fontSize: 27, lineHeight: 1.12 }}
-            >
+            <h2 className="rooms-title" style={{ margin: 0, fontSize: 27, lineHeight: 1.12 }}>
               {title}
             </h2>
             {subtitle && (
@@ -759,11 +705,7 @@ function Modal({
               </p>
             )}
           </div>
-          <IconButton
-            title="Close"
-            onClick={onClose}
-            style={{ width: 34, height: 34 }}
-          >
+          <IconButton title="Close" onClick={onClose} style={{ width: 34, height: 34 }}>
             <X size={18} />
           </IconButton>
         </div>
@@ -890,9 +832,7 @@ function Rail({
   const menuRef = useRef<HTMLDivElement>(null);
   const hasOwnerSpace = spaces.some((space) => roleIsOwner(space.userRole));
   const visibleSpaces = spaces.filter(
-    (space) =>
-      roleIsOwner(space.userRole) ||
-      rooms.some((room) => room.spaceId === space.id),
+    (space) => roleIsOwner(space.userRole) || rooms.some((room) => room.spaceId === space.id),
   );
   const spaceAbbreviations = uniqueSpaceAbbreviations(visibleSpaces);
   const userLabel = user?.displayName || user?.email || "User";
@@ -900,8 +840,7 @@ function Rail({
   useEffect(() => {
     if (!userMenuOpen) return;
     const close = (event: MouseEvent) => {
-      if (!menuRef.current?.contains(event.target as Node))
-        setUserMenuOpen(false);
+      if (!menuRef.current?.contains(event.target as Node)) setUserMenuOpen(false);
     };
     const esc = (event: KeyboardEvent) => {
       if (event.key === "Escape") setUserMenuOpen(false);
@@ -977,8 +916,7 @@ function Rail({
         }}
       >
         {visibleSpaces.map((space) => {
-          const active =
-            activeSpaceId === space.id && (view === "space" || view === "home");
+          const active = activeSpaceId === space.id && (view === "space" || view === "home");
           const color = spaceColor(spaces, space.id);
           const abbreviation = spaceAbbreviations.get(space.id) ?? "?";
           return (
@@ -1000,12 +938,7 @@ function Rail({
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                fontSize:
-                  abbreviation.length > 3
-                    ? 13
-                    : abbreviation.length > 2
-                      ? 14.5
-                      : 17,
+                fontSize: abbreviation.length > 3 ? 13 : abbreviation.length > 2 ? 14.5 : 17,
                 fontWeight: 700,
                 letterSpacing: 0,
               }}
@@ -1211,21 +1144,12 @@ function RoomsHome({
   onNewRoom: () => void;
   onManageSpace: (spaceId: string) => void;
 }) {
-  const list = activeSpaceId
-    ? rooms.filter((room) => room.spaceId === activeSpaceId)
-    : rooms;
-  const activeSpace = activeSpaceId
-    ? spaces.find((space) => space.id === activeSpaceId)
-    : null;
+  const list = activeSpaceId ? rooms.filter((room) => room.spaceId === activeSpaceId) : rooms;
+  const activeSpace = activeSpaceId ? spaces.find((space) => space.id === activeSpaceId) : null;
   const canCreate = spaces.some((space) => roleIsOwner(space.userRole));
   return (
-    <div
-      className="rooms-rise rooms-scrollbar"
-      style={{ height: "100%", overflow: "auto" }}
-    >
-      <div
-        style={{ maxWidth: 1080, margin: "0 auto", padding: "40px 48px 64px" }}
-      >
+    <div className="rooms-rise rooms-scrollbar" style={{ height: "100%", overflow: "auto" }}>
+      <div style={{ maxWidth: 1080, margin: "0 auto", padding: "40px 48px 64px" }}>
         <div
           style={{
             display: "flex",
@@ -1236,10 +1160,7 @@ function RoomsHome({
           }}
         >
           <div>
-            <h1
-              className="rooms-title"
-              style={{ margin: 0, fontSize: 44, lineHeight: 1.05 }}
-            >
+            <h1 className="rooms-title" style={{ margin: 0, fontSize: 44, lineHeight: 1.05 }}>
               Rooms
             </h1>
             <p
@@ -1249,16 +1170,11 @@ function RoomsHome({
                 color: "var(--rooms-muted)",
               }}
             >
-              {list.length} room{list.length === 1 ? "" : "s"} you can work in.
-              Pick one to jump in.
+              {list.length} room{list.length === 1 ? "" : "s"} you can work in. Pick one to jump in.
             </p>
           </div>
           {canCreate && (
-            <Button
-              variant="primary"
-              icon={<Plus size={18} />}
-              onClick={onNewRoom}
-            >
+            <Button variant="primary" icon={<Plus size={18} />} onClick={onNewRoom}>
               New room
             </Button>
           )}
@@ -1330,10 +1246,7 @@ function RoomsHome({
                   gap: 12,
                 }}
               >
-                <h3
-                  className="rooms-title"
-                  style={{ margin: 0, fontSize: 24, lineHeight: 1.16 }}
-                >
+                <h3 className="rooms-title" style={{ margin: 0, fontSize: 24, lineHeight: 1.16 }}>
                   {room.name}
                 </h3>
                 <ArrowRight size={20} color="var(--rooms-muted)" />
@@ -1423,18 +1336,11 @@ function CreateRoomModal({
         displayName: name.trim(),
         summary: summary.trim() || undefined,
       });
-      const room = await promoteSpaceTopic(
-        spaceId,
-        `/${normalizedPath}`,
-        "directory",
-      );
+      const room = await promoteSpaceTopic(spaceId, `/${normalizedPath}`, "directory");
       showToast("Room created", "success");
       onCreated(spaceId, room.id);
     } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : "Failed to create room",
-        "error",
-      );
+      showToast(error instanceof Error ? error.message : "Failed to create room", "error");
     }
   }
   return (
@@ -1489,10 +1395,7 @@ function CreateRoomModal({
                   padding: "9px 14px",
                   borderRadius: 10,
                   border: `1.5px solid ${spaceId === space.id ? "var(--rooms-ink)" : "var(--rooms-line-strong)"}`,
-                  background:
-                    spaceId === space.id
-                      ? "var(--rooms-paper-3)"
-                      : "var(--rooms-paper)",
+                  background: spaceId === space.id ? "var(--rooms-paper-3)" : "var(--rooms-paper)",
                   cursor: "pointer",
                   fontWeight: 500,
                   fontSize: 13.5,
@@ -1544,8 +1447,8 @@ function CreateRoomModal({
               lineHeight: 1.5,
             }}
           >
-            This adds a folder inside the Space and promotes that one path. The
-            rest of the Space stays private.
+            This adds a folder inside the Space and promotes that one path. The rest of the Space
+            stays private.
           </span>
         </div>
       </div>
@@ -1564,10 +1467,7 @@ function RoomDetail({
   role: SpaceRole;
   initialFilePath: string | null;
   onSelectFile: (filePath: string) => void;
-  onUpdateRoomMetadata: (
-    room: RoomSummary,
-    patch: Partial<FileMetadataEntry>,
-  ) => Promise<void>;
+  onUpdateRoomMetadata: (room: RoomSummary, patch: Partial<FileMetadataEntry>) => Promise<void>;
 }) {
   const { accessToken } = useAuth();
   return (
@@ -1594,10 +1494,7 @@ function RoomDetailInner({
   role: SpaceRole;
   initialFilePath: string | null;
   onSelectFile: (filePath: string) => void;
-  onUpdateRoomMetadata: (
-    room: RoomSummary,
-    patch: Partial<FileMetadataEntry>,
-  ) => Promise<void>;
+  onUpdateRoomMetadata: (room: RoomSummary, patch: Partial<FileMetadataEntry>) => Promise<void>;
 }) {
   const apiFetch = useAPI();
   const { selectTopic } = useConnectionStatus();
@@ -1624,18 +1521,14 @@ function RoomDetailInner({
   const [isDragOver, setIsDragOver] = useState(false);
   const [contentRefreshKey, setContentRefreshKey] = useState(0);
   const roomRoot = stripTopicPath(room.topicPath);
-  const routedFilePath = initialFilePath
-    ? joinPath(roomRoot, initialFilePath)
-    : null;
+  const routedFilePath = initialFilePath ? joinPath(roomRoot, initialFilePath) : null;
   const fetchDir = useCallback(
     async (dirPath: string) => {
       const res = await apiFetch(
         `/api/spaces/${room.spaceId}/files?path=${encodeURIComponent(dirPath)}`,
       );
       if (!res.ok) {
-        const data = (await res
-          .json()
-          .catch(() => ({ error: "Failed to load files" }))) as {
+        const data = (await res.json().catch(() => ({ error: "Failed to load files" }))) as {
           error?: string;
         };
         throw new Error(data.error ?? "Failed to load files");
@@ -1676,20 +1569,13 @@ function RoomDetailInner({
   useEffect(() => {
     void selectTopic(room.topicPath);
   }, [room.topicPath, selectTopic]);
-  const activeFile = activePath
-    ? findNode(nodes, activePath)
-    : firstFileNode(nodes);
+  const activeFile = activePath ? findNode(nodes, activePath) : firstFileNode(nodes);
   const activeFilePath = activeFile?.type === "file" ? activeFile.path : null;
   useEffect(() => {
-    const handleFileModified = (
-      event: CustomEvent<{ path: string; action: string }>,
-    ) => {
+    const handleFileModified = (event: CustomEvent<{ path: string; action: string }>) => {
       const changedPath = event.detail?.path;
       const action = event.detail?.action;
-      if (
-        !changedPath ||
-        (changedPath !== roomRoot && !changedPath.startsWith(`${roomRoot}/`))
-      )
+      if (!changedPath || (changedPath !== roomRoot && !changedPath.startsWith(`${roomRoot}/`)))
         return;
       void refresh();
       if (changedPath === activeFilePath) {
@@ -1697,15 +1583,8 @@ function RoomDetailInner({
         else setContentRefreshKey((current) => current + 1);
       }
     };
-    window.addEventListener(
-      "fileModified",
-      handleFileModified as EventListener,
-    );
-    return () =>
-      window.removeEventListener(
-        "fileModified",
-        handleFileModified as EventListener,
-      );
+    window.addEventListener("fileModified", handleFileModified as EventListener);
+    return () => window.removeEventListener("fileModified", handleFileModified as EventListener);
   }, [activeFilePath, refresh, roomRoot]);
   async function createNew() {
     if (!draftFile || !newName.trim()) return;
@@ -1724,15 +1603,9 @@ function RoomDetailInner({
       setNewName("");
       if (parent === roomRoot) await refresh();
       else await loadChildren(parent);
-      showToast(
-        draftFile.type === "directory" ? "Folder created" : "File created",
-        "success",
-      );
+      showToast(draftFile.type === "directory" ? "Folder created" : "File created", "success");
     } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : "Failed to create",
-        "error",
-      );
+      showToast(error instanceof Error ? error.message : "Failed to create", "error");
     }
   }
   async function uploadFiles(fileList: FileList, targetFolder: string) {
@@ -1740,24 +1613,16 @@ function RoomDetailInner({
     try {
       const uploaded = await Promise.all(
         Array.from(fileList).map(async (file) => {
-          await uploadSpaceFile(
-            room.spaceId,
-            joinPath(targetFolder, file.name),
-            file,
-          );
+          await uploadSpaceFile(room.spaceId, joinPath(targetFolder, file.name), file);
           return file.name;
         }),
       );
-      const label =
-        uploaded.length === 1 ? `"${uploaded[0]}"` : `${uploaded.length} files`;
+      const label = uploaded.length === 1 ? `"${uploaded[0]}"` : `${uploaded.length} files`;
       showToast(`Uploaded ${label}`, "success");
       if (targetFolder === roomRoot) await refresh();
       else await loadChildren(targetFolder);
     } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : "Upload failed",
-        "error",
-      );
+      showToast(error instanceof Error ? error.message : "Upload failed", "error");
     }
   }
   function chooseUploadTarget(targetFolder: string) {
@@ -1771,8 +1636,7 @@ function RoomDetailInner({
     if (!canEdit) return;
     if (
       source.type === "directory" &&
-      (targetFolder === source.path ||
-        targetFolder.startsWith(`${source.path}/`))
+      (targetFolder === source.path || targetFolder.startsWith(`${source.path}/`))
     ) {
       showToast("Cannot move a folder into itself", "error");
       return;
@@ -1781,27 +1645,15 @@ function RoomDetailInner({
     if (sourceParent === targetFolder) return;
     const nextPath = joinPath(targetFolder, basename(source.path));
     try {
-      const actualPath = await renameSpacePath(
-        room.spaceId,
-        source.path,
-        nextPath,
-        source.type,
-      );
+      const actualPath = await renameSpacePath(room.spaceId, source.path, nextPath, source.type);
       setActivePath((current) => movePath(current, source.path, actualPath));
-      setSelectedFolder((current) =>
-        movePath(current, source.path, actualPath),
-      );
-      if (sourceParent === roomRoot || targetFolder === roomRoot)
-        await refresh();
-      if (sourceParent && sourceParent !== roomRoot)
-        await loadChildren(sourceParent);
+      setSelectedFolder((current) => movePath(current, source.path, actualPath));
+      if (sourceParent === roomRoot || targetFolder === roomRoot) await refresh();
+      if (sourceParent && sourceParent !== roomRoot) await loadChildren(sourceParent);
       if (targetFolder !== roomRoot) await loadChildren(targetFolder);
       showToast(`Moved ${basename(source.path)}`, "success");
     } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : "Failed to move",
-        "error",
-      );
+      showToast(error instanceof Error ? error.message : "Failed to move", "error");
     }
   }
   function openNode(node: FileNode) {
@@ -1823,8 +1675,7 @@ function RoomDetailInner({
       void moveNode(moveData, targetFolder);
       return;
     }
-    if (event.dataTransfer.files.length)
-      void uploadFiles(event.dataTransfer.files, targetFolder);
+    if (event.dataTransfer.files.length) void uploadFiles(event.dataTransfer.files, targetFolder);
   }
   function handleDragOver(event: React.DragEvent) {
     const isMove = event.dataTransfer.types.includes("ai-spaces/move");
@@ -1877,9 +1728,7 @@ function RoomDetailInner({
                 canEdit={canEditMetadata}
                 required
                 textStyle={{ fontSize: 34, lineHeight: 1.08, fontWeight: 700 }}
-                onSave={(displayName) =>
-                  onUpdateRoomMetadata(room, { displayName })
-                }
+                onSave={(displayName) => onUpdateRoomMetadata(room, { displayName })}
               />
             </h1>
             <div
@@ -1919,9 +1768,7 @@ function RoomDetailInner({
             borderRight: "1px solid var(--rooms-line)",
             display: "flex",
             flexDirection: "column",
-            background: isDragOver
-              ? "var(--rooms-paper-3)"
-              : "var(--rooms-paper-2)",
+            background: isDragOver ? "var(--rooms-paper-3)" : "var(--rooms-paper-2)",
           }}
         >
           <div
@@ -1978,9 +1825,7 @@ function RoomDetailInner({
                 </IconButton>
               </div>
             ) : (
-              <span style={{ fontSize: 12, color: "var(--rooms-muted-2)" }}>
-                {nodes.length}
-              </span>
+              <span style={{ fontSize: 12, color: "var(--rooms-muted-2)" }}>{nodes.length}</span>
             )}
           </div>
           <input
@@ -2029,8 +1874,7 @@ function RoomDetailInner({
               metadata={{ files: {} }}
               onOpen={openNode}
               onMenu={(event, node) => {
-                if (canEdit)
-                  setMenu({ x: event.clientX, y: event.clientY, node });
+                if (canEdit) setMenu({ x: event.clientX, y: event.clientY, node });
               }}
               canDrag={canEdit}
               dragOverFolder={dragOverFolder}
@@ -2046,9 +1890,7 @@ function RoomDetailInner({
               }}
               onFolderDragEnter={(path) => setDragOverFolder(path)}
               onFolderDragLeave={(path) =>
-                setDragOverFolder((current) =>
-                  current === path ? null : current,
-                )
+                setDragOverFolder((current) => (current === path ? null : current))
               }
               onFolderDrop={(event, path) => handleDrop(event, path)}
             />
@@ -2106,11 +1948,7 @@ function RoomDetailInner({
                   {
                     label: "Open",
                     icon:
-                      menu.node.type === "directory" ? (
-                        <FolderOpen size={16} />
-                      ) : (
-                        <Eye size={16} />
-                      ),
+                      menu.node.type === "directory" ? <FolderOpen size={16} /> : <Eye size={16} />,
                     onClick: () => openNode(menu.node!),
                   },
                 ]
@@ -2138,8 +1976,7 @@ function RoomDetailInner({
                   {
                     label: "Upload files",
                     icon: <Upload size={16} />,
-                    onClick: () =>
-                      chooseUploadTarget(menu.node?.path ?? roomRoot),
+                    onClick: () => chooseUploadTarget(menu.node?.path ?? roomRoot),
                   },
                 ]
               : []),
@@ -2155,11 +1992,7 @@ function RoomDetailInner({
               <Button variant="ghost" onClick={() => setDraftFile(null)}>
                 Cancel
               </Button>
-              <Button
-                variant="primary"
-                disabled={!newName.trim()}
-                onClick={createNew}
-              >
+              <Button variant="primary" disabled={!newName.trim()} onClick={createNew}>
                 Create
               </Button>
             </>
@@ -2169,9 +2002,7 @@ function RoomDetailInner({
             label="Name"
             value={newName}
             onChange={setNewName}
-            placeholder={
-              draftFile.type === "directory" ? "Folder name" : "notes.md"
-            }
+            placeholder={draftFile.type === "directory" ? "Folder name" : "notes.md"}
           />
         </Modal>
       )}
@@ -2219,10 +2050,7 @@ function SpaceExplorer({
   onBack: () => void;
   onOpenRoom: (spaceId: string, topicPath: string) => void;
   onRefreshRooms: () => void;
-  onUpdateSpaceConfig: (
-    spaceId: string,
-    patch: Partial<SpaceSummary["config"]>,
-  ) => Promise<void>;
+  onUpdateSpaceConfig: (spaceId: string, patch: Partial<SpaceSummary["config"]>) => Promise<void>;
 }) {
   return (
     <FileMetadataProvider spaceId={space.id}>
@@ -2261,10 +2089,7 @@ function SpaceExplorerInner({
   onBack: () => void;
   onOpenRoom: (spaceId: string, topicPath: string) => void;
   onRefreshRooms: () => void;
-  onUpdateSpaceConfig: (
-    spaceId: string,
-    patch: Partial<SpaceSummary["config"]>,
-  ) => Promise<void>;
+  onUpdateSpaceConfig: (spaceId: string, patch: Partial<SpaceSummary["config"]>) => Promise<void>;
 }) {
   const { files, loading, refresh, loadChildren } = useFileTree(space.id);
   const { metadata, updateEntry } = useFileMetadata();
@@ -2292,12 +2117,8 @@ function SpaceExplorerInner({
       selectedFile: null as string | null,
     };
   }, [files, initialPath]);
-  const [currentFolderOverride, setCurrentFolderOverride] = useState<
-    string | null
-  >();
-  const [selectedFileOverride, setSelectedFileOverride] = useState<
-    string | null
-  >();
+  const [currentFolderOverride, setCurrentFolderOverride] = useState<string | null>();
+  const [selectedFileOverride, setSelectedFileOverride] = useState<string | null>();
   const [menu, setMenu] = useState<{
     x: number;
     y: number;
@@ -2315,17 +2136,11 @@ function SpaceExplorerInner({
   const [contentRefreshKey, setContentRefreshKey] = useState(0);
   const canWrite = hasPermission(space.userRole, "files:write");
   const currentFolder =
-    currentFolderOverride === undefined
-      ? routeSelection.currentFolder
-      : currentFolderOverride;
+    currentFolderOverride === undefined ? routeSelection.currentFolder : currentFolderOverride;
   const selectedFile =
-    selectedFileOverride === undefined
-      ? routeSelection.selectedFile
-      : selectedFileOverride;
-  const setCurrentFolder = (path: string | null) =>
-    setCurrentFolderOverride(path);
-  const setSelectedFile = (path: string | null) =>
-    setSelectedFileOverride(path);
+    selectedFileOverride === undefined ? routeSelection.selectedFile : selectedFileOverride;
+  const setCurrentFolder = (path: string | null) => setCurrentFolderOverride(path);
+  const setSelectedFile = (path: string | null) => setSelectedFileOverride(path);
   const selectedNode = selectedFile ? findNode(files, selectedFile) : null;
   const selectedPathParts = selectedFile?.split("/").filter(Boolean) ?? [];
   async function promote(node: FileNode) {
@@ -2342,10 +2157,7 @@ function SpaceExplorerInner({
       showToast(`${node.name} promoted to a Room`, "success");
       onRefreshRooms();
     } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : "Failed to promote",
-        "error",
-      );
+      showToast(error instanceof Error ? error.message : "Failed to promote", "error");
     }
   }
   async function demote(node: FileNode) {
@@ -2356,10 +2168,7 @@ function SpaceExplorerInner({
       showToast("Demoted to a folder - files kept", "success");
       onRefreshRooms();
     } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : "Failed to demote",
-        "error",
-      );
+      showToast(error instanceof Error ? error.message : "Failed to demote", "error");
     }
   }
   async function toggleRestricted(node: FileNode) {
@@ -2367,38 +2176,27 @@ function SpaceExplorerInner({
       restricted: !isRestricted(metadata, node.path),
     } as never);
     showToast(
-      isRestricted(metadata, node.path)
-        ? "Sharing allowed"
-        : "Restricted - never shared",
+      isRestricted(metadata, node.path) ? "Sharing allowed" : "Restricted - never shared",
       "success",
     );
     onRefreshRooms();
   }
   async function deleteNode(node: FileNode) {
     try {
-      await deleteSpacePath(
-        space.id,
-        node.path,
-        node.type === "directory" ? "directory" : "file",
-      );
+      await deleteSpacePath(space.id, node.path, node.type === "directory" ? "directory" : "file");
       showToast(`Deleted ${node.name}`, "success");
       if (selectedFile === node.path) setSelectedFile(null);
       setContentRefreshKey((current) => current + 1);
       refresh();
       onRefreshRooms();
     } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : "Failed to delete",
-        "error",
-      );
+      showToast(error instanceof Error ? error.message : "Failed to delete", "error");
     }
   }
   async function renameNode(node: FileNode) {
     const name = window.prompt("Rename", node.name)?.trim();
     if (!name || name === node.name) return;
-    const parent = node.path.includes("/")
-      ? node.path.slice(0, node.path.lastIndexOf("/"))
-      : "";
+    const parent = node.path.includes("/") ? node.path.slice(0, node.path.lastIndexOf("/")) : "";
     const nextPath = parent ? `${parent}/${name}` : name;
     try {
       const actualPath = await renameSpacePath(
@@ -2412,35 +2210,23 @@ function SpaceExplorerInner({
       refresh();
       onRefreshRooms();
     } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : "Failed to rename",
-        "error",
-      );
+      showToast(error instanceof Error ? error.message : "Failed to rename", "error");
     }
   }
   async function createNew() {
     if (!draftFile || !newName.trim()) return;
-    const path = draftFile.parent
-      ? `${draftFile.parent}/${newName.trim()}`
-      : newName.trim();
+    const path = draftFile.parent ? `${draftFile.parent}/${newName.trim()}` : newName.trim();
     try {
-      if (draftFile.type === "directory")
-        await createSpaceDirectory(space.id, path);
+      if (draftFile.type === "directory") await createSpaceDirectory(space.id, path);
       else await createSpaceFile(space.id, path);
       setDraftFile(null);
       setNewName("");
       refresh();
       if (draftFile.parent) await loadChildren(draftFile.parent);
       if (draftFile.type === "file") setSelectedFile(path);
-      showToast(
-        draftFile.type === "directory" ? "Folder created" : "File created",
-        "success",
-      );
+      showToast(draftFile.type === "directory" ? "Folder created" : "File created", "success");
     } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : "Failed to create",
-        "error",
-      );
+      showToast(error instanceof Error ? error.message : "Failed to create", "error");
     }
   }
   async function uploadFiles(fileList: FileList, targetFolder: string | null) {
@@ -2448,24 +2234,16 @@ function SpaceExplorerInner({
     try {
       const uploaded = await Promise.all(
         Array.from(fileList).map(async (file) => {
-          await uploadSpaceFile(
-            space.id,
-            joinPath(targetFolder, file.name),
-            file,
-          );
+          await uploadSpaceFile(space.id, joinPath(targetFolder, file.name), file);
           return file.name;
         }),
       );
-      const label =
-        uploaded.length === 1 ? `"${uploaded[0]}"` : `${uploaded.length} files`;
+      const label = uploaded.length === 1 ? `"${uploaded[0]}"` : `${uploaded.length} files`;
       showToast(`Uploaded ${label}`, "success");
       refresh();
       if (targetFolder) await loadChildren(targetFolder);
     } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : "Upload failed",
-        "error",
-      );
+      showToast(error instanceof Error ? error.message : "Upload failed", "error");
     }
   }
   function chooseUploadTarget(targetFolder: string | null) {
@@ -2489,12 +2267,7 @@ function SpaceExplorerInner({
     if (sourceParent === target) return;
     const nextPath = joinPath(target, basename(source.path));
     try {
-      const actualPath = await renameSpacePath(
-        space.id,
-        source.path,
-        nextPath,
-        source.type,
-      );
+      const actualPath = await renameSpacePath(space.id, source.path, nextPath, source.type);
       setSelectedFile(movePath(selectedFile, source.path, actualPath));
       setCurrentFolder(movePath(currentFolder, source.path, actualPath));
       refresh();
@@ -2503,10 +2276,7 @@ function SpaceExplorerInner({
       onRefreshRooms();
       showToast(`Moved ${basename(source.path)}`, "success");
     } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : "Failed to move",
-        "error",
-      );
+      showToast(error instanceof Error ? error.message : "Failed to move", "error");
     }
   }
   function handleDrop(event: React.DragEvent, targetFolder: string | null) {
@@ -2519,8 +2289,7 @@ function SpaceExplorerInner({
       void moveNode(moveData, targetFolder);
       return;
     }
-    if (event.dataTransfer.files.length)
-      void uploadFiles(event.dataTransfer.files, targetFolder);
+    if (event.dataTransfer.files.length) void uploadFiles(event.dataTransfer.files, targetFolder);
   }
   function handleDragOver(event: React.DragEvent) {
     const isMove = event.dataTransfer.types.includes("ai-spaces/move");
@@ -2642,9 +2411,7 @@ function SpaceExplorerInner({
                 multiline
                 textStyle={{ fontSize: 13.5, lineHeight: 1.5, fontWeight: 400 }}
                 emptyStyle={{ color: "var(--rooms-muted-2)" }}
-                onSave={(description) =>
-                  onUpdateSpaceConfig(space.id, { description })
-                }
+                onSave={(description) => onUpdateSpaceConfig(space.id, { description })}
               />
             </div>
           </div>
@@ -2696,9 +2463,7 @@ function SpaceExplorerInner({
               borderRight: "1px solid var(--rooms-line)",
               display: "flex",
               flexDirection: "column",
-              background: isDragOver
-                ? "var(--rooms-paper-3)"
-                : "var(--rooms-paper-2)",
+              background: isDragOver ? "var(--rooms-paper-3)" : "var(--rooms-paper-2)",
             }}
           >
             <div
@@ -2723,18 +2488,14 @@ function SpaceExplorerInner({
               <div style={{ display: "flex", gap: 2 }}>
                 <IconButton
                   title="New folder"
-                  onClick={() =>
-                    setDraftFile({ parent: currentFolder, type: "directory" })
-                  }
+                  onClick={() => setDraftFile({ parent: currentFolder, type: "directory" })}
                   style={{ width: 30, height: 30 }}
                 >
                   <Folder size={16} />
                 </IconButton>
                 <IconButton
                   title="New file"
-                  onClick={() =>
-                    setDraftFile({ parent: currentFolder, type: "file" })
-                  }
+                  onClick={() => setDraftFile({ parent: currentFolder, type: "file" })}
                   style={{ width: 30, height: 30 }}
                 >
                   <Plus size={16} />
@@ -2754,8 +2515,7 @@ function SpaceExplorerInner({
               multiple
               style={{ display: "none" }}
               onChange={(event) => {
-                if (event.target.files)
-                  void uploadFiles(event.target.files, uploadTarget);
+                if (event.target.files) void uploadFiles(event.target.files, uploadTarget);
                 event.currentTarget.value = "";
               }}
             />
@@ -2765,9 +2525,7 @@ function SpaceExplorerInner({
               promotedTopicPaths={promotedTopicPaths}
               metadata={metadata}
               onOpen={openNode}
-              onMenu={(event, node) =>
-                setMenu({ x: event.clientX, y: event.clientY, node })
-              }
+              onMenu={(event, node) => setMenu({ x: event.clientX, y: event.clientY, node })}
               canDrag={canWrite}
               dragOverFolder={dragOverFolder}
               onDragStart={(event, node) => {
@@ -2782,9 +2540,7 @@ function SpaceExplorerInner({
               }}
               onFolderDragEnter={(path) => setDragOverFolder(path)}
               onFolderDragLeave={(path) =>
-                setDragOverFolder((current) =>
-                  current === path ? null : current,
-                )
+                setDragOverFolder((current) => (current === path ? null : current))
               }
               onFolderDrop={(event, path) => handleDrop(event, path)}
             />
@@ -2839,8 +2595,7 @@ function SpaceExplorerInner({
                             ? "var(--rooms-ink)"
                             : "var(--rooms-muted)",
                         fontSize: 13.5,
-                        fontWeight:
-                          index === selectedPathParts.length - 1 ? 650 : 500,
+                        fontWeight: index === selectedPathParts.length - 1 ? 650 : 500,
                       }}
                     >
                       <span style={{ color: "var(--rooms-muted-2)" }}>/</span>
@@ -2917,11 +2672,7 @@ function SpaceExplorerInner({
                   {
                     label: "Open",
                     icon:
-                      menu.node.type === "directory" ? (
-                        <FolderOpen size={16} />
-                      ) : (
-                        <Eye size={16} />
-                      ),
+                      menu.node.type === "directory" ? <FolderOpen size={16} /> : <Eye size={16} />,
                     onClick: () => openNode(menu.node!),
                   },
                   ...(menu.node.type === "directory"
@@ -2962,8 +2713,7 @@ function SpaceExplorerInner({
                           {
                             label: "Open Room",
                             icon: <Grid2X2 size={16} />,
-                            onClick: () =>
-                              onOpenRoom(space.id, `/${menu.node!.path}`),
+                            onClick: () => onOpenRoom(space.id, `/${menu.node!.path}`),
                           },
                           {
                             label: "Demote to folder",
@@ -3010,8 +2760,7 @@ function SpaceExplorerInner({
                   {
                     label: "Add File",
                     icon: <FileText size={16} />,
-                    onClick: () =>
-                      setDraftFile({ parent: currentFolder, type: "file" }),
+                    onClick: () => setDraftFile({ parent: currentFolder, type: "file" }),
                   },
                   {
                     label: "Upload files",
@@ -3031,11 +2780,7 @@ function SpaceExplorerInner({
               <Button variant="ghost" onClick={() => setDraftFile(null)}>
                 Cancel
               </Button>
-              <Button
-                variant="primary"
-                disabled={!newName.trim()}
-                onClick={createNew}
-              >
+              <Button variant="primary" disabled={!newName.trim()} onClick={createNew}>
                 Create
               </Button>
             </>
@@ -3045,9 +2790,7 @@ function SpaceExplorerInner({
             label="Name"
             value={newName}
             onChange={setNewName}
-            placeholder={
-              draftFile.type === "directory" ? "Folder name" : "notes.md"
-            }
+            placeholder={draftFile.type === "directory" ? "Folder name" : "notes.md"}
           />
         </Modal>
       )}
@@ -3065,20 +2808,12 @@ function InviteButton({ spaceId }: { spaceId: string }) {
       await navigator.clipboard?.writeText(next).catch(() => undefined);
       showToast("Invite link created", "success");
     } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : "Failed to create invite",
-        "error",
-      );
+      showToast(error instanceof Error ? error.message : "Failed to create invite", "error");
     }
   }
   return (
     <>
-      <Button
-        variant="outline"
-        size="sm"
-        icon={<Users size={16} />}
-        onClick={createInvite}
-      >
+      <Button variant="outline" size="sm" icon={<Users size={16} />} onClick={createInvite}>
         Invite link
       </Button>
       {inviteUrl && (
@@ -3098,9 +2833,7 @@ function InviteButton({ spaceId }: { spaceId: string }) {
           }}
         >
           <div style={{ fontWeight: 600, marginBottom: 6 }}>Invite link</div>
-          <div style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
-            {inviteUrl}
-          </div>
+          <div style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{inviteUrl}</div>
         </div>
       )}
     </>
@@ -3228,8 +2961,7 @@ function TreeList({
     const open = node.type === "directory" && !collapsed.has(node.path);
     const promoted = promotedTopicPaths.has(node.path);
     const restricted = isRestricted(metadata, node.path);
-    const isFolderDropTarget =
-      node.type === "directory" && dragOverFolder === node.path;
+    const isFolderDropTarget = node.type === "directory" && dragOverFolder === node.path;
     return (
       <div key={node.path}>
         <div
@@ -3381,14 +3113,10 @@ function makeRooms(
     const metadata = metadataBySpace.get(space.id) ?? { files: {} };
     const members = membersBySpace.get(space.id) ?? [];
     return (topicsBySpace.get(space.id) ?? [])
-      .filter(
-        (topic) =>
-          topic.targetType === "directory" || topic.targetType === "file",
-      )
+      .filter((topic) => topic.targetType === "directory" || topic.targetType === "file")
       .map((topic) => {
         const cleanPath = stripTopicPath(topic.topicPath);
-        const entry =
-          metadata.files[cleanPath] ?? metadata.files[topic.topicPath] ?? {};
+        const entry = metadata.files[cleanPath] ?? metadata.files[topic.topicPath] ?? {};
         return {
           id: topic.id,
           spaceId: space.id,
@@ -3414,23 +3142,16 @@ function RoomsShellContent() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
   const [spaces, setSpaces] = useState<SpaceSummary[]>([]);
-  const [topicsBySpace, setTopicsBySpace] = useState<Map<string, SpaceTopic[]>>(
-    new Map(),
-  );
-  const [metadataBySpace, setMetadataBySpace] = useState<
-    Map<string, SpaceMetadata>
-  >(new Map());
-  const [membersBySpace, setMembersBySpace] = useState<
-    Map<string, SpaceMember[]>
-  >(new Map());
+  const [topicsBySpace, setTopicsBySpace] = useState<Map<string, SpaceTopic[]>>(new Map());
+  const [metadataBySpace, setMetadataBySpace] = useState<Map<string, SpaceMetadata>>(new Map());
+  const [membersBySpace, setMembersBySpace] = useState<Map<string, SpaceMember[]>>(new Map());
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState<"create" | null>(null);
   const routeSpaceId = params.spaceId ?? null;
   const routeRoomId = params.roomId ?? null;
   const routePath = params["*"] ?? null;
   const isRoomRoute =
-    location.pathname.startsWith("/room/") ||
-    location.pathname.includes("/rooms/");
+    location.pathname.startsWith("/room/") || location.pathname.includes("/rooms/");
   const view: "home" | "space" | "room" = isRoomRoute
     ? "room"
     : location.pathname.startsWith("/space/") ||
@@ -3438,8 +3159,7 @@ function RoomsShellContent() {
       ? "space"
       : "home";
   const querySpace = searchParams.get("space");
-  const activeSpaceId =
-    view === "space" || view === "room" ? routeSpaceId : querySpace;
+  const activeSpaceId = view === "space" || view === "room" ? routeSpaceId : querySpace;
   const rooms = useMemo(
     () => makeRooms(spaces, topicsBySpace, metadataBySpace, membersBySpace),
     [spaces, topicsBySpace, metadataBySpace, membersBySpace],
@@ -3453,9 +3173,7 @@ function RoomsShellContent() {
               (!routeRoomId && stripTopicPath(room.topicPath) === routePath)),
         )
       : null;
-  const activeSpace = activeSpaceId
-    ? spaces.find((space) => space.id === activeSpaceId)
-    : null;
+  const activeSpace = activeSpaceId ? spaces.find((space) => space.id === activeSpaceId) : null;
   const refreshAll = useCallback(async () => {
     setLoading(true);
     try {
@@ -3464,24 +3182,14 @@ function RoomsShellContent() {
       const data = (await response.json()) as { spaces?: SpaceSummary[] };
       const nextSpaces = data.spaces ?? [];
       const topicPairs = await Promise.all(
-        nextSpaces.map(
-          async (space) =>
-            [space.id, await fetchSpaceTopics(space.id)] as const,
-        ),
+        nextSpaces.map(async (space) => [space.id, await fetchSpaceTopics(space.id)] as const),
       );
       const metadataPairs = await Promise.all(
-        nextSpaces.map(
-          async (space) =>
-            [space.id, await fetchSpaceMetadata(space.id)] as const,
-        ),
+        nextSpaces.map(async (space) => [space.id, await fetchSpaceMetadata(space.id)] as const),
       );
       const memberPairs = await Promise.all(
         nextSpaces.map(
-          async (space) =>
-            [
-              space.id,
-              await fetchSpaceMembers(space.id).catch(() => []),
-            ] as const,
+          async (space) => [space.id, await fetchSpaceMembers(space.id).catch(() => [])] as const,
         ),
       );
       setSpaces(nextSpaces);
@@ -3489,10 +3197,7 @@ function RoomsShellContent() {
       setMetadataBySpace(new Map(metadataPairs));
       setMembersBySpace(new Map(memberPairs));
     } catch (error) {
-      showToast(
-        error instanceof Error ? error.message : "Failed to load rooms",
-        "error",
-      );
+      showToast(error instanceof Error ? error.message : "Failed to load rooms", "error");
     } finally {
       setLoading(false);
     }
@@ -3507,8 +3212,7 @@ function RoomsShellContent() {
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         throw new Error(
-          (data as { error?: string }).error ||
-            `Failed to save space (${response.status})`,
+          (data as { error?: string }).error || `Failed to save space (${response.status})`,
         );
       }
       const data = (await response.json()) as {
@@ -3517,9 +3221,7 @@ function RoomsShellContent() {
       const nextConfig = data.space?.config;
       if (!nextConfig) return;
       setSpaces((current) =>
-        current.map((space) =>
-          space.id === spaceId ? { ...space, config: nextConfig } : space,
-        ),
+        current.map((space) => (space.id === spaceId ? { ...space, config: nextConfig } : space)),
       );
       showToast("Space updated", "success");
     },
@@ -3529,8 +3231,7 @@ function RoomsShellContent() {
     async (room: RoomSummary, patch: Partial<FileMetadataEntry>) => {
       const metadataPath = stripTopicPath(room.topicPath);
       const result = await patchFileMetadata(room.spaceId, metadataPath, patch);
-      if (!result.success)
-        throw new Error(result.error || "Failed to save room metadata");
+      if (!result.success) throw new Error(result.error || "Failed to save room metadata");
       setMetadataBySpace((current) => {
         const next = new Map(current);
         const spaceMetadata = next.get(room.spaceId) ?? { files: {} };
@@ -3553,12 +3254,7 @@ function RoomsShellContent() {
     void refreshAll();
   }, [refreshAll]);
   useEffect(() => {
-    if (
-      !loading &&
-      view === "space" &&
-      activeSpace &&
-      !roleIsOwner(activeSpace.userRole)
-    ) {
+    if (!loading && view === "space" && activeSpace && !roleIsOwner(activeSpace.userRole)) {
       navigate(`/spaces?space=${activeSpace.id}`, { replace: true });
     }
   }, [activeSpace, loading, navigate, view]);
@@ -3580,8 +3276,8 @@ function RoomsShellContent() {
     }
   }
   const promotedSet = new Set(
-    (activeSpaceId ? (topicsBySpace.get(activeSpaceId) ?? []) : []).map(
-      (topic) => stripTopicPath(topic.topicPath),
+    (activeSpaceId ? (topicsBySpace.get(activeSpaceId) ?? []) : []).map((topic) =>
+      stripTopicPath(topic.topicPath),
     ),
   );
   const promotedIdsByPath = new Map(
@@ -3657,27 +3353,24 @@ function RoomsShellContent() {
               Room not found.
             </div>
           )}
-          {!loading &&
-            view === "space" &&
-            activeSpace &&
-            roleIsOwner(activeSpace.userRole) && (
-              <SpaceExplorer
-                space={activeSpace}
-                spaces={spaces}
-                promotedTopicPaths={promotedSet}
-                promotedTopicIdsByPath={promotedIdsByPath}
-                initialPath={routePath}
-                onBack={() => navigate("/spaces")}
-                onOpenRoom={(spaceId, topicPath) => {
-                  const roomId = topicsBySpace
-                    .get(spaceId)
-                    ?.find((topic) => topic.topicPath === topicPath)?.id;
-                  if (roomId) navigate(`/spaces/${spaceId}/rooms/${roomId}`);
-                }}
-                onRefreshRooms={refreshAll}
-                onUpdateSpaceConfig={updateSpaceConfig}
-              />
-            )}
+          {!loading && view === "space" && activeSpace && roleIsOwner(activeSpace.userRole) && (
+            <SpaceExplorer
+              space={activeSpace}
+              spaces={spaces}
+              promotedTopicPaths={promotedSet}
+              promotedTopicIdsByPath={promotedIdsByPath}
+              initialPath={routePath}
+              onBack={() => navigate("/spaces")}
+              onOpenRoom={(spaceId, topicPath) => {
+                const roomId = topicsBySpace
+                  .get(spaceId)
+                  ?.find((topic) => topic.topicPath === topicPath)?.id;
+                if (roomId) navigate(`/spaces/${spaceId}/rooms/${roomId}`);
+              }}
+              onRefreshRooms={refreshAll}
+              onUpdateSpaceConfig={updateSpaceConfig}
+            />
+          )}
         </div>
       </div>
       {modal === "create" && (

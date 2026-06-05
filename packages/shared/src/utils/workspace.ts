@@ -1,7 +1,7 @@
-import * as fs from 'fs';
-import * as path from 'path';
-import type { SpaceConfig } from '../types.js';
-import { SpaceConfigSchema } from '../schemas.js';
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { SpaceConfigSchema } from "../schemas.js";
+import type { SpaceConfig } from "../types.js";
 
 export interface WorkspaceSpaceRecord {
   id: string;
@@ -15,26 +15,30 @@ export interface WorkspaceSpaceRecord {
 export function computeSpaceId(_agentId: string, relativePath: string): string {
   return relativePath
     .toLowerCase()
-    .replace(/[\s/\\]+/g, '-')
-    .replace(/[^a-z0-9-]/g, '')
-    .replace(/^-+|-+$/g, '');
+    .replace(/[\s/\\]+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/^-+|-+$/g, "");
 }
 
 export function getAgentWorkspace(openclawHome: string, agentName: string): string {
-  if (agentName === 'main') {
-    return path.join(openclawHome, 'workspace');
+  if (agentName === "main") {
+    return path.join(openclawHome, "workspace");
   }
-  const agentFile = path.join(openclawHome, 'agents', agentName, 'agent.json');
+  const agentFile = path.join(openclawHome, "agents", agentName, "agent.json");
   if (fs.existsSync(agentFile)) {
     try {
-      const data = JSON.parse(fs.readFileSync(agentFile, 'utf-8'));
+      const data = JSON.parse(fs.readFileSync(agentFile, "utf-8"));
       if (data.workspace) return data.workspace;
     } catch {}
   }
-  return path.join(openclawHome, 'workspaces', agentName);
+  return path.join(openclawHome, "workspaces", agentName);
 }
 
-export function scanWorkspace(openclawHome: string, workspaceDir: string, agentName: string): WorkspaceSpaceRecord[] {
+export function scanWorkspace(
+  _openclawHome: string,
+  workspaceDir: string,
+  agentName: string,
+): WorkspaceSpaceRecord[] {
   const results: WorkspaceSpaceRecord[] = [];
   if (!fs.existsSync(workspaceDir)) return results;
 
@@ -44,7 +48,7 @@ export function scanWorkspace(openclawHome: string, workspaceDir: string, agentN
       entries = fs.readdirSync(dir, { withFileTypes: true });
     } catch (err) {
       const code = (err as NodeJS.ErrnoException).code;
-      if (code === 'EACCES' || code === 'EPERM') {
+      if (code === "EACCES" || code === "EPERM") {
         console.warn(`[scanWorkspace] Permission denied reading directory: ${dir}`);
       } else {
         console.error(`[scanWorkspace] Failed to read directory: ${dir}`, err);
@@ -56,16 +60,16 @@ export function scanWorkspace(openclawHome: string, workspaceDir: string, agentN
       if (!entry.isDirectory()) continue;
       const childRelPath = relativePath ? `${relativePath}/${entry.name}` : entry.name;
       const childDir = path.join(dir, entry.name);
-      const configPath = path.join(childDir, '.space', 'spaces.json');
+      const configPath = path.join(childDir, ".space", "spaces.json");
 
       if (fs.existsSync(configPath)) {
         try {
-          const raw = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+          const raw = JSON.parse(fs.readFileSync(configPath, "utf-8"));
           const parsed = SpaceConfigSchema.safeParse(raw);
           if (parsed.success) {
             let spaceId = parsed.data.id;
             if (!spaceId) {
-              spaceId = computeSpaceId('', path.basename(childDir));
+              spaceId = computeSpaceId("", path.basename(childDir));
               try {
                 const backfilled = { ...raw, id: spaceId };
                 fs.writeFileSync(configPath, JSON.stringify(backfilled, null, 2));
@@ -76,7 +80,7 @@ export function scanWorkspace(openclawHome: string, workspaceDir: string, agentN
             results.push({
               id: spaceId,
               agentId: agentName,
-              agentType: agentName === 'main' ? 'main' : 'agent',
+              agentType: agentName === "main" ? "main" : "agent",
               path: childRelPath,
               configPath,
               config: parsed.data,
@@ -84,12 +88,12 @@ export function scanWorkspace(openclawHome: string, workspaceDir: string, agentN
           } else {
             console.warn(
               `[scanWorkspace] Schema validation failed for ${configPath}:`,
-              parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(', ')
+              parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join(", "),
             );
           }
         } catch (err) {
           const code = (err as NodeJS.ErrnoException).code;
-          if (code === 'EACCES' || code === 'EPERM') {
+          if (code === "EACCES" || code === "EPERM") {
             console.warn(`[scanWorkspace] Permission denied reading config: ${configPath}`);
           } else {
             console.error(`[scanWorkspace] Failed to load space config: ${configPath}`, err);
@@ -101,22 +105,25 @@ export function scanWorkspace(openclawHome: string, workspaceDir: string, agentN
     }
   }
 
-  scan(workspaceDir, '');
+  scan(workspaceDir, "");
   return results;
 }
 
-export function resolveSpaceRoot(openclawHome: string, space: { agentId: string; path: string }): string {
-  if (space.agentId === 'main') {
-    return path.join(openclawHome, 'workspace', space.path);
+export function resolveSpaceRoot(
+  openclawHome: string,
+  space: { agentId: string; path: string },
+): string {
+  if (space.agentId === "main") {
+    return path.join(openclawHome, "workspace", space.path);
   }
 
-  const agentFile = path.join(openclawHome, 'agents', space.agentId, 'agent.json');
+  const agentFile = path.join(openclawHome, "agents", space.agentId, "agent.json");
   if (fs.existsSync(agentFile)) {
     try {
-      const data = JSON.parse(fs.readFileSync(agentFile, 'utf-8'));
+      const data = JSON.parse(fs.readFileSync(agentFile, "utf-8"));
       if (data.workspace) return path.join(data.workspace, space.path);
     } catch {}
   }
 
-  return path.join(openclawHome, 'workspaces', space.agentId, space.path);
+  return path.join(openclawHome, "workspaces", space.agentId, space.path);
 }

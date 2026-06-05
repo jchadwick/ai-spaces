@@ -1,5 +1,5 @@
-import RoomsShell from '@/components/RoomsShell'
+import RoomsShell from "@/components/RoomsShell";
 
 export default function HomePage() {
-  return <RoomsShell />
+  return <RoomsShell />;
 }

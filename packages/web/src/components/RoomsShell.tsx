@@ -961,7 +961,6 @@ function RoomDetailInner({
   const [loading, setLoading] = useState(false)
   const [activePath, setActivePath] = useState<string | null>(null)
   const [selectedFolder, setSelectedFolder] = useState<string | null>(null)
-  const [chatOpen, setChatOpen] = useState(false)
   const [draftFile, setDraftFile] = useState<{ parent: string | null; type: 'file' | 'directory' } | null>(null)
   const [newName, setNewName] = useState('')
   const [menu, setMenu] = useState<{ x: number; y: number; node: FileNode | null } | null>(null)
@@ -1130,7 +1129,6 @@ function RoomDetailInner({
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <AvatarStack members={room.members} />
-            {!chatOpen && <Button variant="outline" icon={<MessageSquare size={18} />} onClick={() => setChatOpen(true)}>Ask the agent</Button>}
           </div>
         </div>
       </div>
@@ -1189,11 +1187,9 @@ function RoomDetailInner({
           </div>
         </div>
         <RoomFileDoc key={activeFilePath ?? 'no-file'} spaceId={room.spaceId} filePath={activeFilePath} canEdit={canEdit} onSaved={refresh} />
-        {chatOpen && (
-          <div style={{ width: 380, minWidth: 320, maxWidth: '40vw', flexShrink: 0, display: 'flex', minHeight: 0 }}>
-            <AIChatPane role={role} spaceId={room.spaceId} onClose={() => setChatOpen(false)} />
-          </div>
-        )}
+        <div style={{ width: 380, minWidth: 320, maxWidth: '40vw', flexShrink: 0, display: 'flex', minHeight: 0 }}>
+          <AIChatPane role={role} spaceId={room.spaceId} />
+        </div>
       </div>
       {menu && (
         <ContextMenu

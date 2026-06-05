@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAPI } from "@/hooks/useAPI";
 import { useFileMetadata } from "../contexts/FileMetadataContext";
 import { useFileTree } from "../hooks/useFileTree";
-import { getFileNodeIcon } from "../lib/fileIcons";
+import { cn } from "../lib/utils";
+import FileTreeNode from "./FileTreeNode";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Input } from "./ui/input";
@@ -28,301 +29,6 @@ interface ContextMenuState {
   x: number;
   y: number;
   node: FileNode;
-}
-
-function FileTreeNode({
-  node,
-  depth = 0,
-  selectedFile,
-  selectedFolderPath,
-  onFileSelect,
-  onTopicSelect,
-  onSpaceSettingsSelect,
-  expandedFolders,
-  toggleFolder,
-  onLoadChildren,
-  onContextMenu,
-  renamingPath,
-  renameValue,
-  onRenameChange,
-  onRenameCommit,
-  onRenameCancel,
-  dragOverFolder,
-  onFolderDragEnter,
-  onFolderDragLeave,
-  onFolderDrop,
-  getDisplayName,
-  promotedTopicPaths,
-  onFolderSelect,
-  onDragStart,
-  onDragEnd,
-}: {
-  node: FileNode;
-  depth?: number;
-  selectedFile: string | null;
-  selectedFolderPath: string | null;
-  onFileSelect: (path: string) => void;
-  onTopicSelect: (path: string) => void;
-  onSpaceSettingsSelect: () => void;
-  expandedFolders: Set<string>;
-  toggleFolder: (path: string) => void;
-  onLoadChildren: (dirPath: string) => void;
-  onContextMenu: (e: React.MouseEvent, node: FileNode) => void;
-  renamingPath: string | null;
-  renameValue: string;
-  onRenameChange: (value: string) => void;
-  onRenameCommit: () => void;
-  onRenameCancel: () => void;
-  dragOverFolder: string | null;
-  onFolderDragEnter: (path: string) => void;
-  onFolderDragLeave: (path: string) => void;
-  onFolderDrop: (e: React.DragEvent, path: string) => void;
-  getDisplayName: (path: string) => string | undefined;
-  promotedTopicPaths: ReadonlySet<string>;
-  onFolderSelect: (path: string) => void;
-  onDragStart: (e: React.DragEvent, node: FileNode) => void;
-  onDragEnd: () => void;
-}) {
-  const isDirectory = node.type === "directory";
-  const isSelected = selectedFile === node.path || selectedFolderPath === node.path;
-  const isExpanded = expandedFolders.has(node.path);
-  const isHidden = node.name.startsWith(".");
-  const isSpaceFolder = node.name === ".space";
-  const isRenaming = renamingPath === node.path;
-  const isDragTarget = isDirectory && dragOverFolder === node.path;
-  const isTopic = promotedTopicPaths.has(node.path);
-
-  const paddingLeft = 8 + depth * 16;
-
-  const handleClick = () => {
-    if (isRenaming) return;
-    // .space folder opens Space Settings instead of expanding
-    if (isSpaceFolder) {
-      onSpaceSettingsSelect();
-      return;
-    }
-    if (isDirectory) {
-      const expanding = !expandedFolders.has(node.path);
-      toggleFolder(node.path);
-      onFolderSelect(node.path);
-      if (expanding && node.children === undefined) {
-        onLoadChildren(node.path);
-      }
-    } else {
-      onFileSelect(node.path);
-      // Set folder selection to the file's parent directory
-      const parentPath = node.path.includes("/")
-        ? node.path.substring(0, node.path.lastIndexOf("/"))
-        : "";
-      onFolderSelect(parentPath || "");
-    }
-    if (!isSpaceFolder && isTopic) onTopicSelect(node.path);
-  };
-
-  const icon = getFileNodeIcon(node.name, node.type);
-
-  const nodeStyle: React.CSSProperties = {
-    paddingLeft: `${paddingLeft}px`,
-    paddingRight: 8,
-    paddingTop: 5,
-    paddingBottom: 5,
-    background: isDragTarget
-      ? "color-mix(in srgb, var(--t-accent) 8%, transparent)"
-      : isSelected
-        ? "var(--t-accentSoft)"
-        : "transparent",
-    color: isDragTarget ? "var(--t-accent)" : isSelected ? "var(--t-accentInk)" : "var(--t-inkMid)",
-    borderLeft: isSelected ? "2px solid var(--t-accent)" : "2px solid transparent",
-    fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif",
-    fontSize: 14,
-    fontStyle: isHidden && !isSpaceFolder ? "italic" : "normal",
-    opacity: isHidden && !isSpaceFolder ? 0.7 : 1,
-    cursor: "pointer",
-    width: "100%",
-    display: "flex",
-    alignItems: "center",
-    gap: 4,
-    textAlign: "left",
-    outline: isDragTarget
-      ? "1px solid color-mix(in srgb, var(--t-accent) 30%, transparent)"
-      : "none",
-    transition: "background 0.1s",
-    borderRadius: isSelected ? 0 : 4,
-  };
-
-  return (
-    <>
-      <button
-        type="button"
-        draggable
-        onClick={handleClick}
-        onContextMenu={(e) => onContextMenu(e, node)}
-        onDragStart={(e) => onDragStart(e, node)}
-        onDragEnd={onDragEnd}
-        onDragOver={(e) => {
-          if (!isDirectory) return;
-          const isInternalMove = e.dataTransfer.types.includes("ai-spaces/move");
-          const isExternalUpload = e.dataTransfer.types.includes("Files");
-          if (isInternalMove || isExternalUpload) {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = isInternalMove ? "move" : "copy";
-          }
-        }}
-        onDragEnter={isDirectory ? () => onFolderDragEnter(node.path) : undefined}
-        onDragLeave={isDirectory ? () => onFolderDragLeave(node.path) : undefined}
-        onDrop={isDirectory ? (e) => onFolderDrop(e, node.path) : undefined}
-        style={nodeStyle}
-        onMouseEnter={(e) => {
-          if (!isSelected && !isDragTarget)
-            (e.currentTarget as HTMLElement).style.background = "rgba(26,23,20,0.04)";
-        }}
-        onMouseLeave={(e) => {
-          if (!isSelected && !isDragTarget)
-            (e.currentTarget as HTMLElement).style.background = "transparent";
-        }}
-      >
-        {isDirectory && !isSpaceFolder && (
-          <span
-            className="material-symbols-outlined"
-            style={{ fontSize: 16, color: isSelected ? "var(--t-accent)" : "var(--t-inkDim)" }}
-          >
-            {isExpanded ? "folder_open" : "folder"}
-          </span>
-        )}
-        {isSpaceFolder && (
-          <span
-            className="material-symbols-outlined"
-            style={{ fontSize: 16, color: isSelected ? "var(--t-accent)" : "var(--t-inkDim)" }}
-          >
-            settings
-          </span>
-        )}
-        {isTopic && (
-          <span
-            className="material-symbols-outlined"
-            title="Topic"
-            style={{ fontSize: 14, color: "var(--t-agent)" }}
-          >
-            forum
-          </span>
-        )}
-        {!isDirectory && (
-          <span
-            className="material-symbols-outlined"
-            style={{ fontSize: 16, color: isSelected ? "var(--t-accent)" : "var(--t-inkDim)" }}
-          >
-            {icon}
-          </span>
-        )}
-        {isRenaming ? (
-          <input
-            style={{
-              fontSize: 14,
-              background: "var(--t-bgRaised)",
-              border: "1px solid var(--t-hair)",
-              borderRadius: 4,
-              padding: "0 4px",
-              flex: 1,
-              outline: "none",
-              color: "var(--t-ink)",
-              fontFamily: "'Inter Tight', sans-serif",
-            }}
-            value={renameValue}
-            onChange={(e) => onRenameChange(e.target.value)}
-            onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => {
-              e.stopPropagation();
-              if (e.key === "Enter") onRenameCommit();
-              if (e.key === "Escape") onRenameCancel();
-            }}
-            onBlur={onRenameCommit}
-          />
-        ) : (
-          <span
-            style={{
-              fontWeight: isTopic && isDirectory ? 600 : isSelected ? 600 : 400,
-              color: isSpaceFolder
-                ? "var(--t-inkMid)"
-                : isTopic && isDirectory
-                  ? "var(--primary)"
-                  : undefined,
-            }}
-          >
-            {isSpaceFolder
-              ? "Space Settings"
-              : !node.type || node.type === "file"
-                ? getDisplayName(node.path) || node.name
-                : node.name}
-          </span>
-        )}
-      </button>
-
-      {isDirectory && isExpanded && !isSpaceFolder && node.children === undefined && (
-        <div
-          style={{
-            fontSize: 12,
-            color: "var(--t-inkFaint)",
-            fontStyle: "italic",
-            paddingTop: 2,
-            paddingBottom: 2,
-            paddingLeft: `${paddingLeft + 24}px`,
-          }}
-        >
-          loading…
-        </div>
-      )}
-
-      {isDirectory && isExpanded && !isSpaceFolder && node.children && node.children.length > 0 && (
-        <div className="flex flex-col">
-          {node.children.map((child: FileNode) => (
-            <FileTreeNode
-              key={child.path}
-              node={child}
-              depth={depth + 1}
-              selectedFile={selectedFile}
-              selectedFolderPath={selectedFolderPath}
-              onFileSelect={onFileSelect}
-              onTopicSelect={onTopicSelect}
-              expandedFolders={expandedFolders}
-              toggleFolder={toggleFolder}
-              onLoadChildren={onLoadChildren}
-              onContextMenu={onContextMenu}
-              renamingPath={renamingPath}
-              renameValue={renameValue}
-              onRenameChange={onRenameChange}
-              onRenameCommit={onRenameCommit}
-              onRenameCancel={onRenameCancel}
-              dragOverFolder={dragOverFolder}
-              onFolderDragEnter={onFolderDragEnter}
-              onFolderDragLeave={onFolderDragLeave}
-              onFolderDrop={onFolderDrop}
-              getDisplayName={getDisplayName}
-              promotedTopicPaths={promotedTopicPaths}
-              onFolderSelect={onFolderSelect}
-              onDragStart={onDragStart}
-              onDragEnd={onDragEnd}
-              onSpaceSettingsSelect={onSpaceSettingsSelect}
-            />
-          ))}
-        </div>
-      )}
-
-      {isDirectory && isExpanded && !isSpaceFolder && node.children?.length === 0 && (
-        <div
-          style={{
-            fontSize: 12,
-            color: "var(--t-inkFaint)",
-            fontStyle: "italic",
-            paddingTop: 2,
-            paddingBottom: 2,
-            paddingLeft: `${paddingLeft + 24}px`,
-          }}
-        >
-          (empty)
-        </div>
-      )}
-    </>
-  );
 }
 
 export default function FileExplorer({
@@ -953,12 +659,9 @@ export default function FileExplorer({
 
   if (loading) {
     return (
-      <aside className="w-full h-full flex flex-col" style={{ background: "var(--t-bgAlt)" }}>
+      <aside className="flex h-full w-full flex-col bg-t-bg-alt">
         <div className="p-4 flex items-center justify-center">
-          <div
-            className="animate-spin rounded-full w-6 h-6 border-2 border-t-transparent"
-            style={{ borderColor: "var(--t-accent)", borderTopColor: "transparent" }}
-          ></div>
+          <div className="size-6 animate-spin rounded-full border-2 border-t-transparent [border-color:var(--t-accent)] [border-top-color:transparent]"></div>
         </div>
       </aside>
     );
@@ -966,17 +669,9 @@ export default function FileExplorer({
 
   if (error) {
     return (
-      <aside className="w-full h-full flex flex-col" style={{ background: "var(--t-bgAlt)" }}>
+      <aside className="flex h-full w-full flex-col bg-t-bg-alt">
         <div className="p-4">
-          <div
-            style={{
-              background: "color-mix(in srgb, var(--t-accent) 8%, transparent)",
-              borderRadius: 8,
-              padding: 12,
-              color: "var(--t-accent)",
-              fontSize: 14,
-            }}
-          >
+          <div className="rounded-lg bg-[color-mix(in_srgb,var(--t-accent)_8%,transparent)] p-3 text-sm text-t-accent">
             {error}
           </div>
         </div>
@@ -987,12 +682,10 @@ export default function FileExplorer({
   return (
     <>
       <aside
-        className="w-full h-full flex flex-col relative transition-colors"
-        style={{
-          background: isDragOver
-            ? "color-mix(in srgb, var(--t-accent) 3%, transparent)"
-            : "var(--t-bgAlt)",
-        }}
+        className={cn(
+          "relative flex h-full w-full flex-col transition-colors",
+          isDragOver ? "bg-[color-mix(in_srgb,var(--t-accent)_3%,transparent)]" : "bg-t-bg-alt",
+        )}
         onDragEnter={handleDragEnter}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -1004,41 +697,17 @@ export default function FileExplorer({
               <button
                 type="button"
                 onClick={() => onTopicSelect("/")}
-                style={{
-                  fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-                  fontSize: 11,
-                  color: "var(--t-inkDim)",
-                  textTransform: "uppercase",
-                  letterSpacing: 1.4,
-                  fontWeight: 500,
-                  background: "none",
-                  border: "none",
-                  padding: 0,
-                  cursor: "pointer",
-                }}
+                className="cursor-pointer border-0 bg-transparent p-0 font-mono text-[11px] font-medium uppercase tracking-[1.4px] text-t-ink-dim"
               >
                 Files
               </button>
-              {isViewer && (
-                <span style={{ fontSize: 11, color: "var(--t-inkDim)", fontStyle: "italic" }}>
-                  (view only)
-                </span>
-              )}
+              {isViewer && <span className="text-[11px] italic text-t-ink-dim">(view only)</span>}
             </div>
             {!isViewer && (
               <div className="flex items-center gap-1">
                 <button
                   type="button"
-                  style={{
-                    color: "var(--t-inkDim)",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    padding: 4,
-                    borderRadius: 4,
-                  }}
+                  className="flex cursor-pointer items-center rounded border-0 bg-transparent p-1 text-t-ink-dim hover:bg-t-bg-well"
                   onClick={() => {
                     setNewFileParentPath(selectedFolderPath || "");
                     setShowFileModal(true);
@@ -1063,16 +732,7 @@ export default function FileExplorer({
                 </button>
                 <button
                   type="button"
-                  style={{
-                    color: "var(--t-inkDim)",
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    padding: 4,
-                    borderRadius: 4,
-                  }}
+                  className="flex cursor-pointer items-center rounded border-0 bg-transparent p-1 text-t-ink-dim hover:bg-t-bg-well"
                   onClick={() => {
                     setNewFolderParentPath(selectedFolderPath || "");
                     setShowFolderModal(true);
@@ -1099,16 +759,7 @@ export default function FileExplorer({
           </div>
 
           {files.length === 0 ? (
-            <div
-              style={{
-                fontSize: 14,
-                color: "var(--t-inkDim)",
-                fontStyle: "italic",
-                paddingLeft: 8,
-              }}
-            >
-              No files found
-            </div>
+            <div className="pl-2 text-sm italic text-t-ink-dim">No files found</div>
           ) : (
             <div className="flex flex-col gap-0.5">
               {files
@@ -1148,18 +799,9 @@ export default function FileExplorer({
 
         {isDragOver && !isViewer && (
           <div className="absolute inset-0 pointer-events-none flex items-center justify-center z-10">
-            <div
-              className="absolute inset-2 rounded-lg"
-              style={{
-                border: "2px dashed color-mix(in srgb, var(--t-accent) 40%, transparent)",
-                background: "color-mix(in srgb, var(--t-accentSoft) 50%, transparent)",
-              }}
-            />
+            <div className="absolute inset-2 rounded-lg border-2 border-dashed border-[color-mix(in_srgb,var(--t-accent)_40%,transparent)] bg-[color-mix(in_srgb,var(--t-accentSoft)_50%,transparent)]" />
             {!dragOverFolder && (
-              <div
-                className="relative flex flex-col items-center gap-1.5"
-                style={{ color: "var(--t-accent)" }}
-              >
+              <div className="relative flex flex-col items-center gap-1.5 text-t-accent">
                 <svg
                   width="28"
                   height="28"
@@ -1174,11 +816,7 @@ export default function FileExplorer({
                   <polyline points="17 8 12 3 7 8" />
                   <line x1="12" y1="3" x2="12" y2="15" />
                 </svg>
-                <span
-                  style={{ fontSize: 13, fontWeight: 500, fontFamily: "'Inter Tight', sans-serif" }}
-                >
-                  Drop to upload
-                </span>
+                <span className="font-sans text-[13px] font-medium">Drop to upload</span>
               </div>
             )}
           </div>
@@ -1189,11 +827,10 @@ export default function FileExplorer({
       {contextMenu && (
         <div
           ref={contextMenuRef}
-          className="fixed z-50 bg-popover text-popover-foreground rounded-lg shadow-lg py-1 min-w-[140px]"
+          className="fixed z-50 min-w-[140px] rounded-lg bg-popover py-1 text-popover-foreground shadow-[0_8px_24px_rgba(25,28,30,0.06)]"
           style={{
             top: contextMenu.y,
             left: contextMenu.x,
-            boxShadow: "0 8px 24px rgba(25,28,30,0.06)",
           }}
         >
           {contextMenu.node.type === "directory" && contextMenu.node.name !== ".space" && (

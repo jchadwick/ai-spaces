@@ -37,10 +37,7 @@ export default function RoleBadge({ role }: RoleBadgeProps) {
     <div
       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold uppercase tracking-wide transition-all ${config.bgClass} ${config.textClass}`}
     >
-      <span
-        className="material-symbols-outlined text-sm"
-        style={{ fontVariationSettings: "'FILL' 1" }}
-      >
+      <span className="material-symbols-outlined text-sm [font-variation-settings:'FILL'_1]">
         {config.icon}
       </span>
       {config.label}

@@ -52,6 +52,37 @@ html {
 @theme inline {
   --font-sans: 'Inter Tight', 'Inter', system-ui, sans-serif;
 
+  --color-rooms-ink: var(--rooms-ink);
+  --color-rooms-ink-soft: var(--rooms-ink-soft);
+  --color-rooms-paper: var(--rooms-paper);
+  --color-rooms-paper-2: var(--rooms-paper-2);
+  --color-rooms-paper-3: var(--rooms-paper-3);
+  --color-rooms-line: var(--rooms-line);
+  --color-rooms-line-strong: var(--rooms-line-strong);
+  --color-rooms-muted: var(--rooms-muted);
+  --color-rooms-muted-2: var(--rooms-muted-2);
+  --color-rooms-boundary: var(--rooms-boundary);
+  --color-rooms-boundary-soft: var(--rooms-boundary-soft);
+  --color-rooms-boundary-line: var(--rooms-boundary-line);
+  --color-rooms-error: var(--rooms-error);
+  --color-rooms-error-soft: var(--rooms-error-soft);
+  --color-rooms-error-line: var(--rooms-error-line);
+  --color-rooms-success: var(--rooms-success);
+  --color-rooms-success-soft: var(--rooms-success-soft);
+  --color-rooms-space-0: var(--rooms-space-0);
+  --color-rooms-space-1: var(--rooms-space-1);
+  --color-rooms-space-2: var(--rooms-space-2);
+  --color-rooms-space-3: var(--rooms-space-3);
+  --color-rooms-avatar-0: var(--rooms-avatar-0);
+  --color-rooms-avatar-1: var(--rooms-avatar-1);
+  --color-rooms-avatar-2: var(--rooms-avatar-2);
+  --color-rooms-avatar-3: var(--rooms-avatar-3);
+  --shadow-rooms-avatar: 0 0 0 1px var(--rooms-line-strong);
+  --shadow-rooms-modal: 0 40px 80px -30px rgba(31, 31, 29, 0.5);
+  --shadow-rooms-popover: 0 20px 48px -18px rgba(31, 31, 29, 0.4);
+  --shadow-rooms-card: 0 1px 0 rgba(31, 31, 29, 0.02);
+  --shadow-rooms-toast: 0 16px 40px -16px rgba(0, 0, 0, 0.5);
+
   --color-t-bg: var(--t-bg);
   --color-t-bg-alt: var(--t-bgAlt);
   --color-t-bg-raised: var(--t-bgRaised);

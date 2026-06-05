@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { HEADER_HEIGHT } from "@/constants/layout";
 import { useAuth } from "@/contexts/AuthContext";
 import { useHeader } from "@/contexts/HeaderContext";
 import AgentGlyph from "./AgentGlyph";
@@ -48,20 +47,10 @@ function ProfileMenu() {
   };
 
   return (
-    <div ref={ref} style={{ position: "relative" }}>
+    <div ref={ref} className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        style={{
-          width: 32,
-          height: 32,
-          borderRadius: "50%",
-          background: "var(--t-bgWell)",
-          border: "1px solid var(--t-hair)",
-          display: "grid",
-          placeItems: "center",
-          cursor: "pointer",
-          color: "var(--t-inkMid)",
-        }}
+        className="grid size-8 cursor-pointer place-items-center rounded-full border border-t-hair bg-t-bg-well text-t-ink-mid"
         aria-label="Profile menu"
       >
         <svg
@@ -80,41 +69,13 @@ function ProfileMenu() {
       </button>
 
       {open && (
-        <div
-          style={{
-            position: "absolute",
-            top: "calc(100% + 6px)",
-            right: 0,
-            background: "var(--t-bgRaised)",
-            border: "1px solid var(--t-hair)",
-            borderRadius: 10,
-            minWidth: 160,
-            padding: "4px 0",
-            boxShadow: "0 4px 16px rgba(26,23,20,0.12)",
-            zIndex: 100,
-            fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif",
-          }}
-        >
+        <div className="absolute right-0 top-[calc(100%+6px)] z-[100] min-w-40 rounded-[10px] border border-t-hair bg-t-bg-raised py-1 font-sans shadow-[0_4px_16px_rgba(26,23,20,0.12)]">
           <button
             onClick={() => {
               setOpen(false);
               navigate("/profile");
             }}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              width: "100%",
-              padding: "8px 14px",
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              fontSize: 14,
-              color: "var(--t-ink)",
-              textAlign: "left",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--t-bgWell)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+            className="flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-3.5 py-2 text-left text-sm text-t-ink hover:bg-t-bg-well"
           >
             <svg
               width="13"
@@ -131,24 +92,10 @@ function ProfileMenu() {
             </svg>
             Profile
           </button>
-          <div style={{ height: 1, background: "var(--t-hair)", margin: "4px 0" }} />
+          <div className="my-1 h-px bg-t-hair" />
           <button
             onClick={handleSignOut}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              width: "100%",
-              padding: "8px 14px",
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              fontSize: 14,
-              color: "var(--t-ink)",
-              textAlign: "left",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "var(--t-bgWell)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "none")}
+            className="flex w-full cursor-pointer items-center gap-2 border-0 bg-transparent px-3.5 py-2 text-left text-sm text-t-ink hover:bg-t-bg-well"
           >
             <svg
               width="13"
@@ -168,16 +115,8 @@ function ProfileMenu() {
           </button>
           {buildLabel && (
             <>
-              <div style={{ height: 1, background: "var(--t-hair)", margin: "4px 0" }} />
-              <div
-                style={{
-                  padding: "6px 14px 8px",
-                  fontSize: 11,
-                  color: "var(--t-inkDim)",
-                  fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-                  letterSpacing: 0.2,
-                }}
-              >
+              <div className="my-1 h-px bg-t-hair" />
+              <div className="px-3.5 pb-2 pt-1.5 font-mono text-[11px] tracking-[0.2px] text-t-ink-dim">
                 {buildLabel}
               </div>
             </>
@@ -193,109 +132,34 @@ export default function Header() {
   const { headerContent } = useHeader();
 
   return (
-    <header
-      style={{
-        height: HEADER_HEIGHT,
-        borderBottom: "1px solid var(--t-hair)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        paddingLeft: 20,
-        paddingRight: 16,
-        background: "var(--t-bg)",
-        flexShrink: 0,
-        fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif",
-      }}
-    >
+    <header className="flex h-[52px] shrink-0 items-center justify-between border-b border-t-hair bg-t-bg pl-5 pr-4 font-sans">
       {/* Left: Logo */}
-      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-        <Link
-          to="/"
-          style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}
-        >
-          <div
-            style={{
-              width: 22,
-              height: 22,
-              borderRadius: 6,
-              background: "var(--t-ink)",
-              display: "grid",
-              placeItems: "center",
-              flexShrink: 0,
-            }}
-          >
+      <div className="flex items-center gap-3.5">
+        <Link to="/" className="flex items-center gap-2 no-underline">
+          <div className="grid size-[22px] shrink-0 place-items-center rounded-md bg-t-ink">
             <AgentGlyph size={12} color="var(--t-bg)" />
           </div>
-          <span
-            style={{
-              fontSize: 18,
-              fontWeight: 700,
-              letterSpacing: 0,
-              color: "var(--t-ink)",
-              lineHeight: 1,
-            }}
-          >
-            Spaces
-          </span>
+          <span className="text-lg font-bold leading-none tracking-normal text-t-ink">Spaces</span>
         </Link>
       </div>
 
       {/* Middle: Page-specific content via portal */}
       {headerContent && (
-        <div
-          style={{
-            flex: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            minWidth: 0,
-          }}
-        >
-          {headerContent}
-        </div>
+        <div className="flex min-w-0 flex-1 items-center justify-center">{headerContent}</div>
       )}
 
       {/* Right: User actions */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div className="flex items-center gap-2.5">
         {user?.serverRole === "admin" && (
           <Link
             to="/admin"
-            style={{
-              fontSize: 13,
-              color: "var(--t-inkMid)",
-              textDecoration: "none",
-              padding: "4px 10px",
-              borderRadius: 6,
-              border: "1px solid var(--t-hair)",
-              fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif",
-            }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "var(--t-ink)")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "var(--t-inkMid)")}
+            className="rounded-md border border-t-hair px-2.5 py-1 font-sans text-[13px] text-t-ink-mid no-underline hover:text-t-ink"
           >
             Admin
           </Link>
         )}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            fontSize: 12,
-            color: "var(--t-inkDim)",
-            fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-            textTransform: "uppercase",
-            letterSpacing: 1,
-          }}
-        >
-          <span
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: "50%",
-              background: "var(--t-agent)",
-              display: "inline-block",
-            }}
-          />
+        <div className="flex items-center gap-1.5 font-mono text-xs uppercase tracking-[1px] text-t-ink-dim">
+          <span className="inline-block size-1.5 rounded-full bg-t-agent" />
           live
         </div>
         <ProfileMenu />

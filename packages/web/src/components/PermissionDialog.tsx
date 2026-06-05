@@ -15,10 +15,10 @@ export function PermissionDialog({ request, onRespond }: PermissionDialogProps) 
         <h2 className="font-semibold text-t-ink text-base mb-2">{title}</h2>
         {toolCall.content && toolCall.content.length > 0 && (
           <div className="text-sm text-t-ink-mid mb-4">
-            {toolCall.content.map((item, i) => {
+            {toolCall.content.map((item) => {
               const textItem = item as unknown as { type: string; text?: string };
               if (textItem.type === "text" && textItem.text) {
-                return <p key={i}>{textItem.text}</p>;
+                return <p key={textItem.text}>{textItem.text}</p>;
               }
               return null;
             })}

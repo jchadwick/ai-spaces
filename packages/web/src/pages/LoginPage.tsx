@@ -140,6 +140,7 @@ function LoginPage() {
               <>
                 <Button
                   type="button"
+                  aria-label="Continue with Google"
                   onClick={handleGoogleLogin}
                   disabled={isSubmitting}
                   variant="outline"

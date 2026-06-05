@@ -7,6 +7,7 @@ export function uniqueSpacePath(): string {
 
 export async function createOwnedSpace(
   request: APIRequestContext,
+  server?: { id: string; callbackToken: string },
 ): Promise<{ id: string; path: string }> {
   const path = uniqueSpacePath();
   const spaceConfigDir = `${path}/.space`;
@@ -40,6 +41,7 @@ export async function createOwnedSpace(
           updatedAt: now,
         },
       ],
+      ...(server ? { serverId: server.id, callbackToken: server.callbackToken } : {}),
     },
   });
 

@@ -69,113 +69,55 @@ export function FilePropertiesPanel({
     onClose();
   };
 
-  const panelStyle: React.CSSProperties = {
-    background: "var(--t-bgRaised)",
-    borderBottom: "1px solid var(--t-hair)",
-    padding: "12px 24px",
-    display: "flex",
-    flexDirection: "column",
-    gap: 10,
-  };
-
-  const labelStyle: React.CSSProperties = {
-    fontSize: 11,
-    color: "var(--t-inkDim)",
-    fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-    textTransform: "uppercase",
-    letterSpacing: 1.2,
-    fontWeight: 500,
-    marginBottom: 3,
-    display: "block",
-  };
-
-  const inputStyle: React.CSSProperties = {
-    width: "100%",
-    background: "var(--t-bgWell)",
-    border: "1px solid var(--t-hair)",
-    borderRadius: 6,
-    padding: "6px 10px",
-    fontSize: 13,
-    color: "var(--t-ink)",
-    fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif",
-    outline: "none",
-    boxSizing: "border-box",
-  };
-
-  const textareaStyle: React.CSSProperties = {
-    ...inputStyle,
-    resize: "vertical",
-    minHeight: 56,
-  };
+  const labelClass =
+    "mb-[3px] block font-mono text-[11px] font-medium uppercase tracking-[1.2px] text-t-ink-dim";
+  const inputClass =
+    "box-border w-full rounded-md border border-t-hair bg-t-bg-well px-2.5 py-1.5 font-sans text-[13px] text-t-ink outline-none";
 
   return (
-    <div style={panelStyle}>
-      <div style={{ display: "flex", gap: 16 }}>
-        <div style={{ flex: 1 }}>
-          <label style={labelStyle}>Display Name</label>
+    <div className="flex flex-col gap-2.5 border-b border-t-hair bg-t-bg-raised px-6 py-3">
+      <div className="flex gap-4">
+        <div className="flex-1">
+          <label className={labelClass}>Display Name</label>
           <input
             type="text"
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
             placeholder={fileInfo?.name ?? ""}
-            style={inputStyle}
+            className={inputClass}
           />
         </div>
         {fileInfo?.type && (
-          <div style={{ minWidth: 90 }}>
-            <label style={labelStyle}>File Type</label>
-            <div
-              style={{
-                fontSize: 12,
-                color: "var(--t-inkMid)",
-                padding: "6px 0",
-                fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-              }}
-            >
-              {fileInfo.type}
-            </div>
+          <div className="min-w-[90px]">
+            <label className={labelClass}>File Type</label>
+            <div className="py-1.5 font-mono text-xs text-t-ink-mid">{fileInfo.type}</div>
           </div>
         )}
         {fileInfo?.modifiedAt && (
-          <div style={{ minWidth: 80 }}>
-            <label style={labelStyle}>Modified</label>
-            <div
-              style={{
-                fontSize: 12,
-                color: "var(--t-inkMid)",
-                padding: "6px 0",
-                fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-              }}
-            >
+          <div className="min-w-20">
+            <label className={labelClass}>Modified</label>
+            <div className="py-1.5 font-mono text-xs text-t-ink-mid">
               {formatRelativeTime(fileInfo.modifiedAt)}
             </div>
           </div>
         )}
       </div>
       <div>
-        <label style={labelStyle}>Summary</label>
+        <label className={labelClass}>Summary</label>
         <textarea
           value={summary}
           onChange={(e) => setSummary(e.target.value)}
           placeholder="One-line description of this file..."
-          style={textareaStyle}
+          className={`${inputClass} min-h-14 resize-y`}
           rows={2}
         />
       </div>
-      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+      <div className="flex justify-end gap-2">
         <button
           type="button"
           onClick={onClose}
           disabled={saving}
-          style={{
-            background: "none",
-            border: "1px solid var(--t-hair)",
-            borderRadius: 6,
-            padding: "5px 14px",
-            fontSize: 13,
-            color: "var(--t-inkMid)",
-            cursor: "pointer",
-          }}
+          className="cursor-pointer rounded-md border border-t-hair bg-transparent px-3.5 py-[5px] text-[13px] text-t-ink-mid disabled:cursor-default disabled:opacity-70"
         >
           Cancel
         </button>
@@ -183,16 +125,7 @@ export function FilePropertiesPanel({
           type="button"
           onClick={handleSave}
           disabled={saving}
-          style={{
-            background: "var(--t-accent)",
-            border: "none",
-            borderRadius: 6,
-            padding: "5px 14px",
-            fontSize: 13,
-            color: "var(--t-bgRaised)",
-            cursor: "pointer",
-            fontWeight: 500,
-          }}
+          className="cursor-pointer rounded-md border-0 bg-t-accent px-3.5 py-[5px] text-[13px] font-medium text-t-bg-raised disabled:cursor-default disabled:opacity-70"
         >
           {saving ? "Saving…" : "Save"}
         </button>

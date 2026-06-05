@@ -70,91 +70,31 @@ export default function UserManagement() {
   };
 
   if (isLoading) {
-    return (
-      <div
-        style={{
-          padding: 32,
-          fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif",
-          color: "var(--t-inkMid)",
-        }}
-      >
-        Loading users…
-      </div>
-    );
+    return <div className="p-8 font-sans text-t-ink-mid">Loading users…</div>;
   }
 
   if (loadError) {
-    return (
-      <div
-        style={{
-          padding: 32,
-          fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif",
-          color: "var(--t-accent)",
-        }}
-      >
-        {loadError}
-      </div>
-    );
+    return <div className="p-8 font-sans text-t-accent">{loadError}</div>;
   }
 
   return (
-    <div style={{ fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif" }}>
-      <div
-        style={{
-          marginBottom: 16,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        <h2 style={{ fontSize: 18, fontWeight: 600, color: "var(--t-ink)", margin: 0 }}>Users</h2>
-        {roleError && <span style={{ fontSize: 13, color: "var(--t-accent)" }}>{roleError}</span>}
+    <div className="font-sans">
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="m-0 text-lg font-semibold text-t-ink">Users</h2>
+        {roleError && <span className="text-[13px] text-t-accent">{roleError}</span>}
       </div>
 
-      <div style={{ border: "1px solid var(--t-hair)", borderRadius: 10, overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+      <div className="overflow-hidden rounded-[10px] border border-t-hair">
+        <table className="w-full border-collapse text-sm">
           <thead>
-            <tr style={{ background: "var(--t-bgAlt)", borderBottom: "1px solid var(--t-hair)" }}>
-              <th
-                style={{
-                  padding: "10px 16px",
-                  textAlign: "left",
-                  color: "var(--t-inkDim)",
-                  fontWeight: 500,
-                  fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-                  fontSize: 11,
-                  textTransform: "uppercase",
-                  letterSpacing: 1,
-                }}
-              >
+            <tr className="border-b border-t-hair bg-t-bg-alt">
+              <th className="px-4 py-2.5 text-left font-mono text-[11px] font-medium uppercase tracking-[1px] text-t-ink-dim">
                 Email
               </th>
-              <th
-                style={{
-                  padding: "10px 16px",
-                  textAlign: "left",
-                  color: "var(--t-inkDim)",
-                  fontWeight: 500,
-                  fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-                  fontSize: 11,
-                  textTransform: "uppercase",
-                  letterSpacing: 1,
-                }}
-              >
+              <th className="px-4 py-2.5 text-left font-mono text-[11px] font-medium uppercase tracking-[1px] text-t-ink-dim">
                 Display Name
               </th>
-              <th
-                style={{
-                  padding: "10px 16px",
-                  textAlign: "left",
-                  color: "var(--t-inkDim)",
-                  fontWeight: 500,
-                  fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-                  fontSize: 11,
-                  textTransform: "uppercase",
-                  letterSpacing: 1,
-                }}
-              >
+              <th className="px-4 py-2.5 text-left font-mono text-[11px] font-medium uppercase tracking-[1px] text-t-ink-dim">
                 Role
               </th>
             </tr>
@@ -163,30 +103,13 @@ export default function UserManagement() {
             {users?.map((u, i) => (
               <tr
                 key={u.id}
-                style={{
-                  borderBottom:
-                    users && i < users.length - 1 ? "1px solid var(--t-hair)" : undefined,
-                  background: "var(--t-bgRaised)",
-                }}
+                className={`bg-t-bg-raised ${users && i < users.length - 1 ? "border-b border-t-hair" : ""}`}
               >
-                <td style={{ padding: "10px 16px", color: "var(--t-ink)" }}>{u.email}</td>
-                <td style={{ padding: "10px 16px", color: "var(--t-inkMid)" }}>
-                  {u.displayName ?? "—"}
-                </td>
-                <td style={{ padding: "10px 16px" }}>
+                <td className="px-4 py-2.5 text-t-ink">{u.email}</td>
+                <td className="px-4 py-2.5 text-t-ink-mid">{u.displayName ?? "—"}</td>
+                <td className="px-4 py-2.5">
                   {currentUser?.id === u.id ? (
-                    <span
-                      style={{
-                        fontSize: 12,
-                        fontFamily: "'JetBrains Mono', ui-monospace, monospace",
-                        textTransform: "uppercase",
-                        letterSpacing: 1,
-                        color: "var(--t-inkDim)",
-                        padding: "3px 8px",
-                        background: "var(--t-bgWell)",
-                        borderRadius: 4,
-                      }}
-                    >
+                    <span className="rounded bg-t-bg-well px-2 py-[3px] font-mono text-xs uppercase tracking-[1px] text-t-ink-dim">
                       {u.serverRole}
                     </span>
                   ) : (
@@ -194,16 +117,7 @@ export default function UserManagement() {
                       value={u.serverRole}
                       disabled={updatingId === u.id}
                       onChange={(e) => handleRoleChange(u.id, e.target.value as "admin" | "user")}
-                      style={{
-                        fontSize: 13,
-                        fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif",
-                        padding: "3px 8px",
-                        borderRadius: 6,
-                        border: "1px solid var(--t-hair)",
-                        background: "var(--t-bgWell)",
-                        color: "var(--t-ink)",
-                        cursor: "pointer",
-                      }}
+                      className="cursor-pointer rounded-md border border-t-hair bg-t-bg-well px-2 py-[3px] font-sans text-[13px] text-t-ink disabled:cursor-default disabled:opacity-70"
                     >
                       <option value="user">user</option>
                       <option value="admin">admin</option>
@@ -214,10 +128,7 @@ export default function UserManagement() {
             ))}
             {users?.length === 0 && (
               <tr>
-                <td
-                  colSpan={3}
-                  style={{ padding: "16px", textAlign: "center", color: "var(--t-inkDim)" }}
-                >
+                <td colSpan={3} className="p-4 text-center text-t-ink-dim">
                   No users found.
                 </td>
               </tr>

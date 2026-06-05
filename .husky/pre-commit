@@ -1,0 +1,3 @@
+npx biome lint --changed --since=origin/beta --no-errors-on-unmatched &
+npm run typecheck &
+wait

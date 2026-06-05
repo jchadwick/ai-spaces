@@ -65,6 +65,7 @@ export function useFileContent(
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const objectUrlRef = useRef<string | null>(null);
   const fetchIdRef = useRef(0);
 
   const fetchKey = useMemo(() => {
@@ -81,6 +82,12 @@ export function useFileContent(
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
+
+    const revokeObjectUrl = () => {
+      if (!objectUrlRef.current) return;
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    };
 
     const fetchData = async () => {
       try {
@@ -110,6 +117,8 @@ export function useFileContent(
               ? new Blob([blob], { type: "application/pdf" })
               : blob;
           const url = URL.createObjectURL(typedBlob);
+          revokeObjectUrl();
+          objectUrlRef.current = url;
           setContent(url);
           setFileInfo({
             name: fileName,
@@ -123,6 +132,7 @@ export function useFileContent(
 
         if (fileType === "binary") {
           if (controller.signal.aborted || currentFetchId !== fetchIdRef.current) return;
+          revokeObjectUrl();
           setContent(null);
           setFileInfo({
             name: fileName,
@@ -137,6 +147,7 @@ export function useFileContent(
         const text = await response.text();
         if (controller.signal.aborted || currentFetchId !== fetchIdRef.current) return;
 
+        revokeObjectUrl();
         setContent(text);
         setFileInfo({
           name: fileName,
@@ -149,6 +160,7 @@ export function useFileContent(
         if (controller.signal.aborted || currentFetchId !== fetchIdRef.current) return;
         const message = err instanceof Error ? err.message : "Unknown error";
         setError(message);
+        revokeObjectUrl();
         setContent(null);
         setFileInfo(null);
         setLoading(false);
@@ -161,6 +173,7 @@ export function useFileContent(
 
     return () => {
       controller.abort();
+      revokeObjectUrl();
     };
   }, [fetchKey, apiFetch]);
 

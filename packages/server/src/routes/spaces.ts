@@ -39,6 +39,24 @@ export function getSpaceById(id: string): SpaceRecord | null {
   return getSpace(id);
 }
 
+function normalizeContentType(contentType: string): string {
+  return contentType.split(";")[0]?.trim().toLowerCase() ?? "";
+}
+
+export function isBase64FileResponse(contentType: string): boolean {
+  const mimeType = normalizeContentType(contentType);
+  return mimeType.startsWith("image/") || mimeType === "application/pdf";
+}
+
+export function fileContentResponseBody(content: string, contentType: string): string | Uint8Array {
+  if (!isBase64FileResponse(contentType)) return content;
+  return Buffer.from(content, "base64");
+}
+
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+}
+
 // Space access middleware — resolves spaceRole for /:id and all sub-routes
 spacesRouter.use("/:id", async (c, next) => {
   const { userId } = c.get("user");
@@ -384,8 +402,11 @@ spacesRouter.get("/:id/files/:filePath{.*}", async (c) => {
       resolution.path,
       resolution.token,
     );
+    const responseBody = fileContentResponseBody(content, contentType);
     c.header("Content-Type", contentType);
-    return c.body(content);
+    return typeof responseBody === "string"
+      ? c.body(responseBody)
+      : c.body(toArrayBuffer(responseBody));
   } catch (err: any) {
     return c.json({ error: err.message ?? "File not found" }, 404);
   }

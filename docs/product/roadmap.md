@@ -17,7 +17,7 @@ See `docs/product/target-state.md`.
 
 ## Current Backlog Notes
 
-- `aa-8adb UI Migration Issues`: current top-priority epic for cleaning up Rooms-first migration regressions before resuming broader demo hardening.
+- `aa-9d54 Restore Rooms content viewers without UI regression`: closed UI regression follow-up; Rooms file panes now use the existing content viewer/editor registry without reintroducing the old file editor shell.
 - `aa-c43e Polish authentication and app shell navigation`: first implementation target because login/OAuth friction and duplicated shell controls block any credible walkthrough.
 - `aa-2e47 Registered-user collaboration demo`: still the active product bet after the UI migration blockers are cleared.
 - `aa-1072 Add invite redemption and membership e2e coverage`: prove the owner-to-collaborator loop.

@@ -22,21 +22,18 @@ import {
   Users,
   X,
 } from 'lucide-react'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import type { FileMetadataEntry, FileNode, SpaceMetadata, SpaceRole } from '@ai-spaces/shared'
 import { hasPermission } from '@ai-spaces/shared'
 import { useAPI } from '@/hooks/useAPI'
 import { useAuth } from '@/contexts/AuthContext'
 import { useFileTree } from '@/hooks/useFileTree'
-import { useFileContent } from '@/hooks/useFileContent'
 import { useToast } from '@/components/ui/use-toast'
 import { ToastProvider } from '@/components/ui/toast'
 import SpaceSettingsEditor from '@/components/SpaceSettingsEditor'
 import { ConnectionStatusProvider, useConnectionStatus } from '@/contexts/ConnectionStatusContext'
 import { FileMetadataProvider, useFileMetadata } from '@/contexts/FileMetadataContext'
 import AIChatPane from '@/components/AIChatPane'
-import { writeSpaceFileHttp } from '@/api/spaceFiles'
+import RoomsContentPane from '@/components/RoomsContentPane'
 import {
   archiveSpaceTopic,
   createSpaceDirectory,
@@ -967,6 +964,7 @@ function RoomDetailInner({
   const [uploadTarget, setUploadTarget] = useState<string | null>(null)
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
+  const [contentRefreshKey, setContentRefreshKey] = useState(0)
   const roomRoot = stripTopicPath(room.topicPath)
   const routedFilePath = initialFilePath ? joinPath(roomRoot, initialFilePath) : null
   const fetchDir = useCallback(async (dirPath: string) => {
@@ -1006,6 +1004,20 @@ function RoomDetailInner({
   }, [room.topicPath, selectTopic])
   const activeFile = activePath ? findNode(nodes, activePath) : firstFileNode(nodes)
   const activeFilePath = activeFile?.type === 'file' ? activeFile.path : null
+  useEffect(() => {
+    const handleFileModified = (event: CustomEvent<{ path: string; action: string }>) => {
+      const changedPath = event.detail?.path
+      const action = event.detail?.action
+      if (!changedPath || (changedPath !== roomRoot && !changedPath.startsWith(`${roomRoot}/`))) return
+      void refresh()
+      if (changedPath === activeFilePath) {
+        if (action === 'deleted') setActivePath(null)
+        else setContentRefreshKey((current) => current + 1)
+      }
+    }
+    window.addEventListener('fileModified', handleFileModified as EventListener)
+    return () => window.removeEventListener('fileModified', handleFileModified as EventListener)
+  }, [activeFilePath, refresh, roomRoot])
   async function createNew() {
     if (!draftFile || !newName.trim()) return
     const parent = draftFile.parent ?? roomRoot
@@ -1186,7 +1198,7 @@ function RoomDetailInner({
             <span style={{ fontSize: 11.5, lineHeight: 1.5, color: 'var(--rooms-muted)' }}>Only this folder is shared. The rest of the Space stays private.</span>
           </div>
         </div>
-        <RoomFileDoc key={activeFilePath ?? 'no-file'} spaceId={room.spaceId} filePath={activeFilePath} canEdit={canEdit} onSaved={refresh} />
+        <RoomsContentPane key={activeFilePath ?? 'no-file'} spaceId={room.spaceId} filePath={activeFilePath} canEdit={canEdit} onSaved={refresh} externalRefreshKey={contentRefreshKey} />
         <div style={{ width: 380, minWidth: 320, maxWidth: '40vw', flexShrink: 0, display: 'flex', minHeight: 0 }}>
           <AIChatPane role={role} spaceId={room.spaceId} />
         </div>
@@ -1213,65 +1225,6 @@ function RoomDetailInner({
           <Field label="Name" value={newName} onChange={setNewName} placeholder={draftFile.type === 'directory' ? 'Folder name' : 'notes.md'} />
         </Modal>
       )}
-    </div>
-  )
-}
-
-function RoomFileDoc({
-  spaceId,
-  filePath,
-  canEdit,
-  onSaved,
-  headerContent,
-}: {
-  spaceId: string
-  filePath: string | null
-  canEdit: boolean
-  onSaved: () => void
-  headerContent?: ReactNode
-}) {
-  const { content, fileInfo, loading, error } = useFileContent(spaceId, filePath ?? undefined)
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState('')
-  const { showToast } = useToast()
-  if (!filePath) {
-    return <div style={{ flex: 1, display: 'grid', placeItems: 'center', background: 'var(--rooms-paper)', color: 'var(--rooms-muted)' }}>No file selected.</div>
-  }
-  async function save() {
-    if (!filePath) return
-    const result = await writeSpaceFileHttp(spaceId, filePath, draft)
-    if (result.success) {
-      setEditing(false)
-      onSaved()
-      showToast('Saved', 'success')
-    } else {
-      showToast(result.error ?? 'Failed to save', 'error')
-    }
-  }
-  return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, background: 'var(--rooms-paper)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '13px 28px', borderBottom: '1px solid var(--rooms-line)', flexShrink: 0 }}>
-        {headerContent ?? (
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, minWidth: 0 }}>
-            <span style={{ fontWeight: 600, fontSize: 14 }}>{fileInfo?.name ?? basename(filePath)}</span>
-            <span style={{ fontSize: 12, color: 'var(--rooms-muted-2)', whiteSpace: 'nowrap' }}>{editing ? 'Editing...' : fileInfo?.modifiedAt ?? ''}</span>
-          </div>
-        )}
-        <div style={{ display: 'flex', gap: 8 }}>
-          {editing ? <><Button variant="ghost" size="sm" onClick={() => setEditing(false)}>Cancel</Button><Button variant="primary" size="sm" icon={<Check size={16} />} onClick={save}>Save</Button></> : canEdit && <Button variant="outline" size="sm" icon={<Edit3 size={16} />} onClick={() => { setDraft(content ?? ''); setEditing(true) }}>Edit</Button>}
-        </div>
-      </div>
-      <div className="rooms-scrollbar" style={{ flex: 1, overflow: 'auto', padding: editing ? 0 : '32px 28px 64px' }}>
-        {loading && <div style={{ color: 'var(--rooms-muted)' }}>Loading...</div>}
-        {error && <div style={{ color: 'var(--rooms-error)' }}>{error}</div>}
-        {editing ? (
-          <textarea value={draft} onChange={(event) => setDraft(event.target.value)} autoFocus spellCheck={false} style={{ width: '100%', height: '100%', minHeight: 400, border: 0, outline: 'none', resize: 'none', padding: 28, fontFamily: 'ui-monospace, Menlo, monospace', fontSize: 13.5, lineHeight: 1.7, color: 'var(--rooms-ink)', background: 'var(--rooms-paper-2)' }} />
-        ) : (
-          <div style={{ maxWidth: 660, fontSize: 15, lineHeight: 1.7, color: 'var(--rooms-ink-soft)' }}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{content ?? ''}</ReactMarkdown>
-          </div>
-        )}
-      </div>
     </div>
   )
 }
@@ -1370,6 +1323,7 @@ function SpaceExplorerInner({
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const [activeTab, setActiveTab] = useState<'files' | 'members'>('files')
+  const [contentRefreshKey, setContentRefreshKey] = useState(0)
   const canWrite = hasPermission(space.userRole, 'files:write')
   const currentFolder = currentFolderOverride === undefined ? routeSelection.currentFolder : currentFolderOverride
   const selectedFile = selectedFileOverride === undefined ? routeSelection.selectedFile : selectedFileOverride
@@ -1411,6 +1365,7 @@ function SpaceExplorerInner({
       await deleteSpacePath(space.id, node.path, node.type === 'directory' ? 'directory' : 'file')
       showToast(`Deleted ${node.name}`, 'success')
       if (selectedFile === node.path) setSelectedFile(null)
+      setContentRefreshKey((current) => current + 1)
       refresh()
       onRefreshRooms()
     } catch (error) {
@@ -1425,6 +1380,7 @@ function SpaceExplorerInner({
     try {
       const actualPath = await renameSpacePath(space.id, node.path, nextPath, node.type === 'directory' ? 'directory' : 'file')
       if (selectedFile === node.path) setSelectedFile(actualPath)
+      setContentRefreshKey((current) => current + 1)
       refresh()
       onRefreshRooms()
     } catch (error) {
@@ -1609,11 +1565,15 @@ function SpaceExplorerInner({
             />
           </div>
           {selectedNode ? (
-            <RoomFileDoc
+            <RoomsContentPane
               spaceId={space.id}
               filePath={selectedNode.path}
               canEdit={true}
-              onSaved={refresh}
+              onSaved={() => {
+                refresh()
+                setContentRefreshKey((current) => current + 1)
+              }}
+              externalRefreshKey={contentRefreshKey}
               headerContent={(
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', minWidth: 0 }}>
                   <button type="button" onClick={() => { setCurrentFolder(null); setSelectedFile(null) }} style={{ background: 'transparent', border: 0, cursor: 'pointer', fontSize: 13.5, fontWeight: 600, color: 'var(--rooms-muted)', padding: 0 }}>{space.config.name}</button>

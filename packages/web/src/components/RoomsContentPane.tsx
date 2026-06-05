@@ -227,7 +227,16 @@ export default function RoomsContentPane({
         </div>
       )}
 
-      <div className="rooms-scrollbar" style={{ flex: 1, minHeight: 0, overflow: 'auto', padding: editing ? 0 : '32px 28px 64px' }}>
+      <div
+        className="rooms-scrollbar"
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflow: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
         {loading && <PaneState>Loading file...</PaneState>}
         {!loading && error && <PaneState tone="error">{error}</PaneState>}
         {!loading && !error && !fileInfo && <PaneState>Loading file...</PaneState>}

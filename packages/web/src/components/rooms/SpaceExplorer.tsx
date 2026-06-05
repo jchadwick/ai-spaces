@@ -26,6 +26,7 @@ import {
   renameSpacePath,
   uploadSpaceFile,
 } from "@/api/spaceFiles";
+import AIChatPane from "@/components/AIChatPane";
 import { ContextMenu } from "@/components/rooms/ContextMenu";
 import { RoomsButton, RoomsIconButton } from "@/components/rooms/controls/RoomsButton";
 import { InlineEditableText } from "@/components/rooms/controls/InlineEditableText";
@@ -47,6 +48,8 @@ import type { SpaceSummary } from "@/components/rooms/types";
 import RoomsContentPane from "@/components/RoomsContentPane";
 import SpaceSettingsEditor from "@/components/SpaceSettingsEditor";
 import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
+import { ConnectionStatusProvider } from "@/contexts/ConnectionStatusContext";
 import { FileMetadataProvider, useFileMetadata } from "@/contexts/FileMetadataContext";
 import { useFileTree } from "@/hooks/useFileTree";
 import { cn } from "@/lib/utils";
@@ -72,21 +75,32 @@ export function SpaceExplorer({
   onRefreshRooms: () => void;
   onUpdateSpaceConfig: (spaceId: string, patch: Partial<SpaceSummary["config"]>) => Promise<void>;
 }) {
+  const { accessToken } = useAuth();
+
   return (
-    <FileMetadataProvider spaceId={space.id}>
-      <SpaceExplorerInner
-        key={`${space.id}:${initialPath ?? ""}`}
-        space={space}
-        spaces={spaces}
-        promotedTopicPaths={promotedTopicPaths}
-        promotedTopicIdsByPath={promotedTopicIdsByPath}
-        initialPath={initialPath}
-        onBack={onBack}
-        onOpenRoom={onOpenRoom}
-        onRefreshRooms={onRefreshRooms}
-        onUpdateSpaceConfig={onUpdateSpaceConfig}
-      />
-    </FileMetadataProvider>
+    <ConnectionStatusProvider spaceId={space.id} accessToken={accessToken}>
+      <FileMetadataProvider spaceId={space.id}>
+        <div className="flex h-full min-w-0">
+          <div className="min-w-0 flex-1">
+            <SpaceExplorerInner
+              key={`${space.id}:${initialPath ?? ""}`}
+              space={space}
+              spaces={spaces}
+              promotedTopicPaths={promotedTopicPaths}
+              promotedTopicIdsByPath={promotedTopicIdsByPath}
+              initialPath={initialPath}
+              onBack={onBack}
+              onOpenRoom={onOpenRoom}
+              onRefreshRooms={onRefreshRooms}
+              onUpdateSpaceConfig={onUpdateSpaceConfig}
+            />
+          </div>
+          <div className="flex min-h-0 w-[380px] min-w-[320px] max-w-[40vw] shrink-0">
+            <AIChatPane role={space.userRole} spaceId={space.id} />
+          </div>
+        </div>
+      </FileMetadataProvider>
+    </ConnectionStatusProvider>
   );
 }
 
@@ -359,6 +373,10 @@ function SpaceExplorerInner({
         >
           <ArrowLeft size={16} /> All rooms
         </button>
+        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
+          <span className="font-semibold text-rooms-ink-soft">Workspace root</span>
+          <span className="text-rooms-muted">Only owners see this view.</span>
+        </div>
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div className="min-w-0 flex-[1_1_520px]">
             <div className="flex w-full items-center gap-[11px]">

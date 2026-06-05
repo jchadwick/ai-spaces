@@ -31,6 +31,9 @@ export function RoomsHome({
       <div className="mx-auto max-w-[1080px] px-12 pb-16 pt-10">
         <div className="flex flex-wrap items-end justify-between gap-5">
           <div>
+            <div className="mb-2 text-xs font-bold uppercase tracking-[0.04em] text-rooms-muted">
+              Spaces
+            </div>
             <h1 className="rooms-title m-0 text-[44px] leading-[1.05]">Rooms</h1>
             <p className="mt-2.5 mb-0 text-[15px] text-rooms-muted">
               {list.length} room{list.length === 1 ? "" : "s"} you can work in. Pick one to jump in.

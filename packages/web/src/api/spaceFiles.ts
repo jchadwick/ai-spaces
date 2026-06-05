@@ -183,6 +183,34 @@ export async function createSpaceFile(spaceId: string, filePath: string, content
   })
 }
 
+function fileNeedsBase64(file: File): boolean {
+  return file.type.startsWith('image/')
+    || file.type.startsWith('audio/')
+    || file.type.startsWith('video/')
+    || file.type === 'application/octet-stream'
+}
+
+async function fileToBase64(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer()
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  for (let index = 0; index < bytes.length; index += 8192) {
+    binary += String.fromCharCode(...bytes.subarray(index, index + 8192))
+  }
+  return btoa(binary)
+}
+
+export async function uploadSpaceFile(spaceId: string, filePath: string, file: File): Promise<void> {
+  const isBase64 = fileNeedsBase64(file)
+  await jsonRequest<{ success: true }>(`/api/spaces/${spaceId}/files/${encodeURIComponent(filePath)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(isBase64
+      ? { content: await fileToBase64(file), encoding: 'base64' }
+      : { content: await file.text() }),
+  })
+}
+
 export async function deleteSpacePath(
   spaceId: string,
   filePath: string,

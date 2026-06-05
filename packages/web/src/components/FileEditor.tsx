@@ -354,34 +354,9 @@ export default function FileEditor({
     return (
       <section className="flex-1 flex flex-col bg-t-bg-raised overflow-hidden">
         {isWsDisconnected && (
-          <div
-            style={{
-              background: "transparent",
-              borderBottom: "1px solid var(--t-hair)",
-              padding: "5px 16px",
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-            }}
-          >
-            <span
-              style={{
-                width: 6,
-                height: 6,
-                borderRadius: "50%",
-                background: "var(--t-inkDim)",
-                display: "inline-block",
-                flexShrink: 0,
-              }}
-            />
-            <span
-              style={{
-                fontSize: 11.5,
-                color: "var(--t-inkDim)",
-                fontFamily: "'JetBrains Mono', monospace",
-                letterSpacing: 0.3,
-              }}
-            >
+          <div className="flex items-center gap-1.5 border-b border-t-hair bg-transparent px-4 py-[5px]">
+            <span className="inline-block size-1.5 shrink-0 rounded-full bg-t-ink-dim" />
+            <span className="font-mono text-[11.5px] tracking-[0.3px] text-t-ink-dim">
               AI connection lost — edits will save but AI cannot see changes until reconnected
             </span>
           </div>
@@ -461,34 +436,9 @@ export default function FileEditor({
   return (
     <section className="flex-1 flex flex-col bg-t-bg-raised overflow-hidden">
       {isWsDisconnected && (
-        <div
-          style={{
-            background: "transparent",
-            borderBottom: "1px solid var(--t-hair)",
-            padding: "5px 16px",
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-          }}
-        >
-          <span
-            style={{
-              width: 6,
-              height: 6,
-              borderRadius: "50%",
-              background: "var(--t-inkDim)",
-              display: "inline-block",
-              flexShrink: 0,
-            }}
-          />
-          <span
-            style={{
-              fontSize: 11.5,
-              color: "var(--t-inkDim)",
-              fontFamily: "'JetBrains Mono', monospace",
-              letterSpacing: 0.3,
-            }}
-          >
+        <div className="flex items-center gap-1.5 border-b border-t-hair bg-transparent px-4 py-[5px]">
+          <span className="inline-block size-1.5 shrink-0 rounded-full bg-t-ink-dim" />
+          <span className="font-mono text-[11.5px] tracking-[0.3px] text-t-ink-dim">
             AI connection lost — edits will save but AI cannot see changes until reconnected
           </span>
         </div>
@@ -524,11 +474,7 @@ export default function FileEditor({
                 {filePath}
               </span>
               {meta.summary && (
-                <span
-                  style={{ fontSize: 12, color: "var(--t-inkMid)", marginTop: 2, display: "block" }}
-                >
-                  {meta.summary}
-                </span>
+                <span className="mt-0.5 block text-xs text-t-ink-mid">{meta.summary}</span>
               )}
             </div>
           </div>
@@ -538,18 +484,9 @@ export default function FileEditor({
                 type="button"
                 onClick={() => setShowProperties((v) => !v)}
                 title="File properties"
-                style={{
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  color: "var(--t-inkDim)",
-                  padding: "4px 6px",
-                  borderRadius: 4,
-                }}
+                className="cursor-pointer rounded border-0 bg-transparent px-1.5 py-1 text-t-ink-dim hover:bg-t-bg-well"
               >
-                <span className="material-symbols-outlined" style={{ fontSize: 18 }}>
-                  tune
-                </span>
+                <span className="material-symbols-outlined text-lg">tune</span>
               </button>
             )}
             {canEditThisFile && (

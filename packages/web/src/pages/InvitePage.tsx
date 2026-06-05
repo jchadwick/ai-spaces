@@ -66,44 +66,17 @@ export default function InvitePage() {
 
   if (status === "loading" || isLoading) {
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          background: "var(--t-bg)",
-          color: "var(--t-ink)",
-          fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <p style={{ fontSize: 16, color: "var(--t-inkMid)" }}>Validating invite...</p>
+      <div className="flex min-h-screen items-center justify-center bg-t-bg font-sans text-t-ink">
+        <p className="text-base text-t-ink-mid">Validating invite...</p>
       </div>
     );
   }
 
   if (status === "requiresAuth") {
     return (
-      <div
-        style={{
-          minHeight: "100vh",
-          background: "var(--t-bg)",
-          color: "var(--t-ink)",
-          fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 16,
-        }}
-      >
-        <p style={{ fontSize: 16, color: "var(--t-inkMid)" }}>
-          Please log in to accept your invitation.
-        </p>
-        <a
-          href="/login"
-          style={{ fontSize: 14, color: "var(--t-accent)", textDecoration: "underline" }}
-        >
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-t-bg font-sans text-t-ink">
+        <p className="text-base text-t-ink-mid">Please log in to accept your invitation.</p>
+        <a href="/login" className="text-sm text-t-accent underline">
           Go to login
         </a>
       </div>
@@ -111,18 +84,8 @@ export default function InvitePage() {
   }
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        background: "var(--t-bg)",
-        color: "var(--t-ink)",
-        fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <p style={{ fontSize: 16, color: "var(--t-accent)" }}>{error}</p>
+    <div className="flex min-h-screen items-center justify-center bg-t-bg font-sans text-t-ink">
+      <p className="text-base text-t-accent">{error}</p>
     </div>
   );
 }

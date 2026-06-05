@@ -24,6 +24,8 @@ const actionIcons: Record<string, string> = {
   "space.scan": "search",
 };
 
+const loadingSkeletonRows = ["row-1", "row-2", "row-3", "row-4", "row-5"];
+
 function formatTime(timestamp: string): string {
   const date = new Date(timestamp);
   const now = new Date();
@@ -47,10 +49,7 @@ function AuditEntryItem({ entry }: { entry: AuditEntry }) {
 
   return (
     <div className="flex items-start gap-3 py-2 px-2 rounded-md hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-      <span
-        className="material-symbols-outlined text-lg text-slate-400 mt-0.5"
-        style={{ fontVariationSettings: "'FILL' 1" }}
-      >
+      <span className="material-symbols-outlined text-lg text-slate-400 mt-0.5 [font-variation-settings:'FILL'_1]">
         {icon}
       </span>
       <div className="flex-1 min-w-0">
@@ -67,8 +66,8 @@ function AuditEntryItem({ entry }: { entry: AuditEntry }) {
 function LoadingSkeleton() {
   return (
     <div className="space-y-3 p-3">
-      {[...Array(5)].map((_, i) => (
-        <div key={`skeleton-${i}`} className="flex items-start gap-3">
+      {loadingSkeletonRows.map((row) => (
+        <div key={row} className="flex items-start gap-3">
           <div className="w-6 h-6 rounded-full bg-slate-200 dark:bg-slate-700 animate-pulse" />
           <div className="flex-1 space-y-2">
             <div className="h-4 w-24 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
@@ -90,10 +89,7 @@ export default function RecentActivity({
   return (
     <div className={cn("flex flex-col h-full", className)}>
       <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-200 dark:border-slate-800">
-        <span
-          className="material-symbols-outlined text-lg text-t-ink-dim"
-          style={{ fontVariationSettings: "'FILL' 1" }}
-        >
+        <span className="material-symbols-outlined text-lg text-t-ink-dim [font-variation-settings:'FILL'_1]">
           history
         </span>
         <h3 className="text-sm font-semibold text-t-ink">Recent Activity</h3>

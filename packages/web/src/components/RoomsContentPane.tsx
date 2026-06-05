@@ -1,5 +1,5 @@
 import { Check, Edit3 } from "lucide-react";
-import { type CSSProperties, type ReactNode, Suspense, useEffect, useMemo, useState } from "react";
+import { type ReactNode, Suspense, useEffect, useMemo, useState } from "react";
 import { writeSpaceFileHttp } from "@/api/spaceFiles";
 import { useFileContent } from "@/hooks/useFileContent";
 import { getFileTypeHandler } from "./editors/registry";
@@ -30,22 +30,10 @@ function RoomsButton({
   variant?: "primary" | "outline" | "ghost";
   disabled?: boolean;
 }) {
-  const palette: Record<NonNullable<typeof variant>, CSSProperties> = {
-    primary: {
-      background: "var(--rooms-ink)",
-      color: "var(--rooms-paper)",
-      border: "1.5px solid var(--rooms-ink)",
-    },
-    outline: {
-      background: "var(--rooms-paper)",
-      color: "var(--rooms-ink)",
-      border: "1.5px solid var(--rooms-line-strong)",
-    },
-    ghost: {
-      background: "transparent",
-      color: "var(--rooms-ink-soft)",
-      border: "1.5px solid transparent",
-    },
+  const palette: Record<NonNullable<typeof variant>, string> = {
+    primary: "border-rooms-ink bg-rooms-ink text-rooms-paper",
+    outline: "border-rooms-line-strong bg-rooms-paper text-rooms-ink",
+    ghost: "border-transparent bg-transparent text-rooms-ink-soft",
   };
 
   return (
@@ -53,21 +41,7 @@ function RoomsButton({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      style={{
-        ...palette[variant],
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 8,
-        padding: "7px 12px",
-        borderRadius: 10,
-        fontSize: 14,
-        fontWeight: 500,
-        lineHeight: 1.1,
-        cursor: disabled ? "default" : "pointer",
-        opacity: disabled ? 0.45 : 1,
-        whiteSpace: "nowrap",
-      }}
+      className={`inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-[10px] border-[1.5px] px-3 py-[7px] text-sm font-medium leading-[1.1] disabled:cursor-default disabled:opacity-45 ${palette[variant]}`}
     >
       {icon}
       <span>{children}</span>
@@ -84,23 +58,13 @@ function PaneState({
 }) {
   return (
     <div
-      style={{
-        display: "grid",
-        placeItems: "center",
-        minHeight: 180,
-        padding: 28,
-        color: tone === "error" ? "var(--rooms-error)" : "var(--rooms-muted)",
-        fontSize: 14,
-        textAlign: "center",
-      }}
+      className={`grid min-h-[180px] place-items-center p-7 text-center text-sm ${
+        tone === "error" ? "text-rooms-error" : "text-rooms-muted"
+      }`}
     >
       {children}
     </div>
   );
-}
-
-function LoadingFallback() {
-  return <PaneState>Loading preview...</PaneState>;
 }
 
 export default function RoomsContentPane({
@@ -159,61 +123,27 @@ export default function RoomsContentPane({
 
   if (!filePath) {
     return (
-      <div
-        style={{
-          flex: 1,
-          display: "grid",
-          placeItems: "center",
-          background: "var(--rooms-paper)",
-          color: "var(--rooms-muted)",
-        }}
-      >
-        <span style={{ fontSize: 14 }}>No file selected.</span>
+      <div className="grid flex-1 place-items-center bg-rooms-paper text-rooms-muted">
+        <span className="text-sm">No file selected.</span>
       </div>
     );
   }
 
   return (
-    <div
-      style={{
-        flex: 1,
-        display: "flex",
-        flexDirection: "column",
-        minWidth: 0,
-        background: "var(--rooms-paper)",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 12,
-          padding: "13px 28px",
-          borderBottom: "1px solid var(--rooms-line)",
-          flexShrink: 0,
-        }}
-      >
+    <div className="flex min-w-0 flex-1 flex-col bg-rooms-paper">
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-rooms-line px-7 py-[13px]">
         {headerContent ?? (
-          <div style={{ display: "flex", alignItems: "baseline", gap: 10, minWidth: 0 }}>
-            <span
-              style={{
-                fontWeight: 600,
-                fontSize: 14,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
-              }}
-            >
+          <div className="flex min-w-0 items-baseline gap-2.5">
+            <span className="truncate text-sm font-semibold">
               {fileInfo?.name ?? basename(filePath)}
             </span>
-            <span style={{ fontSize: 12, color: "var(--rooms-muted-2)", whiteSpace: "nowrap" }}>
+            <span className="whitespace-nowrap text-xs text-rooms-muted-2">
               {editing ? "Editing..." : (fileInfo?.modifiedAt ?? "")}
             </span>
           </div>
         )}
 
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
+        <div className="flex shrink-0 items-center gap-2">
           {editing && (
             <>
               <RoomsButton
@@ -253,42 +183,24 @@ export default function RoomsContentPane({
       </div>
 
       {saveError && (
-        <div
-          style={{
-            padding: "9px 28px",
-            borderBottom: "1px solid var(--rooms-error-line)",
-            background: "var(--rooms-error-soft)",
-            color: "var(--rooms-error)",
-            fontSize: 13,
-            flexShrink: 0,
-          }}
-        >
+        <div className="shrink-0 border-b border-rooms-error-line bg-rooms-error-soft px-7 py-[9px] text-[13px] text-rooms-error">
           {saveError}
         </div>
       )}
 
-      <div
-        className="rooms-scrollbar"
-        style={{
-          flex: 1,
-          minHeight: 0,
-          overflow: "auto",
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
+      <div className="rooms-scrollbar flex min-h-0 flex-1 flex-col overflow-auto">
         {loading && <PaneState>Loading file...</PaneState>}
         {!loading && error && <PaneState tone="error">{error}</PaneState>}
         {!loading && !error && !fileInfo && <PaneState>Loading file...</PaneState>}
         {!loading && !error && fileInfo && editing && Editor && (
-          <div style={{ height: "100%", minHeight: 420, background: "var(--rooms-paper-2)" }}>
-            <Suspense fallback={<LoadingFallback />}>
+          <div className="h-full min-h-[420px] bg-rooms-paper-2">
+            <Suspense fallback={<PaneState>Loading preview...</PaneState>}>
               <Editor content={draft} onChange={setDraft} />
             </Suspense>
           </div>
         )}
         {!loading && !error && fileInfo && !editing && Viewer && (
-          <Suspense fallback={<LoadingFallback />}>
+          <Suspense fallback={<PaneState>Loading preview...</PaneState>}>
             <Viewer content={content} fileInfo={fileInfo} />
           </Suspense>
         )}

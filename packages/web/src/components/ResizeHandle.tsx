@@ -83,7 +83,7 @@ export default function ResizeHandle({
         onMouseDown={(e) => e.stopPropagation()}
         title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
       >
-        <span className="material-symbols-outlined text-t-ink-dim" style={{ fontSize: "12px" }}>
+        <span className="material-symbols-outlined text-xs text-t-ink-dim">
           {collapsed ? expandIcon : collapseIcon}
         </span>
       </button>

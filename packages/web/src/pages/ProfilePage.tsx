@@ -20,6 +20,12 @@ function ProfilePage() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const pageClass = "mx-auto w-full max-w-[760px] flex-1 overflow-auto bg-t-bg p-8";
+  const sectionClass = "rounded-[10px] border border-t-hair bg-t-bg-raised p-5";
+  const headingClass = "mb-4 font-sans text-lg font-semibold text-t-ink";
+  const inputClass = "rounded-lg border border-t-hair bg-t-bg-well px-2.5 py-2 text-t-ink";
+  const buttonClass =
+    "rounded-lg border border-t-hair bg-t-ink px-3 py-[7px] text-[13px] font-medium text-t-bg disabled:cursor-default disabled:opacity-70";
 
   useEffect(() => {
     let cancelled = false;
@@ -121,96 +127,27 @@ function ProfilePage() {
 
   if (isLoading) {
     return (
-      <main
-        style={{
-          flex: 1,
-          overflow: "auto",
-          padding: 32,
-          maxWidth: 760,
-          margin: "0 auto",
-          width: "100%",
-          background: "var(--t-bg)",
-        }}
-      >
-        <div
-          style={{
-            paddingTop: 8,
-            color: "var(--t-inkMid)",
-            fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif",
-          }}
-        >
-          Loading profile…
-        </div>
+      <main className={pageClass}>
+        <div className="pt-2 font-sans text-t-ink-mid">Loading profile…</div>
       </main>
     );
   }
 
   return (
-    <main
-      style={{
-        flex: 1,
-        overflow: "auto",
-        padding: 32,
-        maxWidth: 760,
-        margin: "0 auto",
-        width: "100%",
-        background: "var(--t-bg)",
-      }}
-    >
-      <h1
-        style={{
-          fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif",
-          fontSize: 28,
-          fontWeight: 700,
-          color: "var(--t-ink)",
-          marginBottom: 24,
-        }}
-      >
-        Profile
-      </h1>
+    <main className={pageClass}>
+      <h1 className="mb-6 font-sans text-[28px] font-bold text-t-ink">Profile</h1>
 
-      <section
-        style={{
-          border: "1px solid var(--t-hair)",
-          borderRadius: 10,
-          background: "var(--t-bgRaised)",
-          padding: 20,
-          marginBottom: 20,
-        }}
-      >
-        <h2
-          style={{
-            margin: "0 0 16px",
-            color: "var(--t-ink)",
-            fontSize: 18,
-            fontWeight: 600,
-            fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif",
-          }}
-        >
-          Account
-        </h2>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "140px 1fr",
-            rowGap: 10,
-            columnGap: 12,
-            marginBottom: 16,
-          }}
-        >
-          <div style={{ color: "var(--t-inkDim)", fontSize: 13 }}>Email</div>
-          <div style={{ color: "var(--t-ink)", fontSize: 14 }}>{profile?.email ?? "—"}</div>
-          <div style={{ color: "var(--t-inkDim)", fontSize: 13 }}>Role</div>
-          <div style={{ color: "var(--t-ink)", fontSize: 14, textTransform: "capitalize" }}>
-            {profile?.serverRole ?? "user"}
-          </div>
+      <section className={`${sectionClass} mb-5`}>
+        <h2 className={headingClass}>Account</h2>
+        <div className="mb-4 grid grid-cols-[140px_1fr] gap-x-3 gap-y-2.5">
+          <div className="text-[13px] text-t-ink-dim">Email</div>
+          <div className="text-sm text-t-ink">{profile?.email ?? "—"}</div>
+          <div className="text-[13px] text-t-ink-dim">Role</div>
+          <div className="text-sm capitalize text-t-ink">{profile?.serverRole ?? "user"}</div>
         </div>
 
         <form onSubmit={handleSaveProfile}>
-          <label
-            htmlFor="display-name"
-            style={{ display: "block", color: "var(--t-inkDim)", fontSize: 13, marginBottom: 6 }}
-          >
+          <label htmlFor="display-name" className="mb-1.5 block text-[13px] text-t-ink-dim">
             Display Name
           </label>
           <input
@@ -220,73 +157,27 @@ function ProfilePage() {
             onChange={(e) => setDisplayName(e.target.value)}
             maxLength={100}
             placeholder="Your name"
-            style={{
-              width: "100%",
-              maxWidth: 360,
-              padding: "8px 10px",
-              borderRadius: 8,
-              border: "1px solid var(--t-hair)",
-              background: "var(--t-bgWell)",
-              color: "var(--t-ink)",
-              marginBottom: 14,
-            }}
+            className={`${inputClass} mb-3.5 w-full max-w-[360px]`}
           />
           <div>
-            <button
-              type="submit"
-              disabled={isSavingProfile}
-              style={{
-                border: "1px solid var(--t-hair)",
-                background: "var(--t-ink)",
-                color: "var(--t-bg)",
-                borderRadius: 8,
-                padding: "7px 12px",
-                fontSize: 13,
-                fontWeight: 500,
-                cursor: isSavingProfile ? "default" : "pointer",
-                opacity: isSavingProfile ? 0.7 : 1,
-              }}
-            >
+            <button type="submit" disabled={isSavingProfile} className={buttonClass}>
               {isSavingProfile ? "Saving…" : "Save Profile"}
             </button>
           </div>
         </form>
       </section>
 
-      <section
-        style={{
-          border: "1px solid var(--t-hair)",
-          borderRadius: 10,
-          background: "var(--t-bgRaised)",
-          padding: 20,
-        }}
-      >
-        <h2
-          style={{
-            margin: "0 0 16px",
-            color: "var(--t-ink)",
-            fontSize: 18,
-            fontWeight: 600,
-            fontFamily: "'Inter Tight', 'Inter', system-ui, sans-serif",
-          }}
-        >
-          Change Password
-        </h2>
+      <section className={sectionClass}>
+        <h2 className={headingClass}>Change Password</h2>
         <form onSubmit={handleChangePassword}>
-          <div style={{ display: "grid", gap: 10, maxWidth: 360 }}>
+          <div className="grid max-w-[360px] gap-2.5">
             <input
               type="password"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               placeholder="Current password"
               required
-              style={{
-                padding: "8px 10px",
-                borderRadius: 8,
-                border: "1px solid var(--t-hair)",
-                background: "var(--t-bgWell)",
-                color: "var(--t-ink)",
-              }}
+              className={inputClass}
             />
             <input
               type="password"
@@ -295,13 +186,7 @@ function ProfilePage() {
               placeholder="New password"
               minLength={8}
               required
-              style={{
-                padding: "8px 10px",
-                borderRadius: 8,
-                border: "1px solid var(--t-hair)",
-                background: "var(--t-bgWell)",
-                color: "var(--t-ink)",
-              }}
+              className={inputClass}
             />
             <input
               type="password"
@@ -310,31 +195,10 @@ function ProfilePage() {
               placeholder="Confirm new password"
               minLength={8}
               required
-              style={{
-                padding: "8px 10px",
-                borderRadius: 8,
-                border: "1px solid var(--t-hair)",
-                background: "var(--t-bgWell)",
-                color: "var(--t-ink)",
-              }}
+              className={inputClass}
             />
           </div>
-          <button
-            type="submit"
-            disabled={isChangingPassword}
-            style={{
-              marginTop: 14,
-              border: "1px solid var(--t-hair)",
-              background: "var(--t-ink)",
-              color: "var(--t-bg)",
-              borderRadius: 8,
-              padding: "7px 12px",
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: isChangingPassword ? "default" : "pointer",
-              opacity: isChangingPassword ? 0.7 : 1,
-            }}
-          >
+          <button type="submit" disabled={isChangingPassword} className={`${buttonClass} mt-3.5`}>
             {isChangingPassword ? "Updating…" : "Change Password"}
           </button>
         </form>

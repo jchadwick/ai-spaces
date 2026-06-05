@@ -24,7 +24,7 @@ import {
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import type { FileNode, SpaceMetadata, SpaceRole } from '@ai-spaces/shared'
+import type { FileMetadataEntry, FileNode, SpaceMetadata, SpaceRole } from '@ai-spaces/shared'
 import { hasPermission } from '@ai-spaces/shared'
 import { useAPI } from '@/hooks/useAPI'
 import { useAuth } from '@/contexts/AuthContext'
@@ -345,6 +345,149 @@ function Chip({
       {icon}
       {children}
     </span>
+  )
+}
+
+function InlineEditableText({
+  value,
+  placeholder,
+  ariaLabel,
+  canEdit,
+  multiline,
+  required,
+  textStyle,
+  emptyStyle,
+  onSave,
+}: {
+  value: string
+  placeholder: string
+  ariaLabel: string
+  canEdit: boolean
+  multiline?: boolean
+  required?: boolean
+  textStyle?: CSSProperties
+  emptyStyle?: CSSProperties
+  onSave: (value: string) => Promise<void>
+}) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(value)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const normalizedValue = value.trim()
+  const displayValue = normalizedValue || placeholder
+  const canSave = !required || draft.trim().length > 0
+
+  useEffect(() => {
+    if (!editing) setDraft(value)
+  }, [editing, value])
+
+  async function save() {
+    if (!canSave) {
+      setError('Required')
+      return
+    }
+    setSaving(true)
+    setError(null)
+    try {
+      await onSave(draft.trim())
+      setEditing(false)
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Failed to save')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (!canEdit) {
+    return <span style={{ ...textStyle, ...(!normalizedValue ? emptyStyle : undefined) }}>{displayValue}</span>
+  }
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        aria-label={`${ariaLabel}: edit`}
+        onClick={() => {
+          setDraft(value)
+          setEditing(true)
+          setError(null)
+        }}
+        style={{
+          display: 'inline-flex',
+          alignItems: multiline ? 'flex-start' : 'center',
+          gap: 7,
+          width: multiline ? '100%' : undefined,
+          maxWidth: '100%',
+          padding: '2px 5px',
+          margin: '-2px -5px',
+          border: '1.5px solid transparent',
+          borderRadius: 8,
+          background: 'transparent',
+          color: 'inherit',
+          cursor: 'pointer',
+          textAlign: 'left',
+          ...textStyle,
+          ...(!normalizedValue ? emptyStyle : undefined),
+        }}
+      >
+        <span style={{ minWidth: 0, overflow: multiline ? 'visible' : 'hidden', textOverflow: multiline ? undefined : 'ellipsis', whiteSpace: multiline ? 'pre-wrap' : undefined }}>{displayValue}</span>
+        <Edit3 size={multiline ? 14 : 16} style={{ flexShrink: 0, color: 'var(--rooms-muted)' }} />
+      </button>
+    )
+  }
+
+  const inputStyle: CSSProperties = {
+    width: '100%',
+    border: '1.5px solid var(--rooms-line-strong)',
+    borderRadius: 10,
+    outline: 'none',
+    background: 'var(--rooms-paper)',
+    color: 'var(--rooms-ink)',
+    padding: multiline ? '9px 11px' : '7px 10px',
+    resize: 'none',
+    ...textStyle,
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', maxWidth: multiline ? 620 : 520 }}>
+      {multiline ? (
+        <textarea
+          aria-label={ariaLabel}
+          rows={3}
+          autoFocus
+          value={draft}
+          placeholder={placeholder}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') setEditing(false)
+            if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') void save()
+          }}
+          style={inputStyle}
+        />
+      ) : (
+        <input
+          aria-label={ariaLabel}
+          autoFocus
+          value={draft}
+          placeholder={placeholder}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') setEditing(false)
+            if (event.key === 'Enter') void save()
+          }}
+          style={inputStyle}
+        />
+      )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Button variant="primary" size="sm" icon={<Check size={16} />} disabled={!canSave || saving} onClick={() => void save()}>
+          {saving ? 'Saving' : 'Save'}
+        </Button>
+        <Button variant="ghost" size="sm" icon={<X size={16} />} disabled={saving} onClick={() => setEditing(false)}>
+          Cancel
+        </Button>
+        {error && <span style={{ fontSize: 12.5, color: 'var(--rooms-error)' }}>{error}</span>}
+      </div>
+    </div>
   )
 }
 
@@ -759,17 +902,19 @@ function RoomDetail({
   role,
   initialFilePath,
   onSelectFile,
+  onUpdateRoomMetadata,
 }: {
   room: RoomSummary
   spaces: SpaceSummary[]
   role: SpaceRole
   initialFilePath: string | null
   onSelectFile: (filePath: string) => void
+  onUpdateRoomMetadata: (room: RoomSummary, patch: Partial<FileMetadataEntry>) => Promise<void>
 }) {
   const { accessToken } = useAuth()
   return (
     <ConnectionStatusProvider spaceId={room.spaceId} accessToken={accessToken}>
-      <RoomDetailInner room={room} spaces={spaces} role={role} initialFilePath={initialFilePath} onSelectFile={onSelectFile} />
+      <RoomDetailInner room={room} spaces={spaces} role={role} initialFilePath={initialFilePath} onSelectFile={onSelectFile} onUpdateRoomMetadata={onUpdateRoomMetadata} />
     </ConnectionStatusProvider>
   )
 }
@@ -780,17 +925,20 @@ function RoomDetailInner({
   role,
   initialFilePath,
   onSelectFile,
+  onUpdateRoomMetadata,
 }: {
   room: RoomSummary
   spaces: SpaceSummary[]
   role: SpaceRole
   initialFilePath: string | null
   onSelectFile: (filePath: string) => void
+  onUpdateRoomMetadata: (room: RoomSummary, patch: Partial<FileMetadataEntry>) => Promise<void>
 }) {
   const apiFetch = useAPI()
   const { selectTopic } = useConnectionStatus()
   const { showToast } = useToast()
   const canEdit = hasPermission(role, 'files:write')
+  const canEditMetadata = roleIsOwner(role)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [nodes, setNodes] = useState<FileNode[]>([])
   const [loading, setLoading] = useState(false)
@@ -938,8 +1086,29 @@ function RoomDetailInner({
       <div style={{ padding: '22px 36px 20px', borderBottom: '1px solid var(--rooms-line)', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
           <div style={{ minWidth: 0, maxWidth: 620 }}>
-            <h1 className="rooms-title" style={{ margin: 0, fontSize: 34, lineHeight: 1.08 }}>{room.name}</h1>
-            <p style={{ margin: '8px 0 0', fontSize: 14, lineHeight: 1.55, color: 'var(--rooms-ink-soft)' }}>{room.summary}</p>
+            <h1 className="rooms-title" style={{ margin: 0, fontSize: 34, lineHeight: 1.08 }}>
+              <InlineEditableText
+                value={room.name}
+                placeholder="Untitled room"
+                ariaLabel="Room name"
+                canEdit={canEditMetadata}
+                required
+                textStyle={{ fontSize: 34, lineHeight: 1.08, fontWeight: 700 }}
+                onSave={(displayName) => onUpdateRoomMetadata(room, { displayName })}
+              />
+            </h1>
+            <div style={{ margin: '8px 0 0', fontSize: 14, lineHeight: 1.55, color: 'var(--rooms-ink-soft)' }}>
+              <InlineEditableText
+                value={room.summary}
+                placeholder="Add a room description"
+                ariaLabel="Room description"
+                canEdit={canEditMetadata}
+                multiline
+                textStyle={{ fontSize: 14, lineHeight: 1.55, fontWeight: 400 }}
+                emptyStyle={{ color: 'var(--rooms-muted)' }}
+                onSave={(summary) => onUpdateRoomMetadata(room, { summary })}
+              />
+            </div>
             <div style={{ marginTop: 11 }}><PathCrumb room={room} spaces={spaces} size={12.5} /></div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1121,6 +1290,7 @@ function SpaceExplorer({
   onBack,
   onOpenRoom,
   onRefreshRooms,
+  onUpdateSpaceConfig,
 }: {
   space: SpaceSummary
   spaces: SpaceSummary[]
@@ -1130,10 +1300,11 @@ function SpaceExplorer({
   onBack: () => void
   onOpenRoom: (spaceId: string, topicPath: string) => void
   onRefreshRooms: () => void
+  onUpdateSpaceConfig: (spaceId: string, patch: Partial<SpaceSummary['config']>) => Promise<void>
 }) {
   return (
     <FileMetadataProvider spaceId={space.id}>
-      <SpaceExplorerInner key={`${space.id}:${initialPath ?? ''}`} space={space} spaces={spaces} promotedTopicPaths={promotedTopicPaths} promotedTopicIdsByPath={promotedTopicIdsByPath} initialPath={initialPath} onBack={onBack} onOpenRoom={onOpenRoom} onRefreshRooms={onRefreshRooms} />
+      <SpaceExplorerInner key={`${space.id}:${initialPath ?? ''}`} space={space} spaces={spaces} promotedTopicPaths={promotedTopicPaths} promotedTopicIdsByPath={promotedTopicIdsByPath} initialPath={initialPath} onBack={onBack} onOpenRoom={onOpenRoom} onRefreshRooms={onRefreshRooms} onUpdateSpaceConfig={onUpdateSpaceConfig} />
     </FileMetadataProvider>
   )
 }
@@ -1147,6 +1318,7 @@ function SpaceExplorerInner({
   onBack,
   onOpenRoom,
   onRefreshRooms,
+  onUpdateSpaceConfig,
 }: {
   space: SpaceSummary
   spaces: SpaceSummary[]
@@ -1156,6 +1328,7 @@ function SpaceExplorerInner({
   onBack: () => void
   onOpenRoom: (spaceId: string, topicPath: string) => void
   onRefreshRooms: () => void
+  onUpdateSpaceConfig: (spaceId: string, patch: Partial<SpaceSummary['config']>) => Promise<void>
 }) {
   const { files, loading, refresh, loadChildren } = useFileTree(space.id)
   const { metadata, updateEntry } = useFileMetadata()
@@ -1340,9 +1513,30 @@ function SpaceExplorerInner({
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
               <span style={{ width: 13, height: 13, borderRadius: 999, background: spaceColor(spaces, space.id) }} />
-              <h1 className="rooms-title" style={{ margin: 0, fontSize: 32, lineHeight: 1.08 }}>{space.config.name}</h1>
+              <h1 className="rooms-title" style={{ margin: 0, fontSize: 32, lineHeight: 1.08 }}>
+                <InlineEditableText
+                  value={space.config.name}
+                  placeholder="Untitled space"
+                  ariaLabel="Space name"
+                  canEdit
+                  required
+                  textStyle={{ fontSize: 32, lineHeight: 1.08, fontWeight: 700 }}
+                  onSave={(name) => onUpdateSpaceConfig(space.id, { name })}
+                />
+              </h1>
             </div>
-            <p style={{ margin: '8px 0 0', fontSize: 13.5, color: 'var(--rooms-muted)' }}>Workspace root - the raw filesystem behind this space. Only owners see this view.</p>
+            <div style={{ margin: '8px 0 0', fontSize: 13.5, color: 'var(--rooms-muted)', maxWidth: 620 }}>
+              <InlineEditableText
+                value={space.config.description ?? ''}
+                placeholder="Add a space description"
+                ariaLabel="Space description"
+                canEdit
+                multiline
+                textStyle={{ fontSize: 13.5, lineHeight: 1.5, fontWeight: 400 }}
+                emptyStyle={{ color: 'var(--rooms-muted-2)' }}
+                onSave={(description) => onUpdateSpaceConfig(space.id, { description })}
+              />
+            </div>
           </div>
           <InviteButton spaceId={space.id} />
         </div>
@@ -1405,7 +1599,7 @@ function SpaceExplorerInner({
             <RoomFileDoc
               spaceId={space.id}
               filePath={selectedNode.path}
-              canEdit
+              canEdit={true}
               onSaved={refresh}
               headerContent={(
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', minWidth: 0 }}>
@@ -1632,7 +1826,7 @@ function makeRooms(spaces: SpaceSummary[], topicsBySpace: Map<string, SpaceTopic
           topicPath: topic.topicPath,
           targetType: topic.targetType === 'file' ? 'file' : 'directory',
           name: entry.displayName || basename(topic.topicPath),
-          summary: entry.summary || `Focused room for ${basename(topic.topicPath)} inside ${space.config.name}.`,
+          summary: entry.summary ?? `Focused room for ${basename(topic.topicPath)} inside ${space.config.name}.`,
           pathParts: pathParts(topic.topicPath),
           members,
           updatedAt: topic.updatedAt,
@@ -1686,6 +1880,44 @@ function RoomsShellContent() {
       setLoading(false)
     }
   }, [apiFetch, showToast])
+  const updateSpaceConfig = useCallback(async (spaceId: string, patch: Partial<SpaceSummary['config']>) => {
+    const response = await apiFetch(`/api/spaces/${spaceId}/config`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    })
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      throw new Error((data as { error?: string }).error || `Failed to save space (${response.status})`)
+    }
+    const data = await response.json() as { space?: { config?: SpaceSummary['config'] } }
+    const nextConfig = data.space?.config
+    if (!nextConfig) return
+    setSpaces((current) => current.map((space) => (
+      space.id === spaceId ? { ...space, config: nextConfig } : space
+    )))
+    showToast('Space updated', 'success')
+  }, [apiFetch, showToast])
+  const updateRoomMetadata = useCallback(async (room: RoomSummary, patch: Partial<FileMetadataEntry>) => {
+    const metadataPath = stripTopicPath(room.topicPath)
+    const result = await patchFileMetadata(room.spaceId, metadataPath, patch)
+    if (!result.success) throw new Error(result.error || 'Failed to save room metadata')
+    setMetadataBySpace((current) => {
+      const next = new Map(current)
+      const spaceMetadata = next.get(room.spaceId) ?? { files: {} }
+      next.set(room.spaceId, {
+        files: {
+          ...spaceMetadata.files,
+          [metadataPath]: {
+            ...(spaceMetadata.files[metadataPath] ?? {}),
+            ...patch,
+          },
+        },
+      })
+      return next
+    })
+    showToast('Room updated', 'success')
+  }, [showToast])
   useEffect(() => { void refreshAll() }, [refreshAll])
   useEffect(() => {
     if (!loading && view === 'space' && activeSpace && !roleIsOwner(activeSpace.userRole)) {
@@ -1718,12 +1950,12 @@ function RoomsShellContent() {
         <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
           {loading && <div style={{ height: '100%', display: 'grid', placeItems: 'center', color: 'var(--rooms-muted)' }}>Loading rooms...</div>}
           {!loading && view === 'home' && <RoomsHome spaces={spaces} rooms={rooms} activeSpaceId={querySpace} onOpenRoom={(room) => navigate(roomUrl(room))} onNewRoom={() => setModal('create')} onManageSpace={(spaceId) => navigate(`/space/${spaceId}`)} />}
-          {!loading && view === 'room' && activeRoom && activeSpace && <RoomDetail room={activeRoom} spaces={spaces} role={activeSpace.userRole} initialFilePath={roomFilePath} onSelectFile={(filePath) => navigate(`/spaces/${activeRoom.spaceId}/rooms/${activeRoom.id}/${filePath.slice(stripTopicPath(activeRoom.topicPath).length).replace(/^\/+/, '')}`)} />}
+          {!loading && view === 'room' && activeRoom && activeSpace && <RoomDetail room={activeRoom} spaces={spaces} role={activeSpace.userRole} initialFilePath={roomFilePath} onSelectFile={(filePath) => navigate(`/spaces/${activeRoom.spaceId}/rooms/${activeRoom.id}/${filePath.slice(stripTopicPath(activeRoom.topicPath).length).replace(/^\/+/, '')}`)} onUpdateRoomMetadata={updateRoomMetadata} />}
           {!loading && view === 'room' && !activeRoom && <div style={{ height: '100%', display: 'grid', placeItems: 'center', color: 'var(--rooms-muted)' }}>Room not found.</div>}
           {!loading && view === 'space' && activeSpace && roleIsOwner(activeSpace.userRole) && <SpaceExplorer space={activeSpace} spaces={spaces} promotedTopicPaths={promotedSet} promotedTopicIdsByPath={promotedIdsByPath} initialPath={routePath} onBack={() => navigate('/spaces')} onOpenRoom={(spaceId, topicPath) => {
             const roomId = topicsBySpace.get(spaceId)?.find((topic) => topic.topicPath === topicPath)?.id
             if (roomId) navigate(`/spaces/${spaceId}/rooms/${roomId}`)
-          }} onRefreshRooms={refreshAll} />}
+          }} onRefreshRooms={refreshAll} onUpdateSpaceConfig={updateSpaceConfig} />}
         </div>
       </div>
       {modal === 'create' && <CreateRoomModal spaces={spaces} onClose={() => setModal(null)} onCreated={(spaceId, roomId) => {

@@ -226,6 +226,7 @@ function Button({
   size = 'md',
   disabled,
   title,
+  ariaLabel,
   style,
 }: {
   children?: ReactNode
@@ -235,6 +236,7 @@ function Button({
   size?: 'sm' | 'md'
   disabled?: boolean
   title?: string
+  ariaLabel?: string
   style?: CSSProperties
 }) {
   const palette = {
@@ -248,6 +250,7 @@ function Button({
     <button
       type="button"
       title={title}
+      aria-label={ariaLabel}
       disabled={disabled}
       onClick={onClick}
       style={{
@@ -413,10 +416,9 @@ function InlineEditableText({
           setError(null)
         }}
         style={{
-          display: 'inline-flex',
+          display: 'flex',
           alignItems: multiline ? 'flex-start' : 'center',
-          gap: 7,
-          width: multiline ? '100%' : undefined,
+          width: '100%',
           maxWidth: '100%',
           padding: '2px 5px',
           margin: '-2px -5px',
@@ -431,13 +433,14 @@ function InlineEditableText({
         }}
       >
         <span style={{ minWidth: 0, overflow: multiline ? 'visible' : 'hidden', textOverflow: multiline ? undefined : 'ellipsis', whiteSpace: multiline ? 'pre-wrap' : undefined }}>{displayValue}</span>
-        <Edit3 size={multiline ? 14 : 16} style={{ flexShrink: 0, color: 'var(--rooms-muted)' }} />
       </button>
     )
   }
 
   const inputStyle: CSSProperties = {
     width: '100%',
+    flex: '1 1 auto',
+    minWidth: 0,
     border: '1.5px solid var(--rooms-line-strong)',
     borderRadius: 10,
     outline: 'none',
@@ -449,7 +452,7 @@ function InlineEditableText({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%', maxWidth: multiline ? 620 : 520 }}>
+    <div style={{ display: 'flex', alignItems: multiline ? 'flex-start' : 'center', gap: 8, width: '100%', maxWidth: '100%' }}>
       {multiline ? (
         <textarea
           aria-label={ariaLabel}
@@ -478,13 +481,27 @@ function InlineEditableText({
           style={inputStyle}
         />
       )}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <Button variant="primary" size="sm" icon={<Check size={16} />} disabled={!canSave || saving} onClick={() => void save()}>
-          {saving ? 'Saving' : 'Save'}
-        </Button>
-        <Button variant="ghost" size="sm" icon={<X size={16} />} disabled={saving} onClick={() => setEditing(false)}>
-          Cancel
-        </Button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+        <Button
+          variant="primary"
+          size="sm"
+          icon={<Check size={16} />}
+          title={saving ? 'Saving' : 'Save'}
+          ariaLabel={saving ? 'Saving' : `Save ${ariaLabel.toLowerCase()}`}
+          disabled={!canSave || saving}
+          onClick={() => void save()}
+          style={{ width: 34, height: 34, padding: 0, borderRadius: 9 }}
+        />
+        <Button
+          variant="ghost"
+          size="sm"
+          icon={<X size={16} />}
+          title="Cancel"
+          ariaLabel={`Cancel editing ${ariaLabel.toLowerCase()}`}
+          disabled={saving}
+          onClick={() => setEditing(false)}
+          style={{ width: 34, height: 34, padding: 0, borderRadius: 9 }}
+        />
         {error && <span style={{ fontSize: 12.5, color: 'var(--rooms-error)' }}>{error}</span>}
       </div>
     </div>
@@ -1085,8 +1102,8 @@ function RoomDetailInner({
     <div className="rooms-rise" style={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       <div style={{ padding: '22px 36px 20px', borderBottom: '1px solid var(--rooms-line)', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
-          <div style={{ minWidth: 0, maxWidth: 620 }}>
-            <h1 className="rooms-title" style={{ margin: 0, fontSize: 34, lineHeight: 1.08 }}>
+          <div style={{ minWidth: 0, flex: '1 1 520px' }}>
+            <h1 className="rooms-title" style={{ margin: 0, fontSize: 34, lineHeight: 1.08, width: '100%' }}>
               <InlineEditableText
                 value={room.name}
                 placeholder="Untitled room"
@@ -1097,7 +1114,7 @@ function RoomDetailInner({
                 onSave={(displayName) => onUpdateRoomMetadata(room, { displayName })}
               />
             </h1>
-            <div style={{ margin: '8px 0 0', fontSize: 14, lineHeight: 1.55, color: 'var(--rooms-ink-soft)' }}>
+            <div style={{ margin: '8px 0 0', fontSize: 14, lineHeight: 1.55, color: 'var(--rooms-ink-soft)', width: '100%' }}>
               <InlineEditableText
                 value={room.summary}
                 placeholder="Add a room description"
@@ -1510,10 +1527,10 @@ function SpaceExplorerInner({
       <div style={{ padding: '22px 32px 18px', borderBottom: '1px solid var(--rooms-line)', flexShrink: 0 }}>
         <button type="button" onClick={onBack} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: 0, cursor: 'pointer', color: 'var(--rooms-muted)', fontSize: 13.5, padding: 0, marginBottom: 12 }}><ArrowLeft size={16} /> All rooms</button>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 20, flexWrap: 'wrap' }}>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+          <div style={{ minWidth: 0, flex: '1 1 520px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 11, width: '100%' }}>
               <span style={{ width: 13, height: 13, borderRadius: 999, background: spaceColor(spaces, space.id) }} />
-              <h1 className="rooms-title" style={{ margin: 0, fontSize: 32, lineHeight: 1.08 }}>
+              <h1 className="rooms-title" style={{ margin: 0, fontSize: 32, lineHeight: 1.08, flex: '1 1 auto', minWidth: 0 }}>
                 <InlineEditableText
                   value={space.config.name}
                   placeholder="Untitled space"
@@ -1525,7 +1542,7 @@ function SpaceExplorerInner({
                 />
               </h1>
             </div>
-            <div style={{ margin: '8px 0 0', fontSize: 13.5, color: 'var(--rooms-muted)', maxWidth: 620 }}>
+            <div style={{ margin: '8px 0 0', fontSize: 13.5, color: 'var(--rooms-muted)', width: '100%' }}>
               <InlineEditableText
                 value={space.config.description ?? ''}
                 placeholder="Add a space description"

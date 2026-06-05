@@ -1,25 +1,19 @@
-import { Upload, X } from "lucide-react";
+import { X } from "lucide-react";
 import type { ConnectionStatus } from "../../contexts/ConnectionStatusContext";
 import AgentGlyph from "../AgentGlyph";
 import ConnectionStatusIndicator from "./ConnectionStatusIndicator";
 
 interface ChatHeaderProps {
-  isOwner: boolean;
-  spaceId?: string;
   status: ConnectionStatus;
   reconnectAttempt?: number;
   onRetry?: () => void;
-  onShare: () => void;
   onClose?: () => void;
 }
 
 export default function ChatHeader({
-  isOwner,
-  spaceId,
   status,
   reconnectAttempt,
   onRetry,
-  onShare,
   onClose,
 }: ChatHeaderProps) {
   return (
@@ -29,16 +23,6 @@ export default function ChatHeader({
         <span className="text-[13px] font-bold text-t-agent">Chat</span>
       </div>
       <div className="flex items-center gap-3">
-        {isOwner && spaceId && (
-          <button
-            type="button"
-            onClick={onShare}
-            className="inline-flex items-center gap-1 rounded-md border border-t-hair bg-t-bg px-2.5 py-1 text-xs font-medium text-t-ink"
-          >
-            <Upload size={12} />
-            Share
-          </button>
-        )}
         <div data-testid="chat-ws-status" data-status={status}>
           <ConnectionStatusIndicator
             status={status}

@@ -1,5 +1,4 @@
 import type { SpaceRole } from "@ai-spaces/shared";
-import { hasPermission } from "@ai-spaces/shared";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { useConnectionStatus } from "../contexts/ConnectionStatusContext";
 import { cn } from "@/lib/utils";
@@ -7,7 +6,6 @@ import AgentGlyph from "./AgentGlyph";
 import ChatHeader from "./chat/ChatHeader";
 import MessageBubble from "./chat/MessageBubble";
 import TypingIndicator from "./chat/TypingIndicator";
-import ShareSpaceDialog from "./ShareSpaceDialog";
 
 interface AIChatPaneProps {
   role?: SpaceRole;
@@ -15,9 +13,8 @@ interface AIChatPaneProps {
   onClose?: () => void;
 }
 
-export default function AIChatPane({ role = "viewer", spaceId, onClose }: AIChatPaneProps) {
+export default function AIChatPane({ onClose }: AIChatPaneProps) {
   const [inputValue, setInputValue] = useState("");
-  const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const prevMessagesLengthRef = useRef(0);
 
@@ -30,7 +27,6 @@ export default function AIChatPane({ role = "viewer", spaceId, onClose }: AIChat
     reconnect,
   } = useConnectionStatus();
 
-  const isOwner = hasPermission(role, "space:manage");
   const isDisconnected = connectionStatus !== "connected" && connectionStatus !== "connecting";
   const hasPendingAssistantPlaceholder = messages.some(
     (m) => m.role === "assistant" && m.content.length === 0,
@@ -62,12 +58,9 @@ export default function AIChatPane({ role = "viewer", spaceId, onClose }: AIChat
   return (
     <aside className="flex h-full w-full flex-col border-l border-t-hair bg-t-bg-raised">
       <ChatHeader
-        isOwner={isOwner}
-        spaceId={spaceId}
         status={connectionStatus}
         reconnectAttempt={reconnectAttempt}
         onRetry={reconnect}
-        onShare={() => setShareDialogOpen(true)}
         onClose={onClose}
       />
 
@@ -136,13 +129,6 @@ export default function AIChatPane({ role = "viewer", spaceId, onClose }: AIChat
         </div>
       </div>
 
-      {isOwner && spaceId && (
-        <ShareSpaceDialog
-          spaceId={spaceId}
-          open={shareDialogOpen}
-          onOpenChange={setShareDialogOpen}
-        />
-      )}
     </aside>
   );
 }

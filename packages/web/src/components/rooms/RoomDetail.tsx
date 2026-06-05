@@ -12,7 +12,6 @@ import {
 } from "@/api/spaceFiles";
 import AIChatPane from "@/components/AIChatPane";
 import { ContextMenu } from "@/components/rooms/ContextMenu";
-import { RoomsAvatarStack } from "@/components/rooms/controls/RoomsAvatar";
 import { RoomsButton, RoomsIconButton } from "@/components/rooms/controls/RoomsButton";
 import { InlineEditableText } from "@/components/rooms/controls/InlineEditableText";
 import { RoomsField } from "@/components/rooms/controls/RoomsField";
@@ -33,6 +32,7 @@ import {
 import { TreeList } from "@/components/rooms/TreeList";
 import type { RoomSummary } from "@/components/rooms/types";
 import RoomsContentPane from "@/components/RoomsContentPane";
+import ShareSpaceDialog from "@/components/ShareSpaceDialog";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { ConnectionStatusProvider, useConnectionStatus } from "@/contexts/ConnectionStatusContext";
@@ -83,6 +83,7 @@ function RoomDetailInner({
   const { selectTopic } = useConnectionStatus();
   const { showToast } = useToast();
   const canEdit = hasPermission(role, "files:write");
+  const canManageSpace = hasPermission(role, "space:manage");
   const canEditMetadata = roleIsOwner(role);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [nodes, setNodes] = useState<FileNode[]>([]);
@@ -103,6 +104,7 @@ function RoomDetailInner({
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [contentRefreshKey, setContentRefreshKey] = useState(0);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const roomRoot = stripTopicPath(room.topicPath);
   const routedFilePath = initialFilePath ? joinPath(roomRoot, initialFilePath) : null;
 
@@ -316,7 +318,16 @@ function RoomDetailInner({
             </div>
           </div>
           <div className="flex items-center gap-2.5">
-            <RoomsAvatarStack members={room.members} />
+            {canManageSpace && (
+              <button
+                type="button"
+                onClick={() => setShareDialogOpen(true)}
+                className="inline-flex h-9 items-center gap-1.5 rounded-md border border-rooms-line bg-rooms-paper px-3 text-sm font-semibold text-rooms-ink shadow-sm transition hover:bg-rooms-paper-2"
+              >
+                <Upload size={15} />
+                Share
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -508,6 +519,13 @@ function RoomDetailInner({
             placeholder={draftFile.type === "directory" ? "Folder name" : "notes.md"}
           />
         </RoomsModal>
+      )}
+      {canManageSpace && (
+        <ShareSpaceDialog
+          spaceId={room.spaceId}
+          open={shareDialogOpen}
+          onOpenChange={setShareDialogOpen}
+        />
       )}
     </div>
   );

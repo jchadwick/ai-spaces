@@ -64,12 +64,6 @@ export default function AIChatPane({ onClose }: AIChatPaneProps) {
         onClose={onClose}
       />
 
-      {isStreaming && (
-        <div className="border-b border-t-hair px-[18px] py-1.5 font-mono text-[11px] text-t-agent">
-          agent responding...
-        </div>
-      )}
-
       {/* Messages area */}
       <div className="custom-scrollbar flex flex-1 flex-col gap-[14px] overflow-y-auto px-[18px] py-4">
         {messages.length === 0 && !isStreaming && (

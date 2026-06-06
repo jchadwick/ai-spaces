@@ -12,6 +12,7 @@ import {
   FolderOpen,
   Grid2X2,
   Lock,
+  MessageSquare,
   Plus,
   Trash2,
   Upload,
@@ -28,7 +29,9 @@ import {
 } from "@/api/spaceFiles";
 import AIChatPane from "@/components/AIChatPane";
 import { ContextMenu } from "@/components/rooms/ContextMenu";
+import { RoomsAvatarStack } from "@/components/rooms/controls/RoomsAvatar";
 import { RoomsButton, RoomsIconButton } from "@/components/rooms/controls/RoomsButton";
+import { RoomsChip } from "@/components/rooms/controls/RoomsChip";
 import { InlineEditableText } from "@/components/rooms/controls/InlineEditableText";
 import { RoomsField } from "@/components/rooms/controls/RoomsField";
 import { RoomsModal } from "@/components/rooms/controls/RoomsModal";
@@ -44,7 +47,7 @@ import {
   spaceColor,
 } from "@/components/rooms/roomsUtils";
 import { TreeList } from "@/components/rooms/TreeList";
-import type { SpaceSummary } from "@/components/rooms/types";
+import type { RoomSummary, SpaceSummary } from "@/components/rooms/types";
 import RoomsContentPane from "@/components/RoomsContentPane";
 import SpaceSettingsEditor from "@/components/SpaceSettingsEditor";
 import { useToast } from "@/components/ui/use-toast";
@@ -57,21 +60,25 @@ import { cn } from "@/lib/utils";
 export function SpaceExplorer({
   space,
   spaces,
+  rooms,
   promotedTopicPaths,
   promotedTopicIdsByPath,
   initialPath,
   onBack,
   onOpenRoom,
+  onNewRoom,
   onRefreshRooms,
   onUpdateSpaceConfig,
 }: {
   space: SpaceSummary;
   spaces: SpaceSummary[];
+  rooms: RoomSummary[];
   promotedTopicPaths: ReadonlySet<string>;
   promotedTopicIdsByPath: ReadonlyMap<string, string>;
   initialPath: string | null;
   onBack: () => void;
   onOpenRoom: (spaceId: string, topicPath: string) => void;
+  onNewRoom: () => void;
   onRefreshRooms: () => void;
   onUpdateSpaceConfig: (spaceId: string, patch: Partial<SpaceSummary["config"]>) => Promise<void>;
 }) {
@@ -86,11 +93,13 @@ export function SpaceExplorer({
               key={`${space.id}:${initialPath ?? ""}`}
               space={space}
               spaces={spaces}
+              rooms={rooms}
               promotedTopicPaths={promotedTopicPaths}
               promotedTopicIdsByPath={promotedTopicIdsByPath}
               initialPath={initialPath}
               onBack={onBack}
               onOpenRoom={onOpenRoom}
+              onNewRoom={onNewRoom}
               onRefreshRooms={onRefreshRooms}
               onUpdateSpaceConfig={onUpdateSpaceConfig}
             />
@@ -107,21 +116,25 @@ export function SpaceExplorer({
 function SpaceExplorerInner({
   space,
   spaces,
+  rooms,
   promotedTopicPaths,
   promotedTopicIdsByPath,
   initialPath,
   onBack,
   onOpenRoom,
+  onNewRoom,
   onRefreshRooms,
   onUpdateSpaceConfig,
 }: {
   space: SpaceSummary;
   spaces: SpaceSummary[];
+  rooms: RoomSummary[];
   promotedTopicPaths: ReadonlySet<string>;
   promotedTopicIdsByPath: ReadonlyMap<string, string>;
   initialPath: string | null;
   onBack: () => void;
   onOpenRoom: (spaceId: string, topicPath: string) => void;
+  onNewRoom: () => void;
   onRefreshRooms: () => void;
   onUpdateSpaceConfig: (spaceId: string, patch: Partial<SpaceSummary["config"]>) => Promise<void>;
 }) {
@@ -166,9 +179,12 @@ function SpaceExplorerInner({
   const [uploadTarget, setUploadTarget] = useState<string | null>(null);
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
-  const [activeTab, setActiveTab] = useState<"files" | "members">("files");
+  const [activeTab, setActiveTab] = useState<"rooms" | "files" | "members">(
+    initialPath ? "files" : "rooms",
+  );
   const [contentRefreshKey, setContentRefreshKey] = useState(0);
   const canWrite = hasPermission(space.userRole, "files:write");
+  const spaceRooms = rooms.filter((room) => room.spaceId === space.id);
   const currentFolder =
     currentFolderOverride === undefined ? routeSelection.currentFolder : currentFolderOverride;
   const selectedFile =
@@ -417,7 +433,7 @@ function SpaceExplorerInner({
         </div>
       </div>
       <div className="flex shrink-0 gap-1.5 border-b border-rooms-line px-8">
-        {(["files", "members"] as const).map((tab) => {
+        {(["rooms", "files", "members"] as const).map((tab) => {
           const active = activeTab === tab;
           return (
             <button
@@ -429,12 +445,60 @@ function SpaceExplorerInner({
                 active ? "border-rooms-ink text-rooms-ink" : "border-transparent text-rooms-muted",
               )}
             >
-              {tab === "files" ? "Files" : "Members"}
+              {tab === "rooms" ? "Rooms" : tab === "files" ? "Files" : "Members"}
             </button>
           );
         })}
       </div>
-      {activeTab === "files" ? (
+      {activeTab === "rooms" ? (
+        <div className="rooms-scrollbar flex-1 overflow-auto bg-rooms-paper">
+          <div className="mx-auto w-full max-w-270 px-8 pb-12 pt-7">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <h2 className="rooms-title m-0 text-[30px] leading-[1.08]">Rooms</h2>
+                <p className="mt-2 mb-0 text-[13.5px] text-rooms-muted">
+                  {spaceRooms.length} room{spaceRooms.length === 1 ? "" : "s"} promoted from this
+                  space.
+                </p>
+              </div>
+              <RoomsButton variant="primary" icon={<Plus size={18} />} onClick={onNewRoom}>
+                New room
+              </RoomsButton>
+            </div>
+            <div className="mt-6 grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
+              {spaceRooms.map((room) => (
+                <button
+                  key={room.id}
+                  type="button"
+                  onClick={() => onOpenRoom(room.spaceId, room.topicPath)}
+                  className="flex min-h-39 cursor-pointer flex-col rounded-2xl border-[1.5px] border-rooms-line bg-rooms-paper px-5 pb-4 pt-5 text-left shadow-rooms-card transition hover:border-rooms-line-strong"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <h3 className="rooms-title m-0 text-[22px] leading-[1.16]">{room.name}</h3>
+                    <ArrowRight size={20} className="shrink-0 text-rooms-muted" />
+                  </div>
+                  <p className="mt-2 mb-0 line-clamp-2 overflow-hidden text-sm leading-normal text-rooms-ink-soft">
+                    {room.summary}
+                  </p>
+                  <div className="flex-1" />
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-2.5">
+                    <RoomsChip tone="promoted" icon={<Grid2X2 size={12} />}>
+                      {room.targetType === "directory" ? "Folder room" : "File room"}
+                    </RoomsChip>
+                    <RoomsAvatarStack members={room.members} />
+                  </div>
+                </button>
+              ))}
+            </div>
+            {spaceRooms.length === 0 && (
+              <div className="mt-6 rounded-2xl border-[1.5px] border-rooms-line bg-rooms-paper px-6 py-10 text-center text-rooms-muted">
+                <MessageSquare size={28} className="mx-auto mb-3" />
+                <div className="text-sm">No rooms yet.</div>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : activeTab === "files" ? (
         <div className="flex min-h-0 flex-1">
           <div
             onDragOver={handleDragOver}

@@ -229,6 +229,7 @@ export function RoomsShellContent() {
             <SpaceExplorer
               space={activeSpace}
               spaces={spaces}
+              rooms={rooms}
               promotedTopicPaths={promotedSet}
               promotedTopicIdsByPath={promotedIdsByPath}
               initialPath={routePath}
@@ -239,6 +240,7 @@ export function RoomsShellContent() {
                   ?.find((topic) => topic.topicPath === topicPath)?.id;
                 if (roomId) navigate(`/spaces/${spaceId}/rooms/${roomId}`);
               }}
+              onNewRoom={() => setModal("create")}
               onRefreshRooms={refreshAll}
               onUpdateSpaceConfig={updateSpaceConfig}
             />

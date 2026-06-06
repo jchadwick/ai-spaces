@@ -4,7 +4,7 @@ export default function ImageViewer({ content, fileInfo }: ViewerProps) {
   if (!content) return null;
 
   return (
-    <div className="flex-1 overflow-y-auto custom-scrollbar p-8 flex items-center justify-center">
+    <div className="flex-1 overflow-y-auto custom-scrollbar px-5 flex items-center justify-center">
       <img
         src={content}
         alt={fileInfo.name}

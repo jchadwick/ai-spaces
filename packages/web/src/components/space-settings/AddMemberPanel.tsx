@@ -67,7 +67,7 @@ export default function AddMemberPanel({
         )}
 
         {searchResults.length > 0 && (
-          <div className="absolute z-50 mt-1 max-h-[240px] w-full overflow-y-auto overflow-x-hidden rounded-lg border border-t-hair bg-t-bg-raised shadow-lg">
+          <div className="absolute z-50 mt-1 max-h-60 w-full overflow-y-auto overflow-x-hidden rounded-lg border border-t-hair bg-t-bg-raised shadow-lg">
             {searchResults.map((user) => (
               <button
                 key={user.id}

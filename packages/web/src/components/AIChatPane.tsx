@@ -65,7 +65,7 @@ export default function AIChatPane({ onClose }: AIChatPaneProps) {
       />
 
       {/* Messages area */}
-      <div className="custom-scrollbar flex flex-1 flex-col gap-[14px] overflow-y-auto px-[18px] py-4">
+      <div className="custom-scrollbar flex flex-1 flex-col gap-3.5 overflow-y-auto px-4.5 py-4">
         {messages.length === 0 && !isStreaming && (
           <div className="flex flex-1 items-center justify-center">
             <p className="text-center font-sans text-[13px] text-t-ink-faint">
@@ -81,14 +81,14 @@ export default function AIChatPane({ onClose }: AIChatPaneProps) {
       </div>
 
       {/* Composer */}
-      <div className="border-t border-t-hair px-[14px] py-3">
+      <div className="border-t border-t-hair px-3.5 py-3">
         <form onSubmit={handleSubmit}>
           <div className="flex flex-col gap-2 rounded-xl border border-t-hair bg-t-bg px-3 py-2.5">
             <textarea
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               disabled={isStreaming || isDisconnected}
-              className="h-[72px] w-full resize-none border-0 bg-transparent font-sans text-[13.5px] text-t-ink outline-none disabled:opacity-60"
+              className="h-18 w-full resize-none border-0 bg-transparent font-sans text-[13.5px] text-t-ink outline-none disabled:opacity-60"
               placeholder={
                 isDisconnected
                   ? "Reconnecting..."
@@ -108,7 +108,7 @@ export default function AIChatPane({ onClose }: AIChatPaneProps) {
                 type="submit"
                 disabled={!inputValue.trim() || isStreaming || isDisconnected}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-lg bg-t-accent px-2.5 py-[5px] font-sans text-[13px] font-medium text-t-bg-raised",
+                  "inline-flex items-center gap-1.5 rounded-lg bg-t-accent px-2.5 py-1 font-sans text-[13px] font-medium text-t-bg-raised",
                   "disabled:cursor-not-allowed disabled:opacity-50",
                 )}
               >

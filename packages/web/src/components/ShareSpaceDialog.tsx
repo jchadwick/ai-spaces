@@ -102,7 +102,7 @@ export default function ShareSpaceDialog({ spaceId, open, onOpenChange }: ShareS
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[24rem]">
+      <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle>Share Space</DialogTitle>
           <DialogDescription>

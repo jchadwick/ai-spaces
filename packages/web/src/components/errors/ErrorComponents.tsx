@@ -21,8 +21,8 @@ function BaseErrorCard({
   secondaryLabel,
 }: BaseErrorProps) {
   return (
-    <div className="min-h-[200px] flex items-center justify-center p-8">
-      <Card className="max-w-[28rem] w-full shadow-ambient">
+    <div className="min-h-50 flex items-center justify-center p-8">
+      <Card className="max-w-md w-full shadow-ambient">
         <CardHeader className="text-center pb-0">
           {icon && (
             <div className="flex justify-center mb-md">

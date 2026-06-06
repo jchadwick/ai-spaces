@@ -354,7 +354,7 @@ export default function FileEditor({
     return (
       <section className="flex-1 flex flex-col bg-t-bg-raised overflow-hidden">
         {isWsDisconnected && (
-          <div className="flex items-center gap-1.5 border-b border-t-hair bg-transparent px-4 py-[5px]">
+          <div className="flex items-center gap-1.5 border-b border-t-hair bg-transparent px-4 py-1">
             <span className="inline-block size-1.5 shrink-0 rounded-full bg-t-ink-dim" />
             <span className="font-mono text-[11.5px] tracking-[0.3px] text-t-ink-dim">
               AI connection lost — edits will save but AI cannot see changes until reconnected
@@ -436,7 +436,7 @@ export default function FileEditor({
   return (
     <section className="flex-1 flex flex-col bg-t-bg-raised overflow-hidden">
       {isWsDisconnected && (
-        <div className="flex items-center gap-1.5 border-b border-t-hair bg-transparent px-4 py-[5px]">
+        <div className="flex items-center gap-1.5 border-b border-t-hair bg-transparent px-4 py-1">
           <span className="inline-block size-1.5 shrink-0 rounded-full bg-t-ink-dim" />
           <span className="font-mono text-[11.5px] tracking-[0.3px] text-t-ink-dim">
             AI connection lost — edits will save but AI cannot see changes until reconnected

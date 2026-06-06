@@ -17,7 +17,7 @@ export default function ChatHeader({
   onClose,
 }: ChatHeaderProps) {
   return (
-    <div className="flex shrink-0 items-center justify-between border-b border-t-hair px-[18px] py-[14px]">
+    <div className="flex shrink-0 items-center justify-between border-b border-t-hair px-4.5 py-3.5">
       <div className="flex items-center gap-2">
         <AgentGlyph size={14} color="var(--t-agent)" />
         <span className="text-[13px] font-bold text-t-agent">Chat</span>

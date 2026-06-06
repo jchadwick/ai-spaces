@@ -110,7 +110,7 @@ export function TreeList({
                 });
               }
             }}
-            className="inline-flex w-[13px] justify-center border-0 bg-transparent p-0 text-rooms-muted-2"
+            className="inline-flex w-3.5 justify-center border-0 bg-transparent p-0 text-rooms-muted-2"
           >
             {node.type === "directory" && (
               <ChevronRight

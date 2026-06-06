@@ -78,7 +78,7 @@ export default function SpaceSettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[28rem]">
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Notification Settings</DialogTitle>
           <DialogDescription>

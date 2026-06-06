@@ -109,7 +109,7 @@ export default function UserManagement() {
                 <td className="px-4 py-2.5 text-t-ink-mid">{u.displayName ?? "—"}</td>
                 <td className="px-4 py-2.5">
                   {currentUser?.id === u.id ? (
-                    <span className="rounded bg-t-bg-well px-2 py-[3px] font-mono text-xs uppercase tracking-[1px] text-t-ink-dim">
+                    <span className="rounded bg-t-bg-well px-2 py-1 font-mono text-xs uppercase tracking-[1px] text-t-ink-dim">
                       {u.serverRole}
                     </span>
                   ) : (
@@ -117,7 +117,7 @@ export default function UserManagement() {
                       value={u.serverRole}
                       disabled={updatingId === u.id}
                       onChange={(e) => handleRoleChange(u.id, e.target.value as "admin" | "user")}
-                      className="cursor-pointer rounded-md border border-t-hair bg-t-bg-well px-2 py-[3px] font-sans text-[13px] text-t-ink disabled:cursor-default disabled:opacity-70"
+                      className="cursor-pointer rounded-md border border-t-hair bg-t-bg-well px-2 py-1 font-sans text-[13px] text-t-ink disabled:cursor-default disabled:opacity-70"
                     >
                       <option value="user">user</option>
                       <option value="admin">admin</option>

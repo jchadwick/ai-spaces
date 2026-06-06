@@ -95,7 +95,7 @@ export function SpaceExplorer({
               onUpdateSpaceConfig={onUpdateSpaceConfig}
             />
           </div>
-          <div className="flex min-h-0 w-[380px] min-w-[320px] max-w-[40vw] shrink-0">
+          <div className="flex min-h-0 w-95 min-w-80 max-w-[40vw] shrink-0">
             <AIChatPane role={space.userRole} spaceId={space.id} />
           </div>
         </div>
@@ -365,7 +365,7 @@ function SpaceExplorerInner({
       className="rooms-rise flex h-full flex-col overflow-hidden"
       onContextMenu={(event) => event.preventDefault()}
     >
-      <div className="shrink-0 border-b border-rooms-line px-8 pb-[18px] pt-[22px]">
+      <div className="shrink-0 border-b border-rooms-line px-8 pb-4.5 pt-5.5">
         <button
           type="button"
           onClick={onBack}
@@ -379,7 +379,7 @@ function SpaceExplorerInner({
         </div>
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div className="min-w-0 flex-[1_1_520px]">
-            <div className="flex w-full items-center gap-[11px]">
+            <div className="flex w-full items-center gap-3">
               <span
                 className="size-[13px] rounded-full"
                 style={
@@ -441,7 +441,7 @@ function SpaceExplorerInner({
             onDragLeave={() => setIsDragOver(false)}
             onDrop={(event) => handleDrop(event, currentFolder)}
             className={cn(
-              "flex w-[264px] shrink-0 flex-col border-r border-rooms-line",
+              "flex w-66 shrink-0 flex-col border-r border-rooms-line",
               isDragOver ? "bg-rooms-paper-3" : "bg-rooms-paper-2",
             )}
           >

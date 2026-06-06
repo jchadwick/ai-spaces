@@ -20,12 +20,12 @@ function ProfilePage() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const pageClass = "mx-auto w-full max-w-[760px] flex-1 overflow-auto bg-t-bg p-8";
+  const pageClass = "mx-auto w-full max-w-190 flex-1 overflow-auto bg-t-bg p-8";
   const sectionClass = "rounded-[10px] border border-t-hair bg-t-bg-raised p-5";
   const headingClass = "mb-4 font-sans text-lg font-semibold text-t-ink";
   const inputClass = "rounded-lg border border-t-hair bg-t-bg-well px-2.5 py-2 text-t-ink";
   const buttonClass =
-    "rounded-lg border border-t-hair bg-t-ink px-3 py-[7px] text-[13px] font-medium text-t-bg disabled:cursor-default disabled:opacity-70";
+    "rounded-lg border border-t-hair bg-t-ink px-3 py-1.5 text-[13px] font-medium text-t-bg disabled:cursor-default disabled:opacity-70";
 
   useEffect(() => {
     let cancelled = false;
@@ -157,7 +157,7 @@ function ProfilePage() {
             onChange={(e) => setDisplayName(e.target.value)}
             maxLength={100}
             placeholder="Your name"
-            className={`${inputClass} mb-3.5 w-full max-w-[360px]`}
+            className={`${inputClass} mb-3.5 w-full max-w-90`}
           />
           <div>
             <button type="submit" disabled={isSavingProfile} className={buttonClass}>
@@ -170,7 +170,7 @@ function ProfilePage() {
       <section className={sectionClass}>
         <h2 className={headingClass}>Change Password</h2>
         <form onSubmit={handleChangePassword}>
-          <div className="grid max-w-[360px] gap-2.5">
+          <div className="grid max-w-90 gap-2.5">
             <input
               type="password"
               value={currentPassword}

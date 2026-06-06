@@ -74,7 +74,7 @@ export function InlineEditableText({
           setError(null);
         }}
         className={cn(
-          "flex w-full max-w-full rounded-lg border-[1.5px] border-transparent bg-transparent px-[5px] py-0.5 -mx-[5px] -my-0.5 text-left text-inherit enabled:cursor-pointer",
+          "flex w-full max-w-full rounded-lg border-[1.5px] border-transparent bg-transparent px-1 py-0.5 -mx-1 -my-0.5 text-left text-inherit enabled:cursor-pointer",
           multiline ? "items-start" : "items-center",
           displayClassName,
         )}
@@ -93,7 +93,7 @@ export function InlineEditableText({
 
   const sharedInputClassName = cn(
     "min-w-0 flex-1 rounded-[10px] border-[1.5px] border-rooms-line-strong bg-rooms-paper text-rooms-ink outline-none",
-    multiline ? "resize-none px-[11px] py-[9px]" : "px-2.5 py-[7px]",
+    multiline ? "resize-none px-3 py-2" : "px-2.5 py-1.5",
     className,
     inputClassName,
   );

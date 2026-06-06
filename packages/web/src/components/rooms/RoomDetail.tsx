@@ -290,7 +290,7 @@ function RoomDetailInner({
 
   return (
     <div className="rooms-rise flex h-full flex-col overflow-hidden">
-      <div className="shrink-0 border-b border-rooms-line px-[25px] py-[15px]">
+      <div className="shrink-0 border-b border-rooms-line px-6 py-4">
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div className="min-w-0 flex-[1_1_520px]">
             <h1 className="rooms-title m-0 w-full text-[34px] leading-[1.08]">
@@ -337,7 +337,7 @@ function RoomDetailInner({
           onDragLeave={() => setIsDragOver(false)}
           onDrop={(event) => handleDrop(event, roomRoot)}
           className={cn(
-            "flex w-[232px] shrink-0 flex-col border-r border-rooms-line",
+            "flex w-58 shrink-0 flex-col border-r border-rooms-line",
             isDragOver ? "bg-rooms-paper-3" : "bg-rooms-paper-2",
           )}
         >
@@ -447,7 +447,7 @@ function RoomDetailInner({
           onSaved={refresh}
           externalRefreshKey={contentRefreshKey}
         />
-        <div className="flex min-h-0 w-[380px] min-w-[320px] max-w-[40vw] shrink-0">
+        <div className="flex min-h-0 w-95 min-w-80 max-w-[40vw] shrink-0">
           <AIChatPane role={role} spaceId={room.spaceId} />
         </div>
       </div>

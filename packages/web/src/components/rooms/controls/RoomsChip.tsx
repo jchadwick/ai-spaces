@@ -25,7 +25,7 @@ export function RoomsChip({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-[5px] rounded-full border px-2 py-[3px] text-[11px] font-semibold leading-[1.2]",
+        "inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-semibold leading-[1.2]",
         chipToneClasses[tone],
         className,
       )}

@@ -73,7 +73,7 @@ export default function AuthErrorPage({ type, expiresAt, spaceName }: AuthErrorP
 
   return (
     <div className="min-h-screen bg-t-bg font-sans text-t-ink flex items-center justify-center p-lg">
-      <Card className="max-w-[28rem] w-full shadow-elevated">
+      <Card className="max-w-md w-full shadow-elevated">
         <CardHeader className="text-center pb-0">
           <div className="flex justify-center mb-md">
             <div className="w-16 h-16 rounded-full bg-destructive/10 flex items-center justify-center">

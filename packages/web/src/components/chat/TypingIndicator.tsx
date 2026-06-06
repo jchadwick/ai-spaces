@@ -2,7 +2,7 @@ import AgentGlyph from "../AgentGlyph";
 
 export default function TypingIndicator() {
   return (
-    <div className="flex w-full flex-col gap-2 self-start rounded-[14px] rounded-tl-[2px] border border-t-agent/30 bg-t-agent-soft px-[14px] py-3">
+    <div className="flex w-full flex-col gap-2 self-start rounded-2xl rounded-tl-xs border border-t-agent/30 bg-t-agent-soft px-3.5 py-3">
       <div className="mb-0.5 flex items-center gap-1.5">
         <AgentGlyph size={12} color="var(--t-agent)" />
         <span className="text-xs font-bold uppercase text-t-agent">agent</span>

@@ -47,7 +47,7 @@ export default function MarkdownViewer({ content }: ViewerProps) {
   }
 
   return (
-    <div className="px-4 pt-4 pb-[10px] grow flex">
+    <div className="px-4 pt-4 pb-2.5 grow flex">
       <article className={markdownClasses}>
         <ReactMarkdown
           remarkPlugins={[remarkGfm, remarkMath, remarkCallouts]}

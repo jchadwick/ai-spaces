@@ -64,7 +64,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`${getToastStyles(toast.type)} px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 min-w-64 max-w-[28rem] animate-in slide-in-from-right`}
+            className={`${getToastStyles(toast.type)} px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 min-w-64 max-w-md animate-in slide-in-from-right`}
           >
             <span className="material-symbols-outlined text-lg">{getToastIcon(toast.type)}</span>
             <span className="flex-1 text-sm">{toast.message}</span>

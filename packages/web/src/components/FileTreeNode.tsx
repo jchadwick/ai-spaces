@@ -119,7 +119,7 @@ export default function FileTreeNode({
         onDragLeave={isDirectory ? () => onFolderDragLeave(node.path) : undefined}
         onDrop={isDirectory ? (e) => onFolderDrop(e, node.path) : undefined}
         className={cn(
-          "flex w-full cursor-pointer items-center gap-1 border-l-2 pr-2 py-[5px] text-left font-sans text-sm transition-[background] duration-100",
+          "flex w-full cursor-pointer items-center gap-1 border-l-2 py-1 pr-2 text-left font-sans text-sm transition-[background] duration-100",
           isSelected
             ? "rounded-none border-l-t-accent bg-t-accent-soft text-t-accent-ink"
             : "rounded border-l-transparent text-t-ink-mid hover:bg-[rgba(26,23,20,0.04)]",

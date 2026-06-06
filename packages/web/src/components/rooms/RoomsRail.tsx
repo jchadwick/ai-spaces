@@ -59,7 +59,7 @@ export function RoomsRail({
   };
 
   return (
-    <div className="relative flex w-[72px] shrink-0 flex-col items-center gap-2.5 border-r border-rooms-line bg-rooms-paper-3 py-4">
+    <div className="relative flex w-18 shrink-0 flex-col items-center gap-2.5 border-r border-rooms-line bg-rooms-paper-3 py-4">
       <button
         type="button"
         title="Rooms home"
@@ -73,8 +73,8 @@ export function RoomsRail({
       >
         <Grid2X2 size={21} />
       </button>
-      <div className="my-1 h-px w-[26px] bg-rooms-line-strong" />
-      <div className="flex flex-col items-center gap-[9px] overflow-visible">
+      <div className="my-1 h-px w-6.5 bg-rooms-line-strong" />
+      <div className="flex flex-col items-center gap-2 overflow-visible">
         {visibleSpaces.map((space) => {
           const active = activeSpaceId === space.id && (view === "space" || view === "home");
           const color = spaceColor(spaces, space.id);
@@ -142,8 +142,8 @@ export function RoomsRail({
           <RoomsAvatar label={userLabel} size={32} index={1} />
         </button>
         {userMenuOpen && (
-          <div className="rooms-fade absolute bottom-0 left-[54px] z-[100] w-[216px] rounded-xl border-[1.5px] border-rooms-line-strong bg-rooms-paper p-1.5 shadow-rooms-popover">
-            <div className="mb-1 border-b border-rooms-line px-2.5 pb-2.5 pt-[9px]">
+          <div className="rooms-fade absolute bottom-0 left-13.5 z-[100] w-54 rounded-xl border-[1.5px] border-rooms-line-strong bg-rooms-paper p-1.5 shadow-rooms-popover">
+            <div className="mb-1 border-b border-rooms-line px-2.5 pb-2.5 pt-2">
               <div className="overflow-hidden text-ellipsis whitespace-nowrap text-[13.5px] font-bold text-rooms-ink">
                 {userLabel}
               </div>

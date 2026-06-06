@@ -16,7 +16,7 @@ export default function MembersTable({ members, onChangeRole, onRemoveMember }: 
             <th className="px-3 py-2 text-left text-xs font-medium uppercase tracking-[0.5px] text-t-ink-mid">
               User
             </th>
-            <th className="w-[140px] px-3 py-2 text-left text-xs font-medium uppercase tracking-[0.5px] text-t-ink-mid">
+            <th className="w-35 px-3 py-2 text-left text-xs font-medium uppercase tracking-[0.5px] text-t-ink-mid">
               Role
             </th>
             <th className="w-12 px-3 py-2" />

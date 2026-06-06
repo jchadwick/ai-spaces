@@ -81,7 +81,7 @@ export function CreateRoomModal({
         </>
       }
     >
-      <div className="flex flex-col gap-[18px]">
+      <div className="flex flex-col gap-4.5">
         <RoomsField
           label="Room name"
           placeholder="Yellowstone vacation"
@@ -89,7 +89,7 @@ export function CreateRoomModal({
           onChange={setName}
         />
         <div>
-          <div className="mb-[9px] text-[13px] font-semibold text-rooms-ink-soft">Space</div>
+          <div className="mb-2 text-[13px] font-semibold text-rooms-ink-soft">Space</div>
           <div className="flex flex-wrap gap-2">
             {ownerSpaces.map((space) => (
               <button
@@ -97,7 +97,7 @@ export function CreateRoomModal({
                 type="button"
                 onClick={() => setSpaceId(space.id)}
                 className={cn(
-                  "inline-flex cursor-pointer items-center gap-2 rounded-[10px] border-[1.5px] px-3.5 py-[9px] text-[13.5px] font-medium",
+                  "inline-flex cursor-pointer items-center gap-2 rounded-[10px] border-[1.5px] px-3.5 py-2 text-[13.5px] font-medium",
                   spaceId === space.id
                     ? "border-rooms-ink bg-rooms-paper-3"
                     : "border-rooms-line-strong bg-rooms-paper",

@@ -26,7 +26,7 @@ export function InviteButton({ spaceId }: { spaceId: string }) {
         Invite link
       </RoomsButton>
       {inviteUrl && (
-        <div className="fixed bottom-6 right-6 z-[70] max-w-[460px] rounded-xl bg-rooms-ink px-4 py-3 text-[13px] text-rooms-paper shadow-rooms-toast">
+        <div className="fixed bottom-6 right-6 z-[70] max-w-115 rounded-xl bg-rooms-ink px-4 py-3 text-[13px] text-rooms-paper shadow-rooms-toast">
           <div className="mb-1.5 font-semibold">Invite link</div>
           <div className="overflow-hidden text-ellipsis">{inviteUrl}</div>
         </div>

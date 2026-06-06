@@ -41,7 +41,7 @@ export function ContextMenu({
   return (
     <div
       ref={ref}
-      className="rooms-fade fixed z-[90] w-[216px] rounded-xl border-[1.5px] border-rooms-line-strong bg-rooms-paper p-1.5 shadow-rooms-popover"
+      className="rooms-fade fixed z-[90] w-54 rounded-xl border-[1.5px] border-rooms-line-strong bg-rooms-paper p-1.5 shadow-rooms-popover"
       style={{
         left: Math.min(x, window.innerWidth - 232),
         top: Math.min(y, window.innerHeight - (items.length * 38 + 16)),

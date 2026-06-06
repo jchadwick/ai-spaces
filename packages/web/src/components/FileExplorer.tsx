@@ -827,7 +827,7 @@ export default function FileExplorer({
       {contextMenu && (
         <div
           ref={contextMenuRef}
-          className="fixed z-50 min-w-[140px] rounded-lg bg-popover py-1 text-popover-foreground shadow-[0_8px_24px_rgba(25,28,30,0.06)]"
+          className="fixed z-50 min-w-35 rounded-lg bg-popover py-1 text-popover-foreground shadow-[0_8px_24px_rgba(25,28,30,0.06)]"
           style={{
             top: contextMenu.y,
             left: contextMenu.x,

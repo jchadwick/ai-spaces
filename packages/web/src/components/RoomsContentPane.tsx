@@ -41,7 +41,7 @@ function RoomsButton({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={`inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-[10px] border-[1.5px] px-3 py-[7px] text-sm font-medium leading-[1.1] disabled:cursor-default disabled:opacity-45 ${palette[variant]}`}
+      className={`inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-[10px] border-[1.5px] px-3 py-1.5 text-sm font-medium leading-[1.1] disabled:cursor-default disabled:opacity-45 ${palette[variant]}`}
     >
       {icon}
       <span>{children}</span>
@@ -58,7 +58,7 @@ function PaneState({
 }) {
   return (
     <div
-      className={`grid min-h-[180px] place-items-center p-7 text-center text-sm ${
+      className={`grid min-h-45 place-items-center p-7 text-center text-sm ${
         tone === "error" ? "text-rooms-error" : "text-rooms-muted"
       }`}
     >
@@ -131,7 +131,7 @@ export default function RoomsContentPane({
 
   return (
     <div className="flex min-w-0 flex-1 flex-col bg-rooms-paper">
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-rooms-line px-7 py-[13px]">
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-rooms-line px-7 py-3">
         {headerContent ?? (
           <div className="flex min-w-0 items-baseline gap-2.5">
             <span className="truncate text-sm font-semibold">
@@ -183,7 +183,7 @@ export default function RoomsContentPane({
       </div>
 
       {saveError && (
-        <div className="shrink-0 border-b border-rooms-error-line bg-rooms-error-soft px-7 py-[9px] text-[13px] text-rooms-error">
+        <div className="shrink-0 border-b border-rooms-error-line bg-rooms-error-soft px-7 py-2 text-[13px] text-rooms-error">
           {saveError}
         </div>
       )}
@@ -193,7 +193,7 @@ export default function RoomsContentPane({
         {!loading && error && <PaneState tone="error">{error}</PaneState>}
         {!loading && !error && !fileInfo && <PaneState>Loading file...</PaneState>}
         {!loading && !error && fileInfo && editing && Editor && (
-          <div className="h-full min-h-[420px] bg-rooms-paper-2">
+          <div className="h-full min-h-105 bg-rooms-paper-2">
             <Suspense fallback={<PaneState>Loading preview...</PaneState>}>
               <Editor content={draft} onChange={setDraft} />
             </Suspense>

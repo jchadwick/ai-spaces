@@ -132,7 +132,7 @@ export default function Header() {
   const { headerContent } = useHeader();
 
   return (
-    <header className="flex h-[52px] shrink-0 items-center justify-between border-b border-t-hair bg-t-bg pl-5 pr-4 font-sans">
+    <header className="flex h-header shrink-0 items-center justify-between border-b border-t-hair bg-t-bg pl-5 pr-4 font-sans">
       {/* Left: Logo */}
       <div className="flex items-center gap-3.5">
         <Link to="/" className="flex items-center gap-2 no-underline">

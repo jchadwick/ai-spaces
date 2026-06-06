@@ -54,7 +54,7 @@ export const markdownComponents: Components = {
           "font-mono text-xs text-t-ink",
           isBlock
             ? "block overflow-x-auto rounded-lg bg-t-bg-well px-3 py-2"
-            : "rounded bg-t-bg-well px-[5px] py-px",
+            : "rounded bg-t-bg-well px-1 py-px",
           className,
         )}
         {...props}

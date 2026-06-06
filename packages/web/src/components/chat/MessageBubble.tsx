@@ -7,14 +7,14 @@ import { markdownComponents } from "./markdownComponents";
 export default function MessageBubble({ message }: { message: ChatMessage }) {
   if (message.role === "user") {
     return (
-      <div className="max-w-[90%] self-end rounded-[14px] rounded-br-[2px] bg-t-ink px-[14px] py-2.5 font-sans text-[13.5px] leading-normal text-t-bg">
+      <div className="max-w-[90%] self-end rounded-2xl rounded-br-xs bg-t-ink px-3.5 py-2.5 font-sans text-[13.5px] leading-normal text-t-bg">
         <p className="m-0">{message.content}</p>
       </div>
     );
   }
 
   return (
-    <div className="flex w-full flex-col gap-2 self-start rounded-[14px] rounded-tl-[2px] border border-t-agent/30 bg-t-agent-soft px-[14px] py-3">
+    <div className="flex w-full flex-col gap-2 self-start rounded-2xl rounded-tl-xs border border-t-agent/30 bg-t-agent-soft px-3.5 py-3">
       <div className="mb-0.5 flex items-center gap-1.5">
         <AgentGlyph size={12} color="var(--t-agent)" />
         <span className="text-xs font-bold uppercase text-t-agent">agent</span>

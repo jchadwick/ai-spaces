@@ -28,7 +28,7 @@ export function RoomsHome({
 
   return (
     <div className="rooms-rise rooms-scrollbar h-full overflow-auto">
-      <div className="mx-auto max-w-[1080px] px-12 pb-16 pt-10">
+      <div className="mx-auto max-w-270 px-12 pb-16 pt-10">
         <div className="flex flex-wrap items-end justify-between gap-5">
           <div>
             <div className="mb-2 text-xs font-bold uppercase tracking-[0.04em] text-rooms-muted">
@@ -46,7 +46,7 @@ export function RoomsHome({
           )}
         </div>
         {activeSpace && (
-          <div className="mt-[26px] flex flex-wrap items-center gap-2.5">
+          <div className="mt-6.5 flex flex-wrap items-center gap-2.5">
             <RoomsChip tone="neutral">
               <span
                 className="size-2 rounded-full"
@@ -70,19 +70,19 @@ export function RoomsHome({
             )}
           </div>
         )}
-        <div className="mt-[30px] grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-[18px]">
+        <div className="mt-7.5 grid grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4.5">
           {list.map((room) => (
             <button
               key={room.id}
               type="button"
               onClick={() => onOpenRoom(room)}
-              className="flex min-h-[168px] cursor-pointer flex-col rounded-2xl border-[1.5px] border-rooms-line bg-rooms-paper px-5 pb-4 pt-5 text-left shadow-rooms-card"
+              className="flex min-h-42 cursor-pointer flex-col rounded-2xl border-[1.5px] border-rooms-line bg-rooms-paper px-5 pb-4 pt-5 text-left shadow-rooms-card"
             >
               <div className="flex items-start justify-between gap-3">
                 <h3 className="rooms-title m-0 text-2xl leading-[1.16]">{room.name}</h3>
                 <ArrowRight size={20} className="text-rooms-muted" />
               </div>
-              <p className="mt-[9px] mb-0 line-clamp-2 overflow-hidden text-sm leading-normal text-rooms-ink-soft">
+              <p className="mt-2 mb-0 line-clamp-2 overflow-hidden text-sm leading-normal text-rooms-ink-soft">
                 {room.summary}
               </p>
               <div className="flex-1" />
@@ -93,7 +93,7 @@ export function RoomsHome({
           ))}
         </div>
         {list.length === 0 && (
-          <div className="mt-[30px] rounded-2xl border-[1.5px] border-rooms-line bg-rooms-paper px-6 py-[42px] text-center text-rooms-muted">
+          <div className="mt-7.5 rounded-2xl border-[1.5px] border-rooms-line bg-rooms-paper px-6 py-10 text-center text-rooms-muted">
             <MessageSquare size={28} className="mx-auto mb-3" />
             <div className="text-sm">No rooms yet.</div>
           </div>

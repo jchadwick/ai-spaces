@@ -70,7 +70,7 @@ export function FilePropertiesPanel({
   };
 
   const labelClass =
-    "mb-[3px] block font-mono text-[11px] font-medium uppercase tracking-[1.2px] text-t-ink-dim";
+    "mb-1 block font-mono text-[11px] font-medium uppercase tracking-[1.2px] text-t-ink-dim";
   const inputClass =
     "box-border w-full rounded-md border border-t-hair bg-t-bg-well px-2.5 py-1.5 font-sans text-[13px] text-t-ink outline-none";
 
@@ -88,7 +88,7 @@ export function FilePropertiesPanel({
           />
         </div>
         {fileInfo?.type && (
-          <div className="min-w-[90px]">
+          <div className="min-w-22.5">
             <label className={labelClass}>File Type</label>
             <div className="py-1.5 font-mono text-xs text-t-ink-mid">{fileInfo.type}</div>
           </div>
@@ -117,7 +117,7 @@ export function FilePropertiesPanel({
           type="button"
           onClick={onClose}
           disabled={saving}
-          className="cursor-pointer rounded-md border border-t-hair bg-transparent px-3.5 py-[5px] text-[13px] text-t-ink-mid disabled:cursor-default disabled:opacity-70"
+          className="cursor-pointer rounded-md border border-t-hair bg-transparent px-3.5 py-1 text-[13px] text-t-ink-mid disabled:cursor-default disabled:opacity-70"
         >
           Cancel
         </button>
@@ -125,7 +125,7 @@ export function FilePropertiesPanel({
           type="button"
           onClick={handleSave}
           disabled={saving}
-          className="cursor-pointer rounded-md border-0 bg-t-accent px-3.5 py-[5px] text-[13px] font-medium text-t-bg-raised disabled:cursor-default disabled:opacity-70"
+          className="cursor-pointer rounded-md border-0 bg-t-accent px-3.5 py-1 text-[13px] font-medium text-t-bg-raised disabled:cursor-default disabled:opacity-70"
         >
           {saving ? "Saving…" : "Save"}
         </button>

@@ -142,7 +142,12 @@ export function archiveTopicTree(spaceId: string, topicPath: string): void {
 export function archiveTopicById(spaceId: string, topicId: string): void {
   const topic = getTopicById(spaceId, topicId);
   if (!topic) throw new Error("Room not found");
-  archiveTopicTree(spaceId, topic.topicPath);
+  if (topic.topicPath === "/") throw new Error("Root topic cannot be archived");
+  const now = new Date().toISOString();
+  db.update(spaceTopics)
+    .set({ status: "archived", archivedAt: now, updatedAt: now })
+    .where(and(eq(spaceTopics.spaceId, spaceId), eq(spaceTopics.id, topicId)))
+    .run();
 }
 
 export function renameTopicTree(spaceId: string, fromPath: string, toPath: string): void {

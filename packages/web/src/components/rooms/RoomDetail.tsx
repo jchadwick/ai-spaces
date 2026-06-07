@@ -2,11 +2,12 @@ import type { DragEvent } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FileMetadataEntry, FileNode, SpaceRole } from "@ai-spaces/shared";
 import { hasPermission } from "@ai-spaces/shared";
-import { Eye, FileText, Folder, FolderOpen, Plus, Shield, Upload } from "lucide-react";
+import { FileText, Folder, Plus, Shield, Trash2, Upload } from "lucide-react";
 
 import {
   createSpaceDirectory,
   createSpaceFile,
+  deleteSpacePath,
   renameSpacePath,
   uploadSpaceFile,
 } from "@/api/spaceFiles";
@@ -94,6 +95,8 @@ function RoomDetailInner({
     parent: string | null;
     type: "file" | "directory";
   } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<FileNode | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [newName, setNewName] = useState("");
   const [menu, setMenu] = useState<{
     x: number;
@@ -253,6 +256,35 @@ function RoomDetailInner({
       showToast(`Moved ${basename(source.path)}`, "success");
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Failed to move", "error");
+    }
+  }
+
+  async function deleteNode(node: FileNode) {
+    setIsDeleting(true);
+    try {
+      await deleteSpacePath(
+        room.spaceId,
+        node.path,
+        node.type === "directory" ? "directory" : "file",
+      );
+      setActivePath((current) =>
+        current === node.path || current?.startsWith(`${node.path}/`) ? null : current,
+      );
+      setSelectedFolder((current) =>
+        current === node.path || current?.startsWith(`${node.path}/`)
+          ? parentPath(node.path)
+          : current,
+      );
+      const parent = parentPath(node.path);
+      if (!parent || parent === roomRoot) await refresh();
+      else await loadChildren(parent);
+      setContentRefreshKey((current) => current + 1);
+      setDeleteTarget(null);
+      showToast(`Deleted ${node.name}`, "success");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Failed to delete", "error");
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -457,16 +489,6 @@ function RoomDetailInner({
           y={menu.y}
           onClose={() => setMenu(null)}
           items={[
-            ...(menu.node
-              ? [
-                  {
-                    label: "Open",
-                    icon:
-                      menu.node.type === "directory" ? <FolderOpen size={16} /> : <Eye size={16} />,
-                    onClick: () => openNode(menu.node!),
-                  },
-                ]
-              : []),
             ...(!menu.node || menu.node.type === "directory"
               ? [
                   {
@@ -494,8 +516,48 @@ function RoomDetailInner({
                   },
                 ]
               : []),
+            ...(menu.node
+              ? [
+                  {
+                    label: "Delete",
+                    icon: <Trash2 size={16} />,
+                    danger: true,
+                    onClick: () => setDeleteTarget(menu.node),
+                  },
+                ]
+              : []),
           ]}
         />
+      )}
+      {deleteTarget && (
+        <RoomsModal
+          title={`Delete ${deleteTarget.type === "directory" ? "folder" : "file"}`}
+          onClose={() => {
+            if (!isDeleting) setDeleteTarget(null);
+          }}
+          footer={
+            <>
+              <RoomsButton
+                variant="ghost"
+                disabled={isDeleting}
+                onClick={() => setDeleteTarget(null)}
+              >
+                Cancel
+              </RoomsButton>
+              <RoomsButton
+                variant="danger"
+                disabled={isDeleting}
+                onClick={() => void deleteNode(deleteTarget)}
+              >
+                {isDeleting ? "Deleting..." : "Delete"}
+              </RoomsButton>
+            </>
+          }
+        >
+          <p className="m-0 text-sm leading-normal text-rooms-ink-soft">
+            Delete "{deleteTarget.name}"? This cannot be undone.
+          </p>
+        </RoomsModal>
       )}
       {draftFile && (
         <RoomsModal

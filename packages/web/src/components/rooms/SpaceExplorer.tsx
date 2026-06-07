@@ -3,13 +3,11 @@ import { useMemo, useRef, useState } from "react";
 import type { FileNode } from "@ai-spaces/shared";
 import { hasPermission } from "@ai-spaces/shared";
 import {
-  ArrowLeft,
   ArrowRight,
   Edit3,
   Eye,
   FileText,
   Folder,
-  FolderOpen,
   Grid2X2,
   Lock,
   MessageSquare,
@@ -64,7 +62,6 @@ export function SpaceExplorer({
   promotedTopicPaths,
   promotedTopicIdsByPath,
   initialPath,
-  onBack,
   onOpenRoom,
   onNewRoom,
   onRefreshRooms,
@@ -97,7 +94,6 @@ export function SpaceExplorer({
               promotedTopicPaths={promotedTopicPaths}
               promotedTopicIdsByPath={promotedTopicIdsByPath}
               initialPath={initialPath}
-              onBack={onBack}
               onOpenRoom={onOpenRoom}
               onNewRoom={onNewRoom}
               onRefreshRooms={onRefreshRooms}
@@ -120,7 +116,6 @@ function SpaceExplorerInner({
   promotedTopicPaths,
   promotedTopicIdsByPath,
   initialPath,
-  onBack,
   onOpenRoom,
   onNewRoom,
   onRefreshRooms,
@@ -132,7 +127,6 @@ function SpaceExplorerInner({
   promotedTopicPaths: ReadonlySet<string>;
   promotedTopicIdsByPath: ReadonlyMap<string, string>;
   initialPath: string | null;
-  onBack: () => void;
   onOpenRoom: (spaceId: string, topicPath: string) => void;
   onNewRoom: () => void;
   onRefreshRooms: () => void;
@@ -175,6 +169,8 @@ function SpaceExplorerInner({
     parent: string | null;
     type: "file" | "directory";
   } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<FileNode | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [newName, setNewName] = useState("");
   const [uploadTarget, setUploadTarget] = useState<string | null>(null);
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
@@ -241,15 +237,23 @@ function SpaceExplorerInner({
   }
 
   async function deleteNode(node: FileNode) {
+    setIsDeleting(true);
     try {
       await deleteSpacePath(space.id, node.path, node.type === "directory" ? "directory" : "file");
       showToast(`Deleted ${node.name}`, "success");
       if (selectedFile === node.path) setSelectedFile(null);
+      if (selectedFile?.startsWith(`${node.path}/`)) setSelectedFile(null);
+      if (currentFolder === node.path || currentFolder?.startsWith(`${node.path}/`)) {
+        setCurrentFolder(parentPath(node.path));
+      }
       setContentRefreshKey((current) => current + 1);
       refresh();
       onRefreshRooms();
+      setDeleteTarget(null);
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Failed to delete", "error");
+    } finally {
+      setIsDeleting(false);
     }
   }
 
@@ -368,8 +372,6 @@ function SpaceExplorerInner({
 
   function openNode(node: FileNode) {
     if (node.type === "directory") {
-      setCurrentFolder(node.path);
-      setSelectedFile(null);
       void loadChildren(node.path);
       return;
     }
@@ -382,17 +384,6 @@ function SpaceExplorerInner({
       onContextMenu={(event) => event.preventDefault()}
     >
       <div className="shrink-0 border-b border-rooms-line px-8 pb-4.5 pt-5.5">
-        <button
-          type="button"
-          onClick={onBack}
-          className="mb-3 inline-flex cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 text-[13.5px] text-rooms-muted"
-        >
-          <ArrowLeft size={16} /> All rooms
-        </button>
-        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
-          <span className="font-semibold text-rooms-ink-soft">Workspace root</span>
-          <span className="text-rooms-muted">Only owners see this view.</span>
-        </div>
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div className="min-w-0 flex-[1_1_520px]">
             <div className="flex w-full items-center gap-3">
@@ -653,12 +644,6 @@ function SpaceExplorerInner({
           items={
             menu.node
               ? [
-                  {
-                    label: "Open",
-                    icon:
-                      menu.node.type === "directory" ? <FolderOpen size={16} /> : <Eye size={16} />,
-                    onClick: () => openNode(menu.node!),
-                  },
                   ...(menu.node.type === "directory"
                     ? [
                         {
@@ -695,11 +680,6 @@ function SpaceExplorerInner({
                     ? promotedTopicPaths.has(menu.node.path)
                       ? [
                           {
-                            label: "Open Room",
-                            icon: <Grid2X2 size={16} />,
-                            onClick: () => onOpenRoom(space.id, `/${menu.node!.path}`),
-                          },
-                          {
                             label: "Demote to folder",
                             icon: <ArrowRight size={16} />,
                             onClick: () => void demote(menu.node!),
@@ -728,7 +708,7 @@ function SpaceExplorerInner({
                     label: "Delete",
                     icon: <Trash2 size={16} />,
                     danger: true,
-                    onClick: () => void deleteNode(menu.node!),
+                    onClick: () => setDeleteTarget(menu.node),
                   },
                 ]
               : [
@@ -754,6 +734,36 @@ function SpaceExplorerInner({
                 ]
           }
         />
+      )}
+      {deleteTarget && (
+        <RoomsModal
+          title={`Delete ${deleteTarget.type === "directory" ? "folder" : "file"}`}
+          onClose={() => {
+            if (!isDeleting) setDeleteTarget(null);
+          }}
+          footer={
+            <>
+              <RoomsButton
+                variant="ghost"
+                disabled={isDeleting}
+                onClick={() => setDeleteTarget(null)}
+              >
+                Cancel
+              </RoomsButton>
+              <RoomsButton
+                variant="danger"
+                disabled={isDeleting}
+                onClick={() => void deleteNode(deleteTarget)}
+              >
+                {isDeleting ? "Deleting..." : "Delete"}
+              </RoomsButton>
+            </>
+          }
+        >
+          <p className="m-0 text-sm leading-normal text-rooms-ink-soft">
+            Delete "{deleteTarget.name}"? This cannot be undone.
+          </p>
+        </RoomsModal>
       )}
       {draftFile && (
         <RoomsModal

@@ -3,7 +3,7 @@ import { useState } from "react";
 import type { FileNode, SpaceMetadata } from "@ai-spaces/shared";
 import { ChevronRight, FileText, Folder, FolderOpen, Grid2X2, Lock } from "lucide-react";
 
-import { isRestricted } from "@/components/rooms/roomsUtils";
+import { isRestricted, parentPath } from "@/components/rooms/roomsUtils";
 import { cn } from "@/lib/utils";
 
 export function TreeList({
@@ -36,31 +36,51 @@ export function TreeList({
   onFolderDrop?: (event: DragEvent, path: string) => void;
 }) {
   const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set());
+  const [dragOverNode, setDragOverNode] = useState<string | null>(null);
+
+  function toggleFolder(node: FileNode) {
+    if (node.type !== "directory") return;
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(node.path)) next.delete(node.path);
+      else next.add(node.path);
+      return next;
+    });
+    onOpen(node);
+  }
+
+  function folderDropTarget(node: FileNode) {
+    return node.type === "directory" ? node.path : parentPath(node.path);
+  }
 
   function render(node: FileNode, depth: number): ReactNode {
     const active = selected === node.path;
     const open = node.type === "directory" && !collapsed.has(node.path);
     const promoted = promotedTopicPaths.has(node.path);
     const restricted = isRestricted(metadata, node.path);
-    const isFolderDropTarget = node.type === "directory" && dragOverFolder === node.path;
+    const dropTarget = folderDropTarget(node);
+    const isFolderDropTarget = dragOverFolder === dropTarget && dragOverNode === node.path;
 
     return (
       <div key={node.path}>
         <div
           draggable={Boolean(canDrag)}
           onDragStart={(event) => onDragStart?.(event, node)}
-          onDragEnd={(event) => onDragEnd?.(event, node)}
+          onDragEnd={(event) => {
+            setDragOverNode(null);
+            onDragEnd?.(event, node);
+          }}
           onDragEnter={(event) => {
-            if (node.type !== "directory" || !onFolderDragEnter) return;
+            if (!onFolderDragEnter) return;
             const isMove = event.dataTransfer.types.includes("ai-spaces/move");
             const isUpload = event.dataTransfer.types.includes("Files");
             if (!isMove && !isUpload) return;
             event.preventDefault();
             event.stopPropagation();
-            onFolderDragEnter(node.path);
+            setDragOverNode(node.path);
+            onFolderDragEnter(dropTarget);
           }}
           onDragOver={(event) => {
-            if (node.type !== "directory") return;
             const isMove = event.dataTransfer.types.includes("ai-spaces/move");
             const isUpload = event.dataTransfer.types.includes("Files");
             if (!isMove && !isUpload) return;
@@ -69,15 +89,22 @@ export function TreeList({
             event.dataTransfer.dropEffect = isMove ? "move" : "copy";
           }}
           onDragLeave={(event) => {
-            if (node.type !== "directory") return;
+            const relatedTarget = event.relatedTarget;
+            if (relatedTarget instanceof Node && event.currentTarget.contains(relatedTarget))
+              return;
             event.stopPropagation();
-            onFolderDragLeave?.(node.path);
+            setDragOverNode(null);
+            onFolderDragLeave?.(dropTarget);
           }}
           onDrop={(event) => {
-            if (node.type !== "directory" || !onFolderDrop) return;
-            onFolderDrop(event, node.path);
+            if (!onFolderDrop) return;
+            setDragOverNode(null);
+            onFolderDrop(event, dropTarget);
           }}
-          onClick={() => onOpen(node)}
+          onClick={() => {
+            if (node.type === "directory") toggleFolder(node);
+            else onOpen(node);
+          }}
           onContextMenu={(event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -101,14 +128,7 @@ export function TreeList({
             type="button"
             onClick={(event) => {
               event.stopPropagation();
-              if (node.type === "directory") {
-                setCollapsed((prev) => {
-                  const next = new Set(prev);
-                  if (next.has(node.path)) next.delete(node.path);
-                  else next.add(node.path);
-                  return next;
-                });
-              }
+              toggleFolder(node);
             }}
             className="inline-flex w-3.5 justify-center border-0 bg-transparent p-0 text-rooms-muted-2"
           >

@@ -131,7 +131,7 @@ export default function RoomsContentPane({
 
   return (
     <div className="flex min-w-0 flex-1 flex-col bg-rooms-paper">
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-rooms-line px-7 py-3">
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-rooms-line px-7 h-12">
         {headerContent ?? (
           <div className="flex min-w-0 items-baseline gap-2.5">
             <span className="truncate text-sm font-semibold">

@@ -136,9 +136,7 @@ export const spaceTopics = sqliteTable(
     status: text("status").notNull().default("active"),
     acpSessionId: text("acp_session_id"),
     archivedAt: text("archived_at"),
-    createdByUserId: text("created_by_user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
+    createdByUserId: text("created_by_user_id"),
     createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
     updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   },

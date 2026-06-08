@@ -71,6 +71,13 @@
       "when": 1780937175400,
       "tag": "0009_omniscient_luminals",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1780939500000,
+      "tag": "0010_make_created_by_user_id_nullable",
+      "breakpoints": true
     }
   ]
 }

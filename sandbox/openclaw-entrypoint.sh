@@ -78,7 +78,8 @@ openclaw plugins install --link "$PLUGIN_DIST" 2>&1 || \
 echo "[entrypoint] Waiting for AI Spaces server at $AI_SPACES_URL..."
 server_ready=0
 for i in $(seq 1 60); do
-  if curl -fsS "$AI_SPACES_URL/health" > /dev/null 2>&1; then
+  health_status="$(curl -s -o /dev/null -w "%{http_code}" "$AI_SPACES_URL/health" 2>/dev/null || true)"
+  if [ "$health_status" != "000" ]; then
     echo "[entrypoint] AI Spaces server is ready"
     server_ready=1
     break

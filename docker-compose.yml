@@ -10,10 +10,12 @@ services:
             rm -rf /var/lib/apt/lists/*
         WORKDIR /plugins
         RUN npm init -y && npm install --save \
+              @agentclientprotocol/sdk@^0.17.0 \
               bcrypt@^6.0.0 \
               chokidar@^4.0.3 \
               jsonwebtoken@^9.0.3 \
               mime-types@^3.0.2 \
+              pino@^10.3.1 \
               ws@^8.20.0 \
               zod@^3.24.2
 
@@ -22,7 +24,8 @@ services:
         WORKDIR /plugins
         COPY --from=deps /plugins/node_modules ./node_modules
         COPY sandbox/openclaw-entrypoint.sh /scripts/openclaw-entrypoint.sh
-        RUN chmod +x /scripts/openclaw-entrypoint.sh
+        RUN chmod +x /scripts/openclaw-entrypoint.sh && \
+            mkdir -p /plugins/node_modules/@ai-spaces/shared
     user: root
     entrypoint: ["/bin/sh", "/scripts/openclaw-entrypoint.sh"]
     environment:
@@ -48,6 +51,8 @@ services:
       - openclaw-home:/home/openclaw
       - dev-pairing:/dev-pairing:ro
       - ./packages/plugin/dist:/plugins/ai-spaces:ro
+      - ./packages/shared/dist:/plugins/node_modules/@ai-spaces/shared/dist:ro
+      - ./packages/shared/package.json:/plugins/node_modules/@ai-spaces/shared/package.json:ro
       - ./sandbox/templates/.openclaw/openclaw.json.tpl:/tpl/openclaw.json.tpl:ro
       - ./sandbox/templates/workspace:/tpl/workspace:ro
       - ./sandbox/templates/workspaces:/tpl/workspaces:ro
@@ -70,15 +75,17 @@ services:
         COPY packages/plugin/package.json ./packages/plugin/
         RUN npm ci
         COPY tsconfig.base.json ./
-    command: >
-      sh -c "mkdir -p /plugins &&
-             mkdir -p /dev-pairing &&
-             rm -f /plugins/openclaw-spaces-*.tar.gz /plugins/openclaw-spaces.meta.json &&
-             if [ -d /plugin-source/openclaw-spaces/dist ]; then node /build/package-openclaw-plugin.mjs --dist /plugin-source/openclaw-spaces/dist --package /plugin-source/openclaw-spaces/package.json --out /plugins; fi &&
-             npm run build:shared &&
-             npx tsx sandbox/seed-dev-data.ts &&
+    command: |
+      sh -c "set -e
+             mkdir -p /plugins
+             mkdir -p /dev-pairing
+             rm -f /plugins/openclaw-spaces-*.tar.gz /plugins/openclaw-spaces.meta.json
+             if [ -d /plugin-source/openclaw-spaces/dist ]; then node /build/package-openclaw-plugin.mjs --dist /plugin-source/openclaw-spaces/dist --package /plugin-source/openclaw-spaces/package.json --out /plugins; fi
+             npm run build:shared
+             npx tsx sandbox/seed-dev-data.ts
              npx tsx watch packages/server/src/index.ts &
              node_modules/.bin/vite packages/web --port 80 &
+             npx tsx sandbox/seed-dev-rooms.ts &
              wait"
     labels:
       - "dev.orbstack.dev.domain=dev.local.jesschadwick.com"

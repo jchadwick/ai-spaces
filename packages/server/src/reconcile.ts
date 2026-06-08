@@ -8,7 +8,7 @@ import { eq } from "drizzle-orm";
 import { config } from "./config.js";
 import { db } from "./db/connection.js";
 import { DEFAULT_SERVER_ID } from "./db/constants.js";
-import { spaceMembers, users } from "./db/index.js";
+import { spaceMembers, spaceTopics, users } from "./db/index.js";
 import { deleteSpace, insertSpace, listSpaces, listSpacesByServerId } from "./space-store.js";
 
 /**
@@ -77,6 +77,28 @@ export async function migrateCollaboratorsToMembers(): Promise<void> {
   }
 }
 
+/**
+ * Ensures the root topic "/" exists for a newly registered space.
+ * Idempotent: safe to call even if the topic already exists.
+ */
+function ensureRootTopic(spaceId: string, now: string): void {
+  db.insert(spaceTopics)
+    .values({
+      id: crypto.randomUUID(),
+      spaceId,
+      topicPath: "/",
+      targetType: "root",
+      status: "active",
+      acpSessionId: null,
+      archivedAt: null,
+      createdByUserId: null,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoNothing()
+    .run();
+}
+
 export async function reconcileFromSpaceList(
   spaces: WorkspaceSpaceRecord[],
   serverId: string = DEFAULT_SERVER_ID,
@@ -91,7 +113,7 @@ export async function reconcileFromSpaceList(
     const dbSpace = dbByRuntimeId.get(runtimeSpaceId);
     const now = new Date().toISOString();
     if (!dbSpace || dbSpace.path !== diskSpace.path) {
-      insertSpace({
+      const space = insertSpace({
         id: dbSpace?.id,
         runtimeSpaceId,
         agentId: diskSpace.agentId,
@@ -105,6 +127,7 @@ export async function reconcileFromSpaceList(
       });
       if (!dbSpace) {
         log.info({ runtimeSpaceId, path: diskSpace.path }, "Registered missing space");
+        ensureRootTopic(space.id, now);
       } else {
         log.info(
           { id: dbSpace.id, runtimeSpaceId, from: dbSpace.path, to: diskSpace.path },

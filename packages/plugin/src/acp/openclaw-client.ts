@@ -1,11 +1,35 @@
 import type { ChildProcess } from "node:child_process";
 import { spawn } from "node:child_process";
 import * as crypto from "node:crypto";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { Writable } from "node:stream";
 import { ClientSideConnection, ndJsonStream, PROTOCOL_VERSION } from "@agentclientprotocol/sdk";
+import { config } from "../config.js";
 import { logger as rootLogger } from "../logger.js";
 
 const log = rootLogger.child({ component: "openclaw-acp-client" });
+
+let cachedGatewayToken: string | null = null;
+
+function getGatewayToken(): string {
+  if (process.env.GATEWAY_TOKEN) return process.env.GATEWAY_TOKEN;
+  if (cachedGatewayToken) return cachedGatewayToken;
+
+  const configPath = path.join(config.OPENCLAW_HOME, ".openclaw", "openclaw.json");
+  try {
+    const raw = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+    const token = raw?.gateway?.auth?.token;
+    if (typeof token === "string" && token) {
+      cachedGatewayToken = token;
+      return token;
+    }
+  } catch {
+    log.warn({ configPath }, "Could not read gateway auth token from OpenClaw config");
+  }
+
+  return "secret";
+}
 
 function createFilteredAcpInput(stdout: NodeJS.ReadableStream): ReadableStream<Uint8Array> {
   const decoder = new TextDecoder();
@@ -239,7 +263,7 @@ export class OpenClawAcpClient {
 
     const timeout = setTimeout(() => abort.abort(), 90_000);
     const gatewayUrl = process.env.GATEWAY_URL ?? "http://127.0.0.1:19000";
-    const gatewayToken = process.env.GATEWAY_TOKEN ?? "secret";
+    const gatewayToken = getGatewayToken();
 
     try {
       log.info({ spaceId }, "forwarding prompt via OpenClaw gateway chat completions");

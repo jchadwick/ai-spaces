@@ -1,3 +1,5 @@
+import { Buffer } from "node:buffer";
+import { inflateSync } from "node:zlib";
 import { expect, type Page, test } from "@playwright/test";
 import { ADMIN_EMAIL } from "../helpers/auth.js";
 
@@ -16,6 +18,132 @@ const SPACE_ID = "room-content-viewer-space";
 const ROOM_ID = "room-content-viewer-room";
 const ROOM_ROOT = "viewer-audit";
 const PDF_FILE_PATH = `${ROOM_ROOT}/audit:report.pdf`;
+const UPLOADED_PDF_NAME = "tiny spaces:upload.pdf";
+const UPLOADED_PDF_PATH = `${ROOM_ROOT}/${UPLOADED_PDF_NAME}`;
+
+function asciiBytes(value: string): number[] {
+  return Array.from(value, (character) => character.charCodeAt(0));
+}
+
+function buildTinyPdfBytes(): Uint8Array {
+  const chunks: number[][] = [];
+  let offset = 0;
+  const objectOffsets: number[] = [];
+
+  function pushBytes(bytes: number[]) {
+    chunks.push(bytes);
+    offset += bytes.length;
+  }
+
+  function pushText(text: string) {
+    pushBytes(asciiBytes(text));
+  }
+
+  function pushObject(number: number, body: string) {
+    objectOffsets[number] = offset;
+    pushText(`${number} 0 obj\n${body}\nendobj\n`);
+  }
+
+  const stream = "BT /F1 18 Tf 40 90 Td (AI Spaces PDF upload fixture) Tj ET\n";
+  pushText("%PDF-1.7\n%");
+  pushBytes([0xff, 0xfe, 0xfd, 0xfc]);
+  pushText("\n");
+  pushObject(1, "<< /Type /Catalog /Pages 2 0 R >>");
+  pushObject(2, "<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
+  pushObject(
+    3,
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+  );
+  pushObject(4, `<< /Length ${asciiBytes(stream).length} >>\nstream\n${stream}endstream`);
+  pushObject(5, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>");
+
+  const xrefOffset = offset;
+  pushText("xref\n0 6\n0000000000 65535 f \n");
+  for (let objectNumber = 1; objectNumber <= 5; objectNumber++) {
+    pushText(`${String(objectOffsets[objectNumber]).padStart(10, "0")} 00000 n \n`);
+  }
+  pushText(`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF\n`);
+
+  return Uint8Array.from(chunks.flat());
+}
+
+const TINY_PDF_BYTES = buildTinyPdfBytes();
+
+function paethPredictor(left: number, up: number, upperLeft: number): number {
+  const prediction = left + up - upperLeft;
+  const leftDistance = Math.abs(prediction - left);
+  const upDistance = Math.abs(prediction - up);
+  const upperLeftDistance = Math.abs(prediction - upperLeft);
+  if (leftDistance <= upDistance && leftDistance <= upperLeftDistance) return left;
+  if (upDistance <= upperLeftDistance) return up;
+  return upperLeft;
+}
+
+function countChromeReloadButtonBluePixels(png: Buffer): number {
+  let offset = 8;
+  let width = 0;
+  let height = 0;
+  let colorType = 0;
+  const idatChunks: Buffer[] = [];
+
+  while (offset < png.length) {
+    const length = png.readUInt32BE(offset);
+    const type = png.subarray(offset + 4, offset + 8).toString("ascii");
+    const data = png.subarray(offset + 8, offset + 8 + length);
+    if (type === "IHDR") {
+      width = data.readUInt32BE(0);
+      height = data.readUInt32BE(4);
+      const bitDepth = data[8];
+      colorType = data[9];
+      if (bitDepth !== 8 || (colorType !== 2 && colorType !== 6)) {
+        throw new Error(`Unsupported PNG format: bitDepth=${bitDepth}, colorType=${colorType}`);
+      }
+    } else if (type === "IDAT") {
+      idatChunks.push(data);
+    } else if (type === "IEND") {
+      break;
+    }
+    offset += length + 12;
+  }
+
+  const bytesPerPixel = colorType === 6 ? 4 : 3;
+  const rowLength = width * bytesPerPixel;
+  const inflated = inflateSync(Buffer.concat(idatChunks));
+  const pixels = Buffer.alloc(rowLength * height);
+  let inputOffset = 0;
+
+  for (let y = 0; y < height; y++) {
+    const filter = inflated[inputOffset++];
+    const rowStart = y * rowLength;
+    const previousRowStart = rowStart - rowLength;
+    for (let x = 0; x < rowLength; x++) {
+      const raw = inflated[inputOffset++];
+      const left = x >= bytesPerPixel ? pixels[rowStart + x - bytesPerPixel] : 0;
+      const up = y > 0 ? pixels[previousRowStart + x] : 0;
+      const upperLeft =
+        y > 0 && x >= bytesPerPixel ? pixels[previousRowStart + x - bytesPerPixel] : 0;
+      let value = raw;
+      if (filter === 1) value += left;
+      else if (filter === 2) value += up;
+      else if (filter === 3) value += Math.floor((left + up) / 2);
+      else if (filter === 4) value += paethPredictor(left, up, upperLeft);
+      else if (filter !== 0) throw new Error(`Unsupported PNG filter: ${filter}`);
+      pixels[rowStart + x] = value & 0xff;
+    }
+  }
+
+  let bluePixels = 0;
+  for (let y = Math.floor(height * 0.35); y < Math.floor(height * 0.8); y++) {
+    for (let x = Math.floor(width * 0.2); x < Math.floor(width * 0.9); x++) {
+      const pixelOffset = y * rowLength + x * bytesPerPixel;
+      const red = pixels[pixelOffset];
+      const green = pixels[pixelOffset + 1];
+      const blue = pixels[pixelOffset + 2];
+      if (red < 90 && green > 70 && green < 170 && blue > 170) bluePixels++;
+    }
+  }
+  return bluePixels;
+}
 
 async function injectAuth(page: Page) {
   const authData: AuthData = {
@@ -40,9 +168,9 @@ async function installRoomsContentMocks(page: Page) {
   const files = new Map<string, string>([
     [`${ROOM_ROOT}/notes.md`, "# Markdown registry audit\n\n- viewer assertion\n"],
     [`${ROOM_ROOT}/memo.txt`, "Plain text registry audit\nsecond line\n"],
-    [PDF_FILE_PATH, "%PDF-1.4\n% mocked PDF\n"],
   ]);
-  const writes: Array<{ path: string; content: string }> = [];
+  const pdfFiles = new Map<string, Uint8Array>([[PDF_FILE_PATH, TINY_PDF_BYTES]]);
+  const writes: Array<{ path: string; content: string; encoding?: "utf-8" | "base64" }> = [];
 
   await page.route(/^https?:\/\/[^/]+\/api\/.*/, async (route) => {
     const request = route.request();
@@ -151,11 +279,13 @@ async function installRoomsContentMocks(page: Page) {
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          files: [
-            { name: "audit:report.pdf", path: PDF_FILE_PATH, type: "file" },
-            { name: "memo.txt", path: `${ROOM_ROOT}/memo.txt`, type: "file" },
-            { name: "notes.md", path: `${ROOM_ROOT}/notes.md`, type: "file" },
-          ],
+          files: [...files.keys(), ...pdfFiles.keys()]
+            .filter((filePath) => filePath.startsWith(`${ROOM_ROOT}/`))
+            .map((filePath) => ({
+              name: filePath.split("/").pop() ?? filePath,
+              path: filePath,
+              type: "file",
+            })),
         }),
       });
       return;
@@ -164,9 +294,11 @@ async function installRoomsContentMocks(page: Page) {
     const filePrefix = `/api/spaces/${SPACE_ID}/files/`;
     if (path.startsWith(filePrefix)) {
       const filePath = decodeURIComponent(path.slice(filePrefix.length));
+      const pdfBytes = pdfFiles.get(filePath);
 
       if (method === "HEAD") {
-        if (!files.has(filePath)) {
+        const textContent = files.get(filePath);
+        if (textContent === undefined && pdfBytes === undefined) {
           await route.fulfill({
             status: 404,
             contentType: "application/json",
@@ -177,9 +309,9 @@ async function installRoomsContentMocks(page: Page) {
 
         await route.fulfill({
           status: 200,
-          contentType: filePath.endsWith(".pdf") ? "application/pdf" : "text/plain",
+          contentType: pdfBytes ? "application/pdf" : "text/plain",
           headers: {
-            "content-length": String(files.get(filePath)?.length ?? 0),
+            "content-length": String(pdfBytes?.byteLength ?? textContent?.length ?? 0),
             "x-file-modified": "2026-06-05T12:00:00.000Z",
           },
         });
@@ -187,6 +319,19 @@ async function installRoomsContentMocks(page: Page) {
       }
 
       if (method === "GET") {
+        if (pdfBytes) {
+          await route.fulfill({
+            status: 200,
+            contentType: "application/pdf",
+            headers: {
+              "content-length": String(pdfBytes.byteLength),
+              "x-file-modified": "2026-06-05T12:00:00.000Z",
+            },
+            body: Buffer.from(pdfBytes),
+          });
+          return;
+        }
+
         const content = files.get(filePath);
         if (content === undefined) {
           await route.fulfill({
@@ -199,11 +344,7 @@ async function installRoomsContentMocks(page: Page) {
 
         await route.fulfill({
           status: 200,
-          contentType: filePath.endsWith(".pdf")
-            ? "application/pdf"
-            : filePath.endsWith(".md")
-              ? "text/markdown"
-              : "text/plain",
+          contentType: filePath.endsWith(".md") ? "text/markdown" : "text/plain",
           headers: { "x-file-modified": "2026-06-05T12:00:00.000Z" },
           body: content,
         });
@@ -211,10 +352,17 @@ async function installRoomsContentMocks(page: Page) {
       }
 
       if (method === "PUT") {
-        const body = (await request.postDataJSON()) as { content?: string };
+        const body = (await request.postDataJSON()) as {
+          content?: string;
+          encoding?: "utf-8" | "base64";
+        };
         const content = body.content ?? "";
-        files.set(filePath, content);
-        writes.push({ path: filePath, content });
+        if (body.encoding === "base64") {
+          pdfFiles.set(filePath, Uint8Array.from(Buffer.from(content, "base64")));
+        } else {
+          files.set(filePath, content);
+        }
+        writes.push({ path: filePath, content, encoding: body.encoding });
         await route.fulfill({
           status: 200,
           contentType: "application/json",
@@ -332,5 +480,42 @@ test.describe("Rooms content viewer registry", () => {
     expect(pdfSrc).toContain(`/api/spaces/${SPACE_ID}/files/`);
     expect(pdfSrc).toContain(encodeURIComponent(PDF_FILE_PATH));
     expect(pdfSrc).toContain("token=rooms-content-viewer-token");
+
+    await page.locator('input[type="file"]').setInputFiles({
+      name: UPLOADED_PDF_NAME,
+      mimeType: "application/pdf",
+      buffer: Buffer.from(TINY_PDF_BYTES),
+    });
+    await expect
+      .poll(() => writes.find((write) => write.path === UPLOADED_PDF_PATH))
+      .toMatchObject({
+        path: UPLOADED_PDF_PATH,
+        encoding: "base64",
+        content: Buffer.from(TINY_PDF_BYTES).toString("base64"),
+      });
+
+    const uploadedPdfUrl = `/api/spaces/${SPACE_ID}/files/${encodeURIComponent(
+      UPLOADED_PDF_PATH,
+    )}?token=rooms-content-viewer-token`;
+    const uploadedBytes = await page.evaluate(async (url) => {
+      const response = await fetch(url);
+      const bytes = Array.from(new Uint8Array(await response.arrayBuffer()));
+      return {
+        ok: response.ok,
+        contentType: response.headers.get("content-type"),
+        bytes,
+      };
+    }, uploadedPdfUrl);
+    expect(uploadedBytes.ok).toBe(true);
+    expect(uploadedBytes.contentType).toBe("application/pdf");
+    expect(uploadedBytes.bytes).toEqual(Array.from(TINY_PDF_BYTES));
+
+    await page.getByText(UPLOADED_PDF_NAME, { exact: true }).click();
+    const uploadedPdfSrc = await pdfFrame.getAttribute("src");
+    expect(uploadedPdfSrc).toContain(encodeURIComponent(UPLOADED_PDF_PATH));
+    expect(uploadedPdfSrc).not.toContain("blob:");
+    await expect(page.getByText("Failed to load PDF document")).toHaveCount(0);
+    const pdfScreenshot = await pdfFrame.screenshot();
+    expect(countChromeReloadButtonBluePixels(pdfScreenshot)).toBeLessThan(100);
   });
 });

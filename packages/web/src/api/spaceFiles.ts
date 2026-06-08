@@ -201,6 +201,7 @@ function fileNeedsBase64(file: File): boolean {
     file.type.startsWith("image/") ||
     file.type.startsWith("audio/") ||
     file.type.startsWith("video/") ||
+    file.type === "application/pdf" ||
     file.type === "application/octet-stream"
   );
 }

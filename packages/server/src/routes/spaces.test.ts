@@ -16,6 +16,17 @@ describe("space file responses", () => {
     expect([...body]).toEqual([...pngBytes]);
   });
 
+  it("decodes base64 PDF content without text conversion", () => {
+    const pdfBytes = Uint8Array.from([0x25, 0x50, 0x44, 0x46, 0x2d, 0xff, 0xfe, 0xfd]);
+    const body = fileContentResponseBody(
+      Buffer.from(pdfBytes).toString("base64"),
+      "application/pdf",
+    );
+
+    expect(body).toBeInstanceOf(Uint8Array);
+    expect([...body]).toEqual([...pdfBytes]);
+  });
+
   it("leaves text content unchanged", () => {
     expect(fileContentResponseBody("# Notes", "text/markdown; charset=utf-8")).toBe("# Notes");
   });

@@ -343,6 +343,7 @@ export default function FileExplorer({
           file.type.startsWith("image/") ||
           file.type.startsWith("audio/") ||
           file.type.startsWith("video/") ||
+          file.type === "application/pdf" ||
           file.type === "application/octet-stream";
         const filePath = targetFolder ? `${targetFolder}/${file.name}` : file.name;
         let body: string;

@@ -15,6 +15,7 @@ interface AuthData {
 const SPACE_ID = "room-content-viewer-space";
 const ROOM_ID = "room-content-viewer-room";
 const ROOM_ROOT = "viewer-audit";
+const PDF_FILE_PATH = `${ROOM_ROOT}/audit:report.pdf`;
 
 async function injectAuth(page: Page) {
   const authData: AuthData = {
@@ -39,6 +40,7 @@ async function installRoomsContentMocks(page: Page) {
   const files = new Map<string, string>([
     [`${ROOM_ROOT}/notes.md`, "# Markdown registry audit\n\n- viewer assertion\n"],
     [`${ROOM_ROOT}/memo.txt`, "Plain text registry audit\nsecond line\n"],
+    [PDF_FILE_PATH, "%PDF-1.4\n% mocked PDF\n"],
   ]);
   const writes: Array<{ path: string; content: string }> = [];
 
@@ -150,6 +152,7 @@ async function installRoomsContentMocks(page: Page) {
         contentType: "application/json",
         body: JSON.stringify({
           files: [
+            { name: "audit:report.pdf", path: PDF_FILE_PATH, type: "file" },
             { name: "memo.txt", path: `${ROOM_ROOT}/memo.txt`, type: "file" },
             { name: "notes.md", path: `${ROOM_ROOT}/notes.md`, type: "file" },
           ],
@@ -161,6 +164,27 @@ async function installRoomsContentMocks(page: Page) {
     const filePrefix = `/api/spaces/${SPACE_ID}/files/`;
     if (path.startsWith(filePrefix)) {
       const filePath = decodeURIComponent(path.slice(filePrefix.length));
+
+      if (method === "HEAD") {
+        if (!files.has(filePath)) {
+          await route.fulfill({
+            status: 404,
+            contentType: "application/json",
+            body: JSON.stringify({ error: "Not found" }),
+          });
+          return;
+        }
+
+        await route.fulfill({
+          status: 200,
+          contentType: filePath.endsWith(".pdf") ? "application/pdf" : "text/plain",
+          headers: {
+            "content-length": String(files.get(filePath)?.length ?? 0),
+            "x-file-modified": "2026-06-05T12:00:00.000Z",
+          },
+        });
+        return;
+      }
 
       if (method === "GET") {
         const content = files.get(filePath);
@@ -175,7 +199,11 @@ async function installRoomsContentMocks(page: Page) {
 
         await route.fulfill({
           status: 200,
-          contentType: filePath.endsWith(".md") ? "text/markdown" : "text/plain",
+          contentType: filePath.endsWith(".pdf")
+            ? "application/pdf"
+            : filePath.endsWith(".md")
+              ? "text/markdown"
+              : "text/plain",
           headers: { "x-file-modified": "2026-06-05T12:00:00.000Z" },
           body: content,
         });
@@ -294,5 +322,15 @@ test.describe("Rooms content viewer registry", () => {
         ),
       )
       .toBe(true);
+
+    await page.getByText("audit:report.pdf").click();
+    const pdfFrame = page.locator('iframe[title="PDF viewer"]');
+    await expect(pdfFrame).toBeVisible({ timeout: 5000 });
+    const pdfSrc = await pdfFrame.getAttribute("src");
+    expect(pdfSrc).toBeTruthy();
+    expect(pdfSrc).not.toContain("blob:");
+    expect(pdfSrc).toContain(`/api/spaces/${SPACE_ID}/files/`);
+    expect(pdfSrc).toContain(encodeURIComponent(PDF_FILE_PATH));
+    expect(pdfSrc).toContain("token=rooms-content-viewer-token");
   });
 });

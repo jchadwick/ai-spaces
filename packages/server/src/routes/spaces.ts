@@ -1,7 +1,7 @@
-import type { FileMetadataEntry, SpaceRole } from "@ai-spaces/shared";
+import type { FileMetadataEntry, SpaceRole, WorkspacePathFacts } from "@ai-spaces/shared";
 import { hasPermission, SpaceConfigSchema } from "@ai-spaces/shared";
 import { zValidator } from "@hono/zod-validator";
-import { Hono } from "hono";
+import { type Context, Hono } from "hono";
 import { z } from "zod";
 import { agentAdapter } from "../agent-adapter-instance.js";
 import { getUserSpaceRole, getUserSpaceRoles } from "../db/queries.js";
@@ -48,13 +48,123 @@ export function isBase64FileResponse(contentType: string): boolean {
   return mimeType.startsWith("image/") || mimeType === "application/pdf";
 }
 
+function isPdfContentType(contentType: string): boolean {
+  return normalizeContentType(contentType) === "application/pdf";
+}
+
 export function fileContentResponseBody(content: string, contentType: string): string | Uint8Array {
   if (!isBase64FileResponse(contentType)) return content;
   return Buffer.from(content, "base64");
 }
 
+export function fileContentResponseLength(responseBody: string | Uint8Array): number {
+  return typeof responseBody === "string" ? Buffer.byteLength(responseBody) : responseBody.length;
+}
+
+export function safeContentDispositionFilename(filePath: string): string {
+  const basename = filePath.split(/[\\/]/).filter(Boolean).pop() ?? "file";
+  const safeName =
+    [...basename]
+      .map((character) => {
+        const codePoint = character.codePointAt(0) ?? 0;
+        return codePoint < 32 || codePoint === 127 ? "_" : character;
+      })
+      .join("") || "file";
+  return safeName.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+}
+
+export function authenticatedFileContentHeaders({
+  filePath,
+  contentType,
+  contentLength,
+}: {
+  filePath: string;
+  contentType: string;
+  contentLength?: number;
+}): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Cache-Control": "no-store",
+    "Content-Type": contentType,
+  };
+
+  if (contentLength !== undefined && Number.isFinite(contentLength)) {
+    headers["Content-Length"] = String(contentLength);
+  }
+
+  if (isPdfContentType(contentType)) {
+    headers["Content-Disposition"] =
+      `inline; filename="${safeContentDispositionFilename(filePath)}"`;
+  }
+
+  return headers;
+}
+
 function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
   return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+}
+
+function applyResponseHeaders(
+  c: Context<{ Variables: SpaceVariables }>,
+  headers: Record<string, string>,
+) {
+  for (const [name, value] of Object.entries(headers)) {
+    c.header(name, value);
+  }
+}
+
+class FileAccessError extends Error {
+  constructor(
+    message: string,
+    public readonly status: 403 | 404,
+  ) {
+    super(message);
+  }
+}
+
+function errorMessage(err: unknown, fallback: string): string {
+  return err instanceof Error ? err.message : fallback;
+}
+
+interface ReadableFileResolution {
+  space: SpaceRecord;
+  path: string;
+  token: string;
+  facts: WorkspacePathFacts;
+}
+
+async function resolveReadableFile(
+  c: Context<{ Variables: SpaceVariables }>,
+): Promise<ReadableFileResolution> {
+  const id = c.req.param("id") ?? "";
+  const filePath = c.req.param("filePath") ?? "";
+  const space = getSpace(id);
+  const role = c.get("spaceRole");
+
+  if (!space) {
+    throw new FileAccessError("Space not found", 404);
+  }
+
+  const includeInternal = hasPermission(role, "files:read-internal");
+  const approved = await workspacePolicy.approvePath(space, filePath, {
+    allowHidden: includeInternal,
+    expectedType: "file",
+  });
+  const resolution = workspacePolicy.consume(approved.token);
+  if (!includeInternal && isPathRestricted(await loadSpaceMetadata(space), resolution.path)) {
+    throw new FileAccessError("Access denied: restricted path", 403);
+  }
+
+  return {
+    space,
+    path: resolution.path,
+    token: resolution.token,
+    facts: resolution.facts,
+  };
+}
+
+function metadataContentType(facts: WorkspacePathFacts, filePath: string): string {
+  if (facts.contentType) return facts.contentType;
+  return filePath.toLowerCase().endsWith(".pdf") ? "application/pdf" : "application/octet-stream";
 }
 
 // Space access middleware — resolves spaceRole for /:id and all sub-routes
@@ -375,40 +485,48 @@ spacesRouter.get("/:id/files", async (c) => {
   }
 });
 
-spacesRouter.get("/:id/files/:filePath{.*}", async (c) => {
-  const id = c.req.param("id");
-  const filePath = c.req.param("filePath");
-  const space = getSpace(id);
-  const role = c.get("spaceRole");
-
-  if (!space) {
-    return c.json({ error: "Space not found" }, 404);
-  }
-
+spacesRouter.on("HEAD", "/:id/files/:filePath{.*}", async (c) => {
   try {
-    const approved = await workspacePolicy.approvePath(space, filePath, {
-      allowHidden: hasPermission(role, "files:read-internal"),
-      expectedType: "file",
-    });
-    const resolution = workspacePolicy.consume(approved.token);
-    if (
-      !hasPermission(role, "files:read-internal") &&
-      isPathRestricted(await loadSpaceMetadata(space), resolution.path)
-    ) {
-      return c.json({ error: "Access denied: restricted path" }, 403);
-    }
+    const resolution = await resolveReadableFile(c);
+    const contentType = metadataContentType(resolution.facts, resolution.path);
+    applyResponseHeaders(
+      c,
+      authenticatedFileContentHeaders({
+        filePath: resolution.path,
+        contentType,
+        contentLength: resolution.facts.size,
+      }),
+    );
+    return c.body(null);
+  } catch (err: unknown) {
+    const status = err instanceof FileAccessError ? err.status : 404;
+    return c.json({ error: errorMessage(err, "File not found") }, status);
+  }
+});
+
+spacesRouter.get("/:id/files/:filePath{.*}", async (c) => {
+  try {
+    const resolution = await resolveReadableFile(c);
     const { content, contentType } = await agentAdapter.readFile(
-      space,
+      resolution.space,
       resolution.path,
       resolution.token,
     );
     const responseBody = fileContentResponseBody(content, contentType);
-    c.header("Content-Type", contentType);
+    applyResponseHeaders(
+      c,
+      authenticatedFileContentHeaders({
+        filePath: resolution.path,
+        contentType,
+        contentLength: fileContentResponseLength(responseBody),
+      }),
+    );
     return typeof responseBody === "string"
       ? c.body(responseBody)
       : c.body(toArrayBuffer(responseBody));
-  } catch (err: any) {
-    return c.json({ error: err.message ?? "File not found" }, 404);
+  } catch (err: unknown) {
+    const status = err instanceof FileAccessError ? err.status : 404;
+    return c.json({ error: errorMessage(err, "File not found") }, status);
   }
 });
 

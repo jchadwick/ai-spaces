@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { getAccessToken } from "@/contexts/AuthContext";
 import { useAPI } from "./useAPI";
 
 export type FileType = "markdown" | "text" | "json" | "image" | "binary" | "pdf" | "unknown";
@@ -70,7 +71,7 @@ export function useFileContent(
 
   const fetchKey = useMemo(() => {
     if (!spaceId || !filePath) return null;
-    return `${spaceId}:${filePath}:${refreshKey}`;
+    return { spaceId, filePath, refreshKey };
   }, [spaceId, filePath, refreshKey]);
 
   useEffect(() => {
@@ -91,9 +92,14 @@ export function useFileContent(
 
     const fetchData = async () => {
       try {
-        const [currentSpaceId, currentFilePath] = fetchKey.split(":");
+        const { spaceId: currentSpaceId, filePath: currentFilePath } = fetchKey;
         const encodedPath = encodeURIComponent(currentFilePath);
-        const response = await apiFetch(`/api/spaces/${currentSpaceId}/files/${encodedPath}`, {
+        const fileUrl = `/api/spaces/${currentSpaceId}/files/${encodedPath}`;
+        const fileName = currentFilePath.split("/").pop() || currentFilePath;
+        const expectedFileType = detectFileType(null, null, fileName);
+        const metadataMethod = expectedFileType === "pdf" ? "HEAD" : "GET";
+        const response = await apiFetch(fileUrl, {
+          method: metadataMethod,
           signal: controller.signal,
         });
 
@@ -106,17 +112,31 @@ export function useFileContent(
         const contentType = response.headers.get("content-type");
         const xFileContentType = response.headers.get("x-file-content-type");
         const xFileModified = response.headers.get("x-file-modified") ?? undefined;
-        const fileName = currentFilePath.split("/").pop() || currentFilePath;
+        const contentLength = response.headers.get("content-length");
+        const fileSize = contentLength ? Number(contentLength) : undefined;
         const fileType = detectFileType(contentType, xFileContentType, fileName);
 
-        if (fileType === "image" || fileType === "pdf") {
+        if (fileType === "pdf") {
+          if (controller.signal.aborted || currentFetchId !== fetchIdRef.current) return;
+          revokeObjectUrl();
+          const token = getAccessToken();
+          const pdfUrl = token ? `${fileUrl}?token=${encodeURIComponent(token)}` : fileUrl;
+          setContent(pdfUrl);
+          setFileInfo({
+            name: fileName,
+            path: currentFilePath,
+            type: fileType,
+            modifiedAt: xFileModified,
+            size: Number.isFinite(fileSize) ? fileSize : undefined,
+          });
+          setLoading(false);
+          return;
+        }
+
+        if (fileType === "image") {
           const blob = await response.blob();
           if (controller.signal.aborted || currentFetchId !== fetchIdRef.current) return;
-          const typedBlob =
-            fileType === "pdf" && blob.type !== "application/pdf"
-              ? new Blob([blob], { type: "application/pdf" })
-              : blob;
-          const url = URL.createObjectURL(typedBlob);
+          const url = URL.createObjectURL(blob);
           revokeObjectUrl();
           objectUrlRef.current = url;
           setContent(url);
@@ -125,6 +145,7 @@ export function useFileContent(
             path: currentFilePath,
             type: fileType,
             modifiedAt: xFileModified,
+            size: Number.isFinite(fileSize) ? fileSize : undefined,
           });
           setLoading(false);
           return;
@@ -139,6 +160,7 @@ export function useFileContent(
             path: currentFilePath,
             type: fileType,
             modifiedAt: xFileModified,
+            size: Number.isFinite(fileSize) ? fileSize : undefined,
           });
           setLoading(false);
           return;
@@ -154,6 +176,7 @@ export function useFileContent(
           path: currentFilePath,
           type: fileType,
           modifiedAt: xFileModified,
+          size: Number.isFinite(fileSize) ? fileSize : undefined,
         });
         setLoading(false);
       } catch (err) {

@@ -6,8 +6,6 @@ OPENCLAW_SANDBOX_HOME="${OPENCLAW_SANDBOX_HOME:-$OPENCLAW_HOME}"
 PLUGIN_DIST="${PLUGIN_DIST:-/plugins/ai-spaces/index.js}"
 CURRENT_TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
 GATEWAY_PORT="${OPENCLAW_GATEWAY_PORT:-19000}"
-AI_SPACES_URL="${AI_SPACES_URL:-http://dev:3001}"
-AI_SPACES_DEV_PAIRING_FILE="${AI_SPACES_DEV_PAIRING_FILE:-/dev-pairing/openclaw-pairing.json}"
 
 # Extract OPENCODE_API_KEY from mounted auth.json if not already set
 if [ -z "$OPENCODE_API_KEY" ] && [ -f /tpl/opencode-auth.json ]; then
@@ -75,50 +73,18 @@ echo "[entrypoint] Installing ai-spaces plugin..."
 openclaw plugins install --link "$PLUGIN_DIST" 2>&1 || \
   echo "[entrypoint] Plugin install warning (may already be installed, continuing)"
 
-echo "[entrypoint] Waiting for AI Spaces server at $AI_SPACES_URL..."
-server_ready=0
-for i in $(seq 1 60); do
-  health_status="$(curl -s -o /dev/null -w "%{http_code}" "$AI_SPACES_URL/health" 2>/dev/null || true)"
-  if [ "$health_status" != "000" ]; then
-    echo "[entrypoint] AI Spaces server is ready"
-    server_ready=1
-    break
-  fi
-  echo "[entrypoint] Waiting for AI Spaces server... ($i/60)"
-  sleep 2
-done
-
-if [ "$server_ready" != "1" ]; then
-  echo "[entrypoint] AI Spaces server did not become ready"
-  exit 1
-fi
-
+# Dev-only: bootstrap registration via admin API if not already registered.
+# This mimics the production flow where an admin creates a registration token
+# and the OpenClaw operator configures the container with it.
 if [ ! -f "$OPENCLAW_HOME/ai-spaces-registration.json" ]; then
-  echo "[entrypoint] Waiting for dev pairing input..."
-  pairing_ready=0
-  for i in $(seq 1 60); do
-    if [ -s "$AI_SPACES_DEV_PAIRING_FILE" ]; then
-      pairing_ready=1
-      break
-    fi
-    echo "[entrypoint] Waiting for dev pairing input... ($i/60)"
-    sleep 1
-  done
-
-  if [ "$pairing_ready" != "1" ]; then
-    echo "[entrypoint] Dev pairing input was not written"
-    exit 1
-  fi
-
-  AI_SPACES_REGISTRATION_TOKEN="$(
-    node -e "const fs = require('fs'); const file = process.argv[1]; const data = JSON.parse(fs.readFileSync(file, 'utf8')); process.stdout.write(data.registrationToken || '');" "$AI_SPACES_DEV_PAIRING_FILE"
-  )"
+  echo "[entrypoint] No persisted registration; bootstrapping via admin API..."
+  AI_SPACES_REGISTRATION_TOKEN=$(node /scripts/openclaw-bootstrap.mjs)
   if [ -z "$AI_SPACES_REGISTRATION_TOKEN" ]; then
-    echo "[entrypoint] No persisted registration or pending dev pairing token found"
+    echo "[entrypoint] Bootstrap did not return a registration token"
     exit 1
   fi
   export AI_SPACES_REGISTRATION_TOKEN
-  echo "[entrypoint] Loaded dev pairing input"
+  echo "[entrypoint] Registration token acquired via admin API (length: ${#AI_SPACES_REGISTRATION_TOKEN})"
 else
   echo "[entrypoint] Using persisted AI Spaces registration state"
 fi
@@ -134,6 +100,11 @@ await registerAndStartSpacesServer(parseInt(process.env.AI_SPACES_WS_PORT ?? '30
 " &
 WS_PID=$!
 echo "[entrypoint] AI Spaces server PID: $WS_PID"
+
+# Dev-only: seed default rooms after reconciliation completes.
+echo "[entrypoint] Seeding dev rooms..."
+node /scripts/seed-dev-rooms.mjs &
+echo "[entrypoint] Room seeding started in background"
 
 echo "[entrypoint] Starting gateway on port $GATEWAY_PORT..."
 

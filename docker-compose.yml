@@ -40,7 +40,8 @@ services:
       GATEWAY_URL: http://openclaw:19000
       AI_SPACES_AGENT_BASE_URL: http://dev:3001
       AI_SPACES_ROOT: /home/openclaw/workspace
-      AI_SPACES_DEV_PAIRING_FILE: /dev-pairing/openclaw-pairing.json
+      AI_SPACES_DEV_ADMIN_EMAIL: admin@ai-spaces.test
+      AI_SPACES_DEV_ADMIN_PASSWORD: ai-spaces
     restart: on-failure
     deploy:
       restart_policy:
@@ -49,7 +50,6 @@ services:
         max_attempts: 10
     volumes:
       - openclaw-home:/home/openclaw
-      - dev-pairing:/dev-pairing:ro
       - ./packages/plugin/dist:/plugins/ai-spaces:ro
       - ./packages/shared/dist:/plugins/node_modules/@ai-spaces/shared/dist:ro
       - ./packages/shared/package.json:/plugins/node_modules/@ai-spaces/shared/package.json:ro
@@ -58,8 +58,14 @@ services:
       - ./sandbox/templates/workspaces:/tpl/workspaces:ro
       - ./sandbox/templates/brain:/tpl/brain:ro
       - ${HOME}/.local/share/opencode/auth.json:/tpl/opencode-auth.json:ro
+      - ./sandbox/openclaw-entrypoint.sh:/scripts/openclaw-entrypoint.sh:ro
+      - ./sandbox/openclaw-bootstrap.mjs:/scripts/openclaw-bootstrap.mjs:ro
+      - ./sandbox/seed-dev-rooms.mjs:/scripts/seed-dev-rooms.mjs:ro
     networks:
       - ai-spaces
+    depends_on:
+      dev:
+        condition: service_healthy
 
   dev:
     build:
@@ -78,25 +84,21 @@ services:
     command: |
       sh -c "set -e
              mkdir -p /plugins
-             mkdir -p /dev-pairing
              rm -f /plugins/openclaw-spaces-*.tar.gz /plugins/openclaw-spaces.meta.json
              if [ -d /plugin-source/openclaw-spaces/dist ]; then node /build/package-openclaw-plugin.mjs --dist /plugin-source/openclaw-spaces/dist --package /plugin-source/openclaw-spaces/package.json --out /plugins; fi
              npm run build:shared
              npx tsx sandbox/seed-dev-data.ts
              npx tsx watch packages/server/src/index.ts &
              node_modules/.bin/vite packages/web --port 80 &
-             npx tsx sandbox/seed-dev-rooms.ts &
              wait"
     labels:
       - "dev.orbstack.dev.domain=dev.local.jesschadwick.com"
     environment:
       GATEWAY_URL: http://openclaw:19000
-      PLUGIN_SPACES_URL: http://openclaw:3002
       AI_SPACES_DATA: /data
       AI_SPACES_DB: /data/ai-spaces.db
-      AI_SPACES_DEV_PAIRING_FILE: /dev-pairing/openclaw-pairing.json
       ALLOW_OPEN_REGISTRATION: "true"
-      # Vite uses this to proxy /api and /ws to the server within the container
+      # Vite proxies /api and /ws to the server within the container
       AI_SPACES_URL: http://127.0.0.1:3001
       AI_SPACES_AGENT_BASE_URL: http://dev:3001
       AI_SPACES_PLUGIN_DIR: /plugins
@@ -106,7 +108,6 @@ services:
       GOOGLE_OAUTH_REDIRECT_URI: ${GOOGLE_OAUTH_REDIRECT_URI:-https://dev.local.jesschadwick.com/api/auth/google/callback}
     volumes:
       - dev-data:/data
-      - dev-pairing:/dev-pairing
       # Server source (tsx watch)
       - ./packages/server/src:/build/packages/server/src:ro
       - ./packages/server/tsconfig.json:/build/packages/server/tsconfig.json:ro
@@ -135,8 +136,12 @@ services:
         condition: on-failure
         delay: 5s
         max_attempts: 10
-    depends_on:
-      - openclaw
+    healthcheck:
+      test: ["CMD", "sh", "-c", "wget -q --spider http://127.0.0.1:3001/api/auth/providers || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
     networks:
       - ai-spaces
 
@@ -174,7 +179,6 @@ services:
 volumes:
   openclaw-home:
   dev-data:
-  dev-pairing:
 
 networks:
   ai-spaces:

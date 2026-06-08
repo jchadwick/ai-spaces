@@ -4,10 +4,6 @@
       "endpoints": {
         "chatCompletions": { "enabled": true }
       }
-    },
-    "auth": {
-      "mode": "token",
-      "token": "${GATEWAY_TOKEN}"
     }
   },
   "agents": {

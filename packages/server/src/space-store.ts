@@ -1,4 +1,5 @@
 import * as fs from "node:fs";
+import * as crypto from "node:crypto";
 import * as path from "node:path";
 import type { SpaceConfig } from "@ai-spaces/shared";
 import { computeSpaceId, SpaceConfigSchema } from "@ai-spaces/shared";
@@ -10,6 +11,7 @@ import { DEFAULT_SERVER_ID } from "./db/constants.js";
 export interface SpaceRecord {
   id: string;
   serverId: string;
+  runtimeSpaceId: string;
   agentId: string;
   agentType: string;
   path: string;
@@ -25,6 +27,7 @@ export interface CreateSpaceInput {
   path: string;
   config: SpaceConfig;
   serverId?: string;
+  runtimeSpaceId?: string;
 }
 
 export type CreateSpaceResult =
@@ -48,6 +51,7 @@ function rowToRecord(row: typeof schema.spaces.$inferSelect): SpaceRecord {
   return {
     id: row.id,
     serverId: row.serverId,
+    runtimeSpaceId: row.runtimeSpaceId,
     agentId: row.agentId,
     agentType: row.agentType,
     path: row.path,
@@ -115,7 +119,8 @@ export function createSpace(input: CreateSpaceInput, userId: string = "system"):
     };
   }
 
-  const existing = getSpaceByPath(input.agentId, validation.relativePath);
+  const serverId = input.serverId ?? DEFAULT_SERVER_ID;
+  const existing = getSpaceByPath(serverId, input.agentId, validation.relativePath);
 
   if (existing) {
     return {
@@ -125,15 +130,19 @@ export function createSpace(input: CreateSpaceInput, userId: string = "system"):
     };
   }
 
-  const id = validation.config.id ?? computeSpaceId(input.agentId, validation.relativePath);
+  const runtimeSpaceId =
+    input.runtimeSpaceId ??
+    validation.config.id ??
+    computeSpaceId(input.agentId, validation.relativePath);
+  const id = crypto.randomUUID();
   const now = new Date().toISOString();
   const configPath = path.join(validation.absolutePath, ".space", "spaces.json");
 
-  const serverId = input.serverId ?? DEFAULT_SERVER_ID;
   db.insert(schema.spaces)
     .values({
       id,
       serverId,
+      runtimeSpaceId,
       agentId: input.agentId,
       agentType: input.agentType,
       path: validation.relativePath,
@@ -147,6 +156,7 @@ export function createSpace(input: CreateSpaceInput, userId: string = "system"):
   const space: SpaceRecord = {
     id,
     serverId,
+    runtimeSpaceId,
     agentId: input.agentId,
     agentType: input.agentType,
     path: validation.relativePath,
@@ -162,7 +172,8 @@ export function createSpace(input: CreateSpaceInput, userId: string = "system"):
 }
 
 export function insertSpace(data: {
-  id: string;
+  id?: string;
+  runtimeSpaceId: string;
   agentId: string;
   agentType: string;
   path: string;
@@ -173,10 +184,12 @@ export function insertSpace(data: {
   serverId?: string;
 }): SpaceRecord {
   const serverId = data.serverId ?? DEFAULT_SERVER_ID;
+  const id = data.id ?? crypto.randomUUID();
   db.insert(schema.spaces)
     .values({
-      id: data.id,
+      id,
       serverId,
+      runtimeSpaceId: data.runtimeSpaceId,
       agentId: data.agentId,
       agentType: data.agentType,
       path: data.path,
@@ -186,9 +199,10 @@ export function insertSpace(data: {
       updatedAt: data.updatedAt,
     })
     .onConflictDoUpdate({
-      target: schema.spaces.id,
+      target: [schema.spaces.serverId, schema.spaces.runtimeSpaceId],
       set: {
-        serverId,
+        agentId: data.agentId,
+        agentType: data.agentType,
         path: data.path,
         configPath: data.configPath ?? null,
         config: JSON.stringify(data.config),
@@ -198,8 +212,9 @@ export function insertSpace(data: {
     .run();
 
   return {
-    id: data.id,
+    id,
     serverId,
+    runtimeSpaceId: data.runtimeSpaceId,
     agentId: data.agentId,
     agentType: data.agentType,
     path: data.path,
@@ -221,11 +236,36 @@ export function getSpace(id: string, userId: string = "system"): SpaceRecord | n
   return space;
 }
 
-export function getSpaceByPath(agentId: string, spacePath: string): SpaceRecord | null {
+export function getSpaceByPath(
+  serverId: string,
+  agentId: string,
+  spacePath: string,
+): SpaceRecord | null {
   const row = db
     .select()
     .from(schema.spaces)
-    .where(and(eq(schema.spaces.agentId, agentId), eq(schema.spaces.path, spacePath)))
+    .where(
+      and(
+        eq(schema.spaces.serverId, serverId),
+        eq(schema.spaces.agentId, agentId),
+        eq(schema.spaces.path, spacePath),
+      ),
+    )
+    .get();
+
+  return row ? rowToRecord(row) : null;
+}
+
+export function getSpaceByRuntimeSpaceId(
+  serverId: string,
+  runtimeSpaceId: string,
+): SpaceRecord | null {
+  const row = db
+    .select()
+    .from(schema.spaces)
+    .where(
+      and(eq(schema.spaces.serverId, serverId), eq(schema.spaces.runtimeSpaceId, runtimeSpaceId)),
+    )
     .get();
 
   return row ? rowToRecord(row) : null;

@@ -7,6 +7,7 @@ import { logger as rootLogger } from "./logger.js";
 import { runPluginPreflightChecks } from "./preflight.js";
 import {
   clearRegistrationState,
+  classifyCallbackResponse,
   loadRegistrationState,
   type RegistrationState,
   type RegistrationStatus,
@@ -114,7 +115,7 @@ export default defineChannelPluginEntry({
     }
 
     let registration: RegistrationState | null = null;
-    let registrationStatus: RegistrationStatus = "unregistered";
+    let registrationStatus: RegistrationStatus = "unpaired";
     try {
       const result = await tryRegisterWithServer();
       registration = result.state;
@@ -161,7 +162,7 @@ export default defineChannelPluginEntry({
       try {
         while (reconcileDirty) {
           reconcileDirty = false;
-          if (!registration || !configStatus.hasGatewayToken) {
+          if (!registration) {
             if (connectionState === "connected") {
               connectionState = "degraded";
             }
@@ -171,7 +172,6 @@ export default defineChannelPluginEntry({
           const resp = await fetch(`${config.AI_SPACES_URL}/api/internal/reconcile`, {
             method: "POST",
             headers: {
-              Authorization: `Bearer ${config.GATEWAY_TOKEN}`,
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
@@ -180,15 +180,20 @@ export default defineChannelPluginEntry({
               callbackToken: registration.callbackToken,
             }),
           });
-          if (resp.status === 401 || resp.status === 403) {
+          const callbackFailure = classifyCallbackResponse(resp.status);
+          if (callbackFailure) {
             log.warn(
-              "Server rejected callbackToken — clearing registration state and entering degraded mode",
+              { status: resp.status, callbackFailure },
+              "Server rejected callback registration — clearing registration state and entering degraded mode",
             );
             clearRegistrationState();
             registration = null;
-            registrationStatus = "stale-callback-token";
+            registrationStatus = callbackFailure;
             connectionState = "degraded";
             return;
+          }
+          if (!resp.ok) {
+            throw new Error(`Server reconcile failed: ${resp.status} ${await resp.text()}`);
           }
           if (connectionState !== "connected") {
             connectionState = "connected";
@@ -278,26 +283,35 @@ export default defineChannelPluginEntry({
           serverStatus = "unreachable";
         }
 
-        const registration = loadRegistrationState();
+        const persistedRegistration = loadRegistrationState();
+        const pairingStatus: RegistrationStatus = registration
+          ? registrationStatus
+          : persistedRegistration
+            ? "registered"
+            : registrationStatus;
         const degraded =
           filesystemStatus !== "ok" ||
           serverStatus === "unreachable" ||
           connectionState === "degraded" ||
-          configStatus.isDegraded;
+          configStatus.isDegraded ||
+          pairingStatus !== "registered";
 
         const body = JSON.stringify({
           status: degraded ? "degraded" : "ok",
           filesystem: filesystemStatus,
           server: serverStatus,
           connection: connectionState,
-          registration: registration ? "registered" : "unregistered",
+          registration: pairingStatus,
           diagnostics: {
             preflightWarnings,
             registrationStatus,
+            serverId: persistedRegistration?.serverId ?? registration?.serverId,
+            aiSpacesUrl: persistedRegistration?.aiSpacesUrl ?? registration?.aiSpacesUrl,
+            acpBaseUrl: persistedRegistration?.acpBaseUrl ?? registration?.acpBaseUrl,
           },
           config: {
             status: configStatus.isDegraded ? "degraded" : "ok",
-            hasGatewayToken: configStatus.hasGatewayToken,
+            hasRegistrationToken: configStatus.hasRegistrationToken,
             invalid: configDiagnostics.invalid,
             warnings: configDiagnostics.warnings,
           },

@@ -35,9 +35,9 @@ services:
       AI_SPACES_WS_PORT: "3002"
       PLUGIN_URL: http://openclaw:3002
       GATEWAY_URL: http://openclaw:19000
-      GATEWAY_TOKEN: secret
       AI_SPACES_AGENT_BASE_URL: http://dev:3001
       AI_SPACES_ROOT: /home/openclaw/workspace
+      AI_SPACES_DEV_PAIRING_FILE: /dev-pairing/openclaw-pairing.json
     restart: on-failure
     deploy:
       restart_policy:
@@ -46,6 +46,7 @@ services:
         max_attempts: 10
     volumes:
       - openclaw-home:/home/openclaw
+      - dev-pairing:/dev-pairing:ro
       - ./packages/plugin/dist:/plugins/ai-spaces:ro
       - ./sandbox/templates/.openclaw/openclaw.json.tpl:/tpl/openclaw.json.tpl:ro
       - ./sandbox/templates/workspace:/tpl/workspace:ro
@@ -71,6 +72,7 @@ services:
         COPY tsconfig.base.json ./
     command: >
       sh -c "mkdir -p /plugins &&
+             mkdir -p /dev-pairing &&
              rm -f /plugins/openclaw-spaces-*.tar.gz /plugins/openclaw-spaces.meta.json &&
              if [ -d /plugin-source/openclaw-spaces/dist ]; then node /build/package-openclaw-plugin.mjs --dist /plugin-source/openclaw-spaces/dist --package /plugin-source/openclaw-spaces/package.json --out /plugins; fi &&
              npm run build:shared &&
@@ -82,10 +84,10 @@ services:
       - "dev.orbstack.dev.domain=dev.local.jesschadwick.com"
     environment:
       GATEWAY_URL: http://openclaw:19000
-      GATEWAY_TOKEN: secret
       PLUGIN_SPACES_URL: http://openclaw:3002
       AI_SPACES_DATA: /data
       AI_SPACES_DB: /data/ai-spaces.db
+      AI_SPACES_DEV_PAIRING_FILE: /dev-pairing/openclaw-pairing.json
       ALLOW_OPEN_REGISTRATION: "true"
       # Vite uses this to proxy /api and /ws to the server within the container
       AI_SPACES_URL: http://127.0.0.1:3001
@@ -97,6 +99,7 @@ services:
       GOOGLE_OAUTH_REDIRECT_URI: ${GOOGLE_OAUTH_REDIRECT_URI:-https://dev.local.jesschadwick.com/api/auth/google/callback}
     volumes:
       - dev-data:/data
+      - dev-pairing:/dev-pairing
       # Server source (tsx watch)
       - ./packages/server/src:/build/packages/server/src:ro
       - ./packages/server/tsconfig.json:/build/packages/server/tsconfig.json:ro
@@ -164,6 +167,7 @@ services:
 volumes:
   openclaw-home:
   dev-data:
+  dev-pairing:
 
 networks:
   ai-spaces:

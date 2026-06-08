@@ -49,8 +49,10 @@ docker compose --profile studio up drizzle-studio   # open Drizzle Studio at htt
 
 Services: `openclaw`, `dev`
 
-- **dev**: runs `tsx watch` for the server and Vite for the web; source files are mounted from host for hot reload; also runs `sandbox/seed-dev-data.ts` on startup to create test users
-- **openclaw**: mount `packages/plugin/dist` — rebuild plugin on host with `npm run dev:plugin`, then `docker compose restart openclaw`
+- **dev**: runs `tsx watch` for the server and Vite for the web; source files are mounted from host for hot reload; also runs `sandbox/seed-dev-data.ts` on startup to create test users and a dev-only OpenClaw pairing file in the shared `dev-pairing` volume
+- **openclaw**: mount `packages/plugin/dist` — rebuild plugin on host with `npm run dev:plugin`, then `docker compose restart openclaw`; the container reuses `/home/openclaw/ai-spaces-registration.json` unless volumes are reset
+
+If local OpenClaw registration gets wedged during development, reset the sandbox volumes with `docker compose down -v` and start again with `docker compose up --build -d`. Registration and callback tokens must not be copied into logs or docs.
 
 ### Production Build (Docker only)
 

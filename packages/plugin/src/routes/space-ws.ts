@@ -150,7 +150,6 @@ export async function registerAndStartSpacesServer(port: number): Promise<void> 
     await fetch(`${config.AI_SPACES_URL}/api/internal/reconcile`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${config.GATEWAY_TOKEN}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({

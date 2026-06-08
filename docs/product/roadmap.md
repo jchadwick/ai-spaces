@@ -22,6 +22,7 @@ See `docs/product/target-state.md`.
 - `aa-2e47 Registered-user collaboration demo`: still the active product bet after the UI migration blockers are cleared.
 - `aa-1072 Add invite redemption and membership e2e coverage`: prove the owner-to-collaborator loop.
 - `aa-2062 Prove non-owner scoped file and chat boundaries`: prove privacy and role constraints for registered collaborators.
+- `aa-a4ab Dynamic OpenClaw server registration`: enabling architecture for multiple dynamically registered OpenClaw servers without durable runtime endpoints or shared runtime registration secrets in env/config. Keep scoped to OpenClaw plus future-safe runtime fields; do not expand into broad multi-runtime implementation unless the active bet changes.
 - Promoted Rooms UX: Rooms are goal-centered workspaces where files and chat support the goal. They are currently backed by existing Topics internally until the planned rename.
 - `aa-7a13 File Metadata UX`: likely polish unless it becomes necessary for collaborator comprehension in the active demo.
 

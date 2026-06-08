@@ -3,8 +3,8 @@ import jwt from "jsonwebtoken";
 import WebSocket from "ws";
 import { wsToAcpStream } from "../acp/ws-transport.js";
 import { config } from "../config.js";
-import { getServerById } from "../db/queries.js";
 import { logger as rootLogger } from "../logger.js";
+import { getActiveRuntimeServerEndpoint } from "../runtime-servers.js";
 import type { SpaceRecord } from "../space-store.js";
 
 const log = rootLogger.child({ component: "acp-connection-pool" });
@@ -12,6 +12,8 @@ const log = rootLogger.child({ component: "acp-connection-pool" });
 interface PoolEntry {
   connection: ClientSideConnection;
   ws: WebSocket;
+  serverId: string;
+  endpointUrl: string;
 }
 
 export class ACPConnectionPool {
@@ -19,10 +21,17 @@ export class ACPConnectionPool {
   private connecting = new Map<string, Promise<ClientSideConnection>>();
 
   async getConnection(space: SpaceRecord): Promise<ClientSideConnection> {
+    const endpointUrl = getActiveRuntimeServerEndpoint(space.serverId);
     const existing = this.pool.get(space.id);
-    if (existing && existing.ws.readyState === WebSocket.OPEN) {
+    if (
+      existing &&
+      existing.ws.readyState === WebSocket.OPEN &&
+      existing.serverId === space.serverId &&
+      existing.endpointUrl === endpointUrl
+    ) {
       return existing.connection;
     }
+    if (existing) this.dispose(space.id);
     // Already connecting — deduplicate
     const inFlight = this.connecting.get(space.id);
     if (inFlight) return inFlight;
@@ -35,10 +44,9 @@ export class ACPConnectionPool {
   }
 
   private async connect(space: SpaceRecord): Promise<ClientSideConnection> {
-    const server = getServerById(space.serverId);
-    if (!server?.pluginUrl) throw new Error(`No plugin URL for server ${space.serverId}`);
+    const endpointUrl = getActiveRuntimeServerEndpoint(space.serverId);
 
-    const wsUrl = `${server.pluginUrl.replace(/^http/, "ws")}/api/spaces/${space.id}/acp`;
+    const wsUrl = `${endpointUrl.replace(/^http/, "ws")}/api/spaces/${space.id}/acp`;
     log.info({ spaceId: space.id, wsUrl }, "connecting to plugin ACP");
 
     const forwardToken = jwt.sign({ userId: "server", role: "owner" }, config.JWT_SECRET, {
@@ -70,7 +78,7 @@ export class ACPConnectionPool {
       clientCapabilities: {},
     });
 
-    const entry: PoolEntry = { connection, ws };
+    const entry: PoolEntry = { connection, ws, serverId: space.serverId, endpointUrl };
     this.pool.set(space.id, entry);
 
     ws.on("close", () => {
@@ -96,6 +104,15 @@ export class ACPConnectionPool {
     if (entry) {
       entry.ws.close();
       this.pool.delete(spaceId);
+    }
+  }
+
+  disposeServer(serverId: string): void {
+    for (const [spaceId, entry] of this.pool) {
+      if (entry.serverId === serverId) {
+        entry.ws.close();
+        this.pool.delete(spaceId);
+      }
     }
   }
 

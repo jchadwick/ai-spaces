@@ -83,16 +83,17 @@ export async function reconcileFromSpaceList(
 ): Promise<void> {
   await migrateCollaboratorsToMembers();
 
-  const diskById = new Map(spaces.map((s) => [s.id, s]));
+  const diskByRuntimeId = new Map(spaces.map((s) => [s.id, s]));
   const dbSpaces = listSpacesByServerId(serverId);
-  const dbById = new Map(dbSpaces.map((s) => [s.id, s]));
+  const dbByRuntimeId = new Map(dbSpaces.map((s) => [s.runtimeSpaceId, s]));
 
-  for (const [id, diskSpace] of diskById) {
-    const dbSpace = dbById.get(id);
+  for (const [runtimeSpaceId, diskSpace] of diskByRuntimeId) {
+    const dbSpace = dbByRuntimeId.get(runtimeSpaceId);
     const now = new Date().toISOString();
     if (!dbSpace || dbSpace.path !== diskSpace.path) {
       insertSpace({
-        id: diskSpace.id,
+        id: dbSpace?.id,
+        runtimeSpaceId,
         agentId: diskSpace.agentId,
         agentType: diskSpace.agentType,
         path: diskSpace.path,
@@ -102,15 +103,21 @@ export async function reconcileFromSpaceList(
         updatedAt: now,
         serverId,
       });
-      if (!dbSpace) log.info({ id, path: diskSpace.path }, "Registered missing space");
-      else log.info({ id, from: dbSpace.path, to: diskSpace.path }, "Updated path for space");
+      if (!dbSpace) {
+        log.info({ runtimeSpaceId, path: diskSpace.path }, "Registered missing space");
+      } else {
+        log.info(
+          { id: dbSpace.id, runtimeSpaceId, from: dbSpace.path, to: diskSpace.path },
+          "Updated path for space",
+        );
+      }
     }
   }
 
-  for (const [id, dbSpace] of dbById) {
-    if (!diskById.has(id)) {
-      deleteSpace(id, "system");
-      log.info({ id, path: dbSpace.path }, "Removed zombie space");
+  for (const [runtimeSpaceId, dbSpace] of dbByRuntimeId) {
+    if (!diskByRuntimeId.has(runtimeSpaceId)) {
+      deleteSpace(dbSpace.id, "system");
+      log.info({ id: dbSpace.id, runtimeSpaceId, path: dbSpace.path }, "Removed zombie space");
     }
   }
 }

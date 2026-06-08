@@ -281,6 +281,29 @@ Yay!
 
 ## Building
 
+### Local Docker Dev Sandbox
+
+```bash
+docker compose up --build -d
+docker compose logs --tail=100 dev
+docker compose logs --tail=100 openclaw
+```
+
+The `dev` service seeds local users and writes a one-time OpenClaw pairing input into a shared Docker volume. The `openclaw` service waits for the server, reads that input without logging the token, registers dynamically, reconciles spaces, and then reuses its persisted local registration state on restart.
+
+After rebuilding the plugin on the host with `npm run dev:plugin`, reload OpenClaw with:
+
+```bash
+docker compose restart openclaw
+```
+
+To force a clean registration, reset volumes:
+
+```bash
+docker compose down -v
+docker compose up --build -d
+```
+
 ### Docker (no local Node required)
 
 ```bash

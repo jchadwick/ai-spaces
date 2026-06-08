@@ -64,6 +64,13 @@
       "when": 1780108982547,
       "tag": "0008_tough_dark_beast",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1780937175400,
+      "tag": "0009_omniscient_luminals",
+      "breakpoints": true
     }
   ]
 }

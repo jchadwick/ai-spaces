@@ -2,6 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { config } from "./config.js";
 import { logger as rootLogger } from "./logger.js";
+import { loadRegistrationState } from "./registration.js";
 
 const log = rootLogger.child({ component: "preflight" });
 
@@ -19,6 +20,13 @@ export async function runPluginPreflightChecks(
   const openclawConfigPath = path.join(config.OPENCLAW_HOME, ".openclaw", "openclaw.json");
   if (!fs.existsSync(openclawConfigPath)) {
     warnings.push(`openclaw config not found at ${openclawConfigPath}`);
+  }
+
+  const registration = loadRegistrationState();
+  if (!registration) {
+    warnings.push(
+      `plugin is unpaired; provide AI_SPACES_URL and AI_SPACES_REGISTRATION_TOKEN to pair with AI Spaces`,
+    );
   }
 
   // Check workspace roots are readable

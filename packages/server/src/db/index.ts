@@ -4,10 +4,35 @@ import { primaryKey, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-c
 export const servers = sqliteTable("servers", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
+  runtimeType: text("runtime_type").notNull().default("openclaw"),
+  status: text("status").notNull().default("active"),
   pluginUrl: text("plugin_url"),
   gatewayUrl: text("gateway_url"),
+  metadata: text("metadata").notNull().default("{}"),
   callbackToken: text("callback_token"),
+  callbackTokenHash: text("callback_token_hash"),
+  callbackTokenCreatedAt: text("callback_token_created_at"),
+  callbackTokenExpiresAt: text("callback_token_expires_at"),
+  callbackTokenRevokedAt: text("callback_token_revoked_at"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  lastSeenAt: text("last_seen_at"),
+});
+
+export const serverRegistrationTokens = sqliteTable("server_registration_tokens", {
+  id: text("id").primaryKey(),
+  tokenHash: text("token_hash").notNull().unique(),
+  name: text("name"),
+  runtimeType: text("runtime_type").notNull().default("openclaw"),
+  metadata: text("metadata").notNull().default("{}"),
+  status: text("status").notNull().default("active"),
+  expiresAt: text("expires_at"),
+  consumedAt: text("consumed_at"),
+  consumedByServerId: text("consumed_by_server_id").references(() => servers.id, {
+    onDelete: "set null",
+  }),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
 export const users = sqliteTable("users", {
@@ -67,6 +92,7 @@ export const spaces = sqliteTable(
       .notNull()
       .default("00000000-0000-0000-0000-000000000001")
       .references(() => servers.id),
+    runtimeSpaceId: text("runtime_space_id").notNull(),
     agentId: text("agent_id").notNull(),
     agentType: text("agent_type").notNull(),
     path: text("path").notNull(),
@@ -75,7 +101,10 @@ export const spaces = sqliteTable(
     createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
     updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   },
-  (table) => [uniqueIndex("spaces_agent_path_idx").on(table.agentId, table.path)],
+  (table) => [
+    uniqueIndex("spaces_server_runtime_space_idx").on(table.serverId, table.runtimeSpaceId),
+    uniqueIndex("spaces_server_agent_path_idx").on(table.serverId, table.agentId, table.path),
+  ],
 );
 
 export const spaceMembers = sqliteTable(
@@ -161,6 +190,8 @@ export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 export type UserWithServerRole = typeof users.$inferSelect & { serverRole: "admin" | "user" };
 export type Server = typeof servers.$inferSelect;
+export type ServerRegistrationToken = typeof serverRegistrationTokens.$inferSelect;
+export type NewServerRegistrationToken = typeof serverRegistrationTokens.$inferInsert;
 export type ServerRole = typeof serverRoles.$inferSelect;
 export type NewServerRole = typeof serverRoles.$inferInsert;
 export type AuthProvider = typeof authProviders.$inferSelect;

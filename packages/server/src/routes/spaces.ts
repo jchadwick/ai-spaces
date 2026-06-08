@@ -7,6 +7,7 @@ import { agentAdapter } from "../agent-adapter-instance.js";
 import { getUserSpaceRole, getUserSpaceRoles } from "../db/queries.js";
 import { type AuthVariables, authMiddleware } from "../middleware/auth.js";
 import { filterRestrictedNodes, isPathRestricted, loadSpaceMetadata } from "../restricted-paths.js";
+import { RuntimeServerUnavailableError } from "../runtime-servers.js";
 import { workspacePolicy } from "../security/workspace-policy-instance.js";
 import {
   deleteSpace,
@@ -123,6 +124,12 @@ class FileAccessError extends Error {
 
 function errorMessage(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;
+}
+
+function routeErrorStatus(err: unknown, fallback: 400 | 403 | 404 | 500 = 500) {
+  if (err instanceof FileAccessError) return err.status;
+  if (err instanceof RuntimeServerUnavailableError) return 503;
+  return fallback;
 }
 
 interface ReadableFileResolution {
@@ -414,7 +421,8 @@ spacesRouter.get("/:id/metadata", async (c) => {
   try {
     const metadata = await agentAdapter.getMetadata(space);
     return c.json(metadata);
-  } catch (_err: any) {
+  } catch (err: any) {
+    if (err instanceof RuntimeServerUnavailableError) return c.json({ error: err.message }, 503);
     return c.json({ files: {} });
   }
 });
@@ -447,7 +455,7 @@ spacesRouter.patch("/:id/metadata", zValidator("json", patchMetadataSchema), asy
     await agentAdapter.patchMetadata(space, approvedFiles);
     return c.json({ success: true });
   } catch (err: any) {
-    return c.json({ error: err.message ?? "Failed to update metadata" }, 500);
+    return c.json({ error: err.message ?? "Failed to update metadata" }, routeErrorStatus(err));
   }
 });
 
@@ -481,7 +489,7 @@ spacesRouter.get("/:id/files", async (c) => {
       files: includeInternal ? files : filterRestrictedNodes(files, await loadSpaceMetadata(space)),
     });
   } catch (err: any) {
-    return c.json({ error: err.message ?? "Failed to list files" }, 500);
+    return c.json({ error: err.message ?? "Failed to list files" }, routeErrorStatus(err));
   }
 });
 
@@ -499,7 +507,7 @@ spacesRouter.on("HEAD", "/:id/files/:filePath{.*}", async (c) => {
     );
     return c.body(null);
   } catch (err: unknown) {
-    const status = err instanceof FileAccessError ? err.status : 404;
+    const status = routeErrorStatus(err, 404);
     return c.json({ error: errorMessage(err, "File not found") }, status);
   }
 });
@@ -525,7 +533,7 @@ spacesRouter.get("/:id/files/:filePath{.*}", async (c) => {
       ? c.body(responseBody)
       : c.body(toArrayBuffer(responseBody));
   } catch (err: unknown) {
-    const status = err instanceof FileAccessError ? err.status : 404;
+    const status = routeErrorStatus(err, 404);
     return c.json({ error: errorMessage(err, "File not found") }, status);
   }
 });
@@ -559,7 +567,7 @@ spacesRouter.put("/:id/files/:filePath{.*}", zValidator("json", writeFileSchema)
     await agentAdapter.writeFile(space, resolution.path, content, resolution.token, encoding);
     return c.json({ success: true, path: filePath });
   } catch (err: any) {
-    return c.json({ error: err.message ?? "Failed to write file" }, 500);
+    return c.json({ error: err.message ?? "Failed to write file" }, routeErrorStatus(err));
   }
 });
 
@@ -590,7 +598,7 @@ spacesRouter.post("/:id/directories", zValidator("json", createDirSchema), async
     await agentAdapter.createDirectory(space, resolution.path, resolution.token);
     return c.json({ success: true, path: dirPath });
   } catch (err: any) {
-    return c.json({ error: err.message ?? "Failed to create directory" }, 500);
+    return c.json({ error: err.message ?? "Failed to create directory" }, routeErrorStatus(err));
   }
 });
 
@@ -617,7 +625,7 @@ spacesRouter.delete("/:id/files/:filePath{.*}", async (c) => {
     archiveTopicTree(id, `/${resolution.path}`);
     return c.json({ success: true });
   } catch (err: any) {
-    return c.json({ error: err.message ?? "Failed to delete file" }, 500);
+    return c.json({ error: err.message ?? "Failed to delete file" }, routeErrorStatus(err));
   }
 });
 
@@ -660,7 +668,7 @@ spacesRouter.patch("/:id/files/:filePath{.*}", zValidator("json", renameFileSche
     renameTopicTree(id, `/${sourceResolution.path}`, `/${targetResolution.path}`);
     return c.json({ success: true, path: newPath });
   } catch (err: any) {
-    return c.json({ error: err.message ?? "Failed to rename file" }, 500);
+    return c.json({ error: err.message ?? "Failed to rename file" }, routeErrorStatus(err));
   }
 });
 
@@ -689,7 +697,7 @@ spacesRouter.delete("/:id/directories/:dirPath{.*}", async (c) => {
     archiveTopicTree(id, `/${resolution.path}`);
     return c.json({ success: true });
   } catch (err: any) {
-    return c.json({ error: err.message ?? "Failed to delete directory" }, 500);
+    return c.json({ error: err.message ?? "Failed to delete directory" }, routeErrorStatus(err));
   }
 });
 
@@ -735,7 +743,7 @@ spacesRouter.patch(
       renameTopicTree(id, `/${sourceResolution.path}`, `/${targetResolution.path}`);
       return c.json({ success: true, path: newPath });
     } catch (err: any) {
-      return c.json({ error: err.message ?? "Failed to rename directory" }, 500);
+      return c.json({ error: err.message ?? "Failed to rename directory" }, routeErrorStatus(err));
     }
   },
 );
@@ -795,7 +803,7 @@ spacesRouter.patch("/:id/config", zValidator("json", patchConfigSchema), async (
 
     return c.json({ space: updated });
   } catch (err: any) {
-    return c.json({ error: err.message ?? "Failed to update config" }, 500);
+    return c.json({ error: err.message ?? "Failed to update config" }, routeErrorStatus(err));
   }
 });
 

@@ -16,9 +16,8 @@ import { db } from "./db/connection.js";
 import { DEFAULT_SERVER_ID } from "./db/constants.js";
 import { servers, users } from "./db/index.js";
 import { runMigrations } from "./db/migrate.js";
-import { getServerBySpaceId, getUserSpaceRole, getUserWithServerRole } from "./db/queries.js";
+import { getUserSpaceRole, getUserWithServerRole } from "./db/queries.js";
 import { logger as rootLogger } from "./logger.js";
-import { createInternalMiddleware } from "./middleware/ip-allowlist.js";
 import { runPreflightChecks } from "./preflight.js";
 import { adminRouter } from "./routes/admin.js";
 import { agentSetupRouter } from "./routes/agent-setup.js";
@@ -32,6 +31,7 @@ import { membersRouter } from "./routes/members.js";
 import { pluginsRouter } from "./routes/plugins.js";
 import { schemasRouter } from "./routes/schemas.js";
 import { getSpaceById, spacesRouter } from "./routes/spaces.js";
+import { getActiveRuntimeServerEndpoint, listRuntimeServers } from "./runtime-servers.js";
 import { createUser, getUserWithServerRoleByEmail, hashPassword } from "./user-service.js";
 
 type BuildInfo = {
@@ -170,8 +170,6 @@ app.use("/register*", async (c, next) => {
   );
 });
 
-const internalMiddleware = createInternalMiddleware(config.GATEWAY_TOKEN);
-app.use("/api/internal/*", internalMiddleware);
 app.route("/api/internal", internalRouter);
 
 app.route("/api/agent-setup", agentSetupRouter);
@@ -191,19 +189,27 @@ app.get("/health", async (c) => {
     dbStatus = "error";
   }
 
-  // Check plugin reachability
-  let pluginStatus: "ok" | "unreachable" | "unknown" = "unknown";
-  try {
-    const registeredServer = db.select().from(servers).get();
-    if (registeredServer?.pluginUrl) {
-      const res = await fetch(`${registeredServer.pluginUrl}/health`, {
-        signal: AbortSignal.timeout(2000),
-      });
-      pluginStatus = res.ok ? "ok" : "unreachable";
-    }
-  } catch {
-    pluginStatus = "unreachable";
-  }
+  const runtimeServers = listRuntimeServers().filter(
+    (server) => server.id !== DEFAULT_SERVER_ID && server.status === "active" && server.endpointUrl,
+  );
+  const healthChecks = await Promise.all(
+    runtimeServers.map(async (server) => {
+      try {
+        const res = await fetch(`${server.endpointUrl}/health`, {
+          signal: AbortSignal.timeout(2000),
+        });
+        return { serverId: server.id, status: res.ok ? "ok" : "unreachable" };
+      } catch {
+        return { serverId: server.id, status: "unreachable" };
+      }
+    }),
+  );
+  const pluginStatus: "ok" | "unreachable" | "unknown" =
+    healthChecks.length === 0
+      ? "unknown"
+      : healthChecks.every((check) => check.status === "ok")
+        ? "ok"
+        : "unreachable";
 
   const circuitBreaker = agentAdapter.getCircuitStatus().toLowerCase() as
     | "closed"
@@ -216,6 +222,7 @@ app.get("/health", async (c) => {
       status: degraded ? "degraded" : "ok",
       db: dbStatus,
       plugin: pluginStatus,
+      servers: healthChecks,
       circuitBreaker,
       uptime: Math.floor(process.uptime()),
     },
@@ -400,15 +407,17 @@ wss.on("upgrade", (request, socket, head) => {
     return;
   }
 
-  const pluginServer = getServerBySpaceId(spaceId);
-  if (!pluginServer?.pluginUrl) {
-    wsLog.warn({ spaceId }, "No plugin URL for space");
+  let runtimeEndpointUrl: string;
+  try {
+    runtimeEndpointUrl = getActiveRuntimeServerEndpoint(serverSpace.serverId);
+  } catch (err) {
+    wsLog.warn({ spaceId, err: (err as Error).message }, "Runtime server unavailable for space");
     wss.handleUpgrade(request, socket, head, (ws) =>
-      ws.close(1011, "No plugin registered for this space"),
+      ws.close(1011, "Runtime server unavailable for this space"),
     );
     return;
   }
-  const pluginWsUrl = `${pluginServer.pluginUrl.replace(/^http/, "ws")}/api/spaces/${spaceId}/acp`;
+  const pluginWsUrl = `${runtimeEndpointUrl.replace(/^http/, "ws")}/api/spaces/${spaceId}/acp`;
   wsLog.info({ userId, spaceId, pluginWsUrl }, "Connecting gateway websocket");
 
   // Mint a forwarding token with the resolved SpaceRole so the plugin gets the correct role

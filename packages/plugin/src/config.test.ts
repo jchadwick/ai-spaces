@@ -12,12 +12,12 @@ describe("config", () => {
     process.env = { ...ORIGINAL_ENV };
   });
 
-  it("does not throw when GATEWAY_TOKEN is missing", async () => {
+  it("does not degrade when GATEWAY_TOKEN is missing", async () => {
     delete process.env.GATEWAY_TOKEN;
     const module = await import("./config.js");
     expect(module.configStatus.hasGatewayToken).toBe(false);
-    expect(module.configStatus.isDegraded).toBe(true);
-    expect(module.diagnostics.invalid).toContain("GATEWAY_TOKEN");
+    expect(module.configStatus.isDegraded).toBe(false);
+    expect(module.diagnostics.invalid).not.toContain("GATEWAY_TOKEN");
   });
 
   it("falls back safely for invalid env values", async () => {

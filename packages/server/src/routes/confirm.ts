@@ -8,13 +8,15 @@ import { db } from "../db/connection.js";
 import { confirmationNonces, inviteTokens, notifications } from "../db/index.js";
 import type { AuthVariables } from "../middleware/auth.js";
 import { authMiddleware } from "../middleware/auth.js";
-import { createInternalMiddleware } from "../middleware/ip-allowlist.js";
+import { authenticateRuntimeCallback, getRuntimeAuthFromRequest } from "../runtime-servers.js";
 import { getSpace } from "../space-store.js";
 
 export const confirmRouter = new Hono<{ Variables: AuthVariables }>();
 
 // Internal-only nonce issuance
 const issueNonceSchema = z.object({
+  serverId: z.string().min(1).optional(),
+  callbackToken: z.string().min(1).optional(),
   spaceId: z.string().min(1),
   issuingUserId: z.string().min(1),
   action: z.string().min(1),
@@ -23,11 +25,21 @@ const issueNonceSchema = z.object({
 
 confirmRouter.post(
   "/internal/confirm/issue",
-  createInternalMiddleware(config.GATEWAY_TOKEN),
   // @ts-expect-error -- tsgo TS2589: type instantiation depth limit on Hono+zValidator chains
   zValidator("json", issueNonceSchema),
   async (c) => {
-    const { spaceId, issuingUserId, action, params } = c.req.valid("json");
+    const { spaceId, issuingUserId, action, params, serverId, callbackToken } = c.req.valid("json");
+    const headerAuth = getRuntimeAuthFromRequest(c);
+    const runtimeServer = authenticateRuntimeCallback(
+      serverId ?? headerAuth.serverId,
+      callbackToken ?? headerAuth.callbackToken,
+    );
+    if (!runtimeServer) return c.json({ error: "Unauthorized" }, 401);
+
+    const space = getSpace(spaceId);
+    if (!space || space.serverId !== runtimeServer.id) {
+      return c.json({ error: "Space not found" }, 404);
+    }
 
     const id = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + config.CONFIRMATION_NONCE_TTL_MS).toISOString();

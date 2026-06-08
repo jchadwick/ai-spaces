@@ -6,6 +6,8 @@ OPENCLAW_SANDBOX_HOME="${OPENCLAW_SANDBOX_HOME:-$OPENCLAW_HOME}"
 PLUGIN_DIST="${PLUGIN_DIST:-/plugins/ai-spaces/index.js}"
 CURRENT_TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
 GATEWAY_PORT="${OPENCLAW_GATEWAY_PORT:-19000}"
+AI_SPACES_URL="${AI_SPACES_URL:-http://dev:3001}"
+AI_SPACES_DEV_PAIRING_FILE="${AI_SPACES_DEV_PAIRING_FILE:-/dev-pairing/openclaw-pairing.json}"
 
 # Extract OPENCODE_API_KEY from mounted auth.json if not already set
 if [ -z "$OPENCODE_API_KEY" ] && [ -f /tpl/opencode-auth.json ]; then
@@ -28,7 +30,6 @@ substitute() {
     -e "s|\${OPENCLAW_SANDBOX_HOME}|$OPENCLAW_SANDBOX_HOME|g" \
     -e "s|\${PLUGIN_DIST}|$PLUGIN_DIST|g" \
     -e "s|\${CURRENT_TIMESTAMP}|$CURRENT_TIMESTAMP|g" \
-    -e "s|\${GATEWAY_TOKEN}|${GATEWAY_TOKEN:-secret}|g" \
     "$1"
 }
 
@@ -74,22 +75,57 @@ echo "[entrypoint] Installing ai-spaces plugin..."
 openclaw plugins install --link "$PLUGIN_DIST" 2>&1 || \
   echo "[entrypoint] Plugin install warning (may already be installed, continuing)"
 
+echo "[entrypoint] Waiting for AI Spaces server at $AI_SPACES_URL..."
+server_ready=0
+for i in $(seq 1 60); do
+  if curl -fsS "$AI_SPACES_URL/health" > /dev/null 2>&1; then
+    echo "[entrypoint] AI Spaces server is ready"
+    server_ready=1
+    break
+  fi
+  echo "[entrypoint] Waiting for AI Spaces server... ($i/60)"
+  sleep 2
+done
+
+if [ "$server_ready" != "1" ]; then
+  echo "[entrypoint] AI Spaces server did not become ready"
+  exit 1
+fi
+
+if [ ! -f "$OPENCLAW_HOME/ai-spaces-registration.json" ]; then
+  echo "[entrypoint] Waiting for dev pairing input..."
+  pairing_ready=0
+  for i in $(seq 1 60); do
+    if [ -s "$AI_SPACES_DEV_PAIRING_FILE" ]; then
+      pairing_ready=1
+      break
+    fi
+    echo "[entrypoint] Waiting for dev pairing input... ($i/60)"
+    sleep 1
+  done
+
+  if [ "$pairing_ready" != "1" ]; then
+    echo "[entrypoint] Dev pairing input was not written"
+    exit 1
+  fi
+
+  AI_SPACES_REGISTRATION_TOKEN="$(
+    node -e "const fs = require('fs'); const file = process.argv[1]; const data = JSON.parse(fs.readFileSync(file, 'utf8')); process.stdout.write(data.registrationToken || '');" "$AI_SPACES_DEV_PAIRING_FILE"
+  )"
+  if [ -z "$AI_SPACES_REGISTRATION_TOKEN" ]; then
+    echo "[entrypoint] No persisted registration or pending dev pairing token found"
+    exit 1
+  fi
+  export AI_SPACES_REGISTRATION_TOKEN
+  echo "[entrypoint] Loaded dev pairing input"
+else
+  echo "[entrypoint] Using persisted AI Spaces registration state"
+fi
+
 # Start the AI Spaces WebSocket server as a standalone process.
 # The gateway plugin loading is unreliable across openclaw versions; running the
 # WS server directly ensures chat is always available regardless of gateway state.
 echo "[entrypoint] Starting AI Spaces server on port ${AI_SPACES_WS_PORT:-3002}..."
-
-# Wait for the AI Spaces server to be ready before starting
-AI_SPACES_URL="${AI_SPACES_URL:-http://dev:3001}"
-echo "[entrypoint] Waiting for AI Spaces server at $AI_SPACES_URL..."
-for i in 1 2 3 4 5 6 7 8 9 10; do
-  if curl -s "$AI_SPACES_URL/api/health" > /dev/null 2>&1; then
-    echo "[entrypoint] AI Spaces server is ready"
-    break
-  fi
-  echo "[entrypoint] Waiting for AI Spaces server... ($i/10)"
-  sleep 2
-done
 
 node --input-type=module -e "
 import { registerAndStartSpacesServer } from '/plugins/ai-spaces/routes/space-ws.js';

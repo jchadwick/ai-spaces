@@ -23,11 +23,12 @@ async function importStoreWithTempDb() {
     .run("user-1", "owner@example.test", "Owner", now, now);
   sqlite
     .prepare(
-      "INSERT INTO spaces (id, server_id, agent_id, agent_type, path, config_path, config, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO spaces (id, server_id, runtime_space_id, agent_id, agent_type, path, config_path, config, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
     )
     .run(
       "space-1",
       "00000000-0000-0000-0000-000000000001",
+      "runtime-space-1",
       "agent-1",
       "openclaw",
       "Workspace",

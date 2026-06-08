@@ -18,13 +18,19 @@ vi.mock("./preflight.js", () => ({
   runPluginPreflightChecks: (...args: unknown[]) => preflightMock(...args),
 }));
 
-const tryRegisterWithServerMock = vi.fn(async () => ({ status: "unregistered", state: null }));
+const tryRegisterWithServerMock = vi.fn(async () => ({ status: "unpaired", state: null }));
 const clearRegistrationStateMock = vi.fn();
 const loadRegistrationStateMock = vi.fn(() => null);
 vi.mock("./registration.js", () => ({
   tryRegisterWithServer: (...args: unknown[]) => tryRegisterWithServerMock(...args),
   clearRegistrationState: (...args: unknown[]) => clearRegistrationStateMock(...args),
   loadRegistrationState: (...args: unknown[]) => loadRegistrationStateMock(...args),
+  classifyCallbackResponse: (status: number) =>
+    status === 401 || status === 403
+      ? "stale-callback-token"
+      : status === 404 || status === 410
+        ? "revoked"
+        : null,
 }));
 
 const initSpaceStoreMock = vi.fn();

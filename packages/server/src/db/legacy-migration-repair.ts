@@ -62,7 +62,19 @@ function ensurePost0003Shape(sqlite: Database.Database): string[] {
       CREATE TABLE servers (
         id text PRIMARY KEY NOT NULL,
         name text NOT NULL,
-        created_at text DEFAULT CURRENT_TIMESTAMP NOT NULL
+        runtime_type text DEFAULT 'openclaw' NOT NULL,
+        status text DEFAULT 'active' NOT NULL,
+        plugin_url text,
+        gateway_url text,
+        metadata text DEFAULT '{}' NOT NULL,
+        callback_token text,
+        callback_token_hash text,
+        callback_token_created_at text,
+        callback_token_expires_at text,
+        callback_token_revoked_at text,
+        created_at text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        updated_at text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        last_seen_at text
       );
     `);
     repaired.push("created servers table (legacy fallback)");
@@ -115,6 +127,12 @@ function ensurePost0003Shape(sqlite: Database.Database): string[] {
     repaired.push("added spaces.server_id (legacy fallback)");
   }
 
+  if (tableExists(sqlite, "spaces") && !columnExists(sqlite, "spaces", "runtime_space_id")) {
+    sqlite.exec("ALTER TABLE spaces ADD COLUMN runtime_space_id text NOT NULL DEFAULT ''");
+    sqlite.exec("UPDATE spaces SET runtime_space_id = id WHERE runtime_space_id = ''");
+    repaired.push("added spaces.runtime_space_id (legacy fallback)");
+  }
+
   return repaired;
 }
 
@@ -139,7 +157,8 @@ export function repairLegacy0003State(
     !tableExists(sqlite, "servers") ||
     !tableExists(sqlite, "auth_providers") ||
     !tableExists(sqlite, "server_roles") ||
-    !columnExists(sqlite, "spaces", "server_id");
+    !columnExists(sqlite, "spaces", "server_id") ||
+    !columnExists(sqlite, "spaces", "runtime_space_id");
 
   if (!missingCriticalObjects) return [];
 

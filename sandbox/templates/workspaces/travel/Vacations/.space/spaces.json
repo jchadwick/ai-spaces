@@ -1,5 +1,5 @@
 {
-  "id": "testspace",
-  "name": "Main - Test Space",
-  "description": "A test space for development. Lives in main agent workspace."
+  "id": "vacations",
+  "name": "Travel - Vacations",
+  "description": "Travel agent workspace for vacation planning."
 }

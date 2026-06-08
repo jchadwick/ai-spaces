@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import chokidar, { FSWatcher } from "chokidar";
+import chokidar, { type FSWatcher } from "chokidar";
 
 export type FileAction = "created" | "modified" | "deleted";
 

@@ -242,7 +242,9 @@ export default defineChannelPluginEntry({
 
     const stopWatchers = () => {
       clearInterval(reconcileTimer);
-      watchers.forEach((w) => w.stop());
+      for (const watcher of watchers) {
+        watcher.stop();
+      }
     };
     process.once("SIGTERM", stopWatchers);
     process.once("SIGINT", stopWatchers);
@@ -377,7 +379,7 @@ export default defineChannelPluginEntry({
 
     api.registerHttpRoute({
       path: "/api/chat/send",
-      auth: "plugin" as any,
+      auth: "plugin",
       handler: wrapRoute("/api/chat/send", async (_req: IncomingMessage, res: ServerResponse) => {
         res.statusCode = 410;
         res.setHeader("Content-Type", "application/json");

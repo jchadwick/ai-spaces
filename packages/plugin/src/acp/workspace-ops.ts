@@ -18,6 +18,7 @@ import { isPathContained, validatePath } from "../validation.js";
 import { isInternalWorkspacePath } from "./chat-policy.js";
 
 const DEFAULT_MAX_DEPTH = 10;
+const ACCESS_DENIED = "Access denied: path outside workspace";
 
 interface QueueItem {
   dir: string;
@@ -42,6 +43,14 @@ function isInternalResolvedPath(spaceRoot: string, fullPath: string): boolean {
   return isInternalWorkspacePath(relative);
 }
 
+function requireValidatedPath(
+  validation: { valid: boolean; resolvedPath: string | null },
+  message = ACCESS_DENIED,
+): string {
+  if (!validation.valid || !validation.resolvedPath) throw new Error(message);
+  return validation.resolvedPath;
+}
+
 export async function listWorkspaceFiles(
   spaceRoot: string,
   includeHidden: boolean,
@@ -50,8 +59,7 @@ export async function listWorkspaceFiles(
   const validation = dirPath
     ? validatePath(dirPath, spaceRoot)
     : { valid: true, resolvedPath: spaceRoot };
-  if (!validation.valid) throw new Error("Access denied: path outside workspace");
-  const targetDir = validation.resolvedPath!;
+  const targetDir = requireValidatedPath(validation);
   try {
     await fsPromises.access(targetDir);
   } catch {
@@ -65,7 +73,9 @@ export async function listWorkspaceFiles(
   const visitedDirs = new Set<string>();
 
   while (queue.length > 0) {
-    const { dir, basePath, depth, parentChildren } = queue.shift()!;
+    const item = queue.shift();
+    if (!item) continue;
+    const { dir, basePath, depth, parentChildren } = item;
     if (depth > DEFAULT_MAX_DEPTH) continue;
 
     try {
@@ -186,9 +196,7 @@ export async function readWorkspaceFile(
   filePath: string,
 ): Promise<{ content: string; contentType: string }> {
   const validation = validatePath(filePath, spaceRoot);
-  if (!validation.valid) throw new Error("Access denied: path outside workspace");
-
-  const fullPath = validation.resolvedPath!;
+  const fullPath = requireValidatedPath(validation);
   if (!fs.existsSync(fullPath)) throw new Error(`File not found: ${filePath}`);
 
   const stats = fs.statSync(fullPath);
@@ -211,9 +219,7 @@ export async function writeWorkspaceFile(
   encoding: "utf-8" | "base64" = "utf-8",
 ): Promise<void> {
   const validation = validatePath(filePath, spaceRoot);
-  if (!validation.valid) throw new Error("Access denied: path outside workspace");
-
-  const fullPath = validation.resolvedPath!;
+  const fullPath = requireValidatedPath(validation);
   const dir = path.dirname(fullPath);
   await fsPromises.mkdir(dir, { recursive: true });
 
@@ -228,8 +234,7 @@ export async function writeWorkspaceFile(
 
 export async function deleteWorkspaceFile(spaceRoot: string, filePath: string): Promise<void> {
   const validation = validatePath(filePath, spaceRoot);
-  if (!validation.valid) throw new Error("Access denied: path outside workspace");
-  const fullPath = validation.resolvedPath!;
+  const fullPath = requireValidatedPath(validation);
   if (!fs.existsSync(fullPath)) throw new Error(`File not found: ${filePath}`);
   await fsPromises.unlink(fullPath);
 }
@@ -241,23 +246,27 @@ export async function renameWorkspacePath(
 ): Promise<void> {
   const fromValidation = validatePath(fromPath, spaceRoot);
   const toValidation = validatePath(toPath, spaceRoot);
-  if (!fromValidation.valid) throw new Error("Access denied: source path outside workspace");
-  if (!toValidation.valid) throw new Error("Access denied: target path outside workspace");
-  const toDir = path.dirname(toValidation.resolvedPath!);
+  const fromResolvedPath = requireValidatedPath(
+    fromValidation,
+    "Access denied: source path outside workspace",
+  );
+  const toResolvedPath = requireValidatedPath(
+    toValidation,
+    "Access denied: target path outside workspace",
+  );
+  const toDir = path.dirname(toResolvedPath);
   await fsPromises.mkdir(toDir, { recursive: true });
-  await fsPromises.rename(fromValidation.resolvedPath!, toValidation.resolvedPath!);
+  await fsPromises.rename(fromResolvedPath, toResolvedPath);
 }
 
 export async function createWorkspaceDirectory(spaceRoot: string, dirPath: string): Promise<void> {
   const validation = validatePath(dirPath, spaceRoot);
-  if (!validation.valid) throw new Error("Access denied: path outside workspace");
-  await fsPromises.mkdir(validation.resolvedPath!, { recursive: true });
+  await fsPromises.mkdir(requireValidatedPath(validation), { recursive: true });
 }
 
 export async function deleteWorkspaceDirectory(spaceRoot: string, dirPath: string): Promise<void> {
   const validation = validatePath(dirPath, spaceRoot);
-  if (!validation.valid) throw new Error("Access denied: path outside workspace");
-  const fullPath = validation.resolvedPath!;
+  const fullPath = requireValidatedPath(validation);
   if (!fs.existsSync(fullPath)) throw new Error(`Directory not found: ${dirPath}`);
   await fsPromises.rm(fullPath, { recursive: true, force: true });
 }

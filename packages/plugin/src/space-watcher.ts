@@ -2,7 +2,7 @@ import { EventEmitter } from "node:events";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { computeSpaceId, SpaceConfigSchema } from "@ai-spaces/shared";
-import chokidar, { FSWatcher } from "chokidar";
+import chokidar, { type FSWatcher } from "chokidar";
 import { logger as rootLogger } from "./logger.js";
 
 const log = rootLogger.child({ component: "space-watcher" });

@@ -1,5 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import type { SpaceConfig } from "@ai-spaces/shared";
 import { computeSpaceId } from "@ai-spaces/shared";
 import { config } from "../config.js";
 
@@ -43,13 +44,13 @@ export async function createSpace(spacePath: string, options: CreateSpaceOptions
   const folderName = path.basename(absolutePath);
   const spaceId = computeSpaceId("", folderName);
 
-  const config: any = {
+  const spaceConfig: SpaceConfig = {
     id: spaceId,
     name: spaceName,
   };
 
   if (spaceDescription) {
-    config.description = spaceDescription;
+    spaceConfig.description = spaceDescription;
   }
 
   try {
@@ -63,7 +64,7 @@ export async function createSpace(spacePath: string, options: CreateSpaceOptions
     }
 
     const configPath = path.join(spaceDir, "spaces.json");
-    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+    fs.writeFileSync(configPath, JSON.stringify(spaceConfig, null, 2));
 
     if (options.json) {
     } else {

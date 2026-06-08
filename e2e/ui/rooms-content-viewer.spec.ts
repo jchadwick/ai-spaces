@@ -206,31 +206,8 @@ async function installRoomsContentMocks(page: Page) {
   return { writes };
 }
 
-async function installFullscreenMock(page: Page) {
-  await page.addInitScript(() => {
-    let fullscreenElement: Element | null = null;
-
-    Object.defineProperty(document, "fullscreenElement", {
-      configurable: true,
-      get: () => fullscreenElement,
-    });
-
-    HTMLElement.prototype.requestFullscreen = function requestFullscreen() {
-      fullscreenElement = this;
-      document.dispatchEvent(new Event("fullscreenchange"));
-      return Promise.resolve();
-    };
-
-    document.exitFullscreen = () => {
-      fullscreenElement = null;
-      document.dispatchEvent(new Event("fullscreenchange"));
-      return Promise.resolve();
-    };
-  });
-}
-
 async function expectViewerControls(page: Page) {
-  await expect(page.getByRole("button", { name: "Enter fullscreen" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Enter focus mode" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Zoom out" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Reset zoom" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Zoom in" })).toBeVisible();
@@ -241,7 +218,6 @@ test.describe("Rooms content viewer registry", () => {
     page,
   }) => {
     const { writes } = await installRoomsContentMocks(page);
-    await installFullscreenMock(page);
     await injectAuth(page);
     await page.setViewportSize({ width: 1440, height: 900 });
 
@@ -258,7 +234,7 @@ test.describe("Rooms content viewer registry", () => {
 
     const contentPane = page.locator("[data-rooms-content-pane]");
     const zoomedViewer = page.getByTestId("rooms-viewer-zoom");
-    await expect(contentPane).toHaveAttribute("data-fullscreen", "false");
+    await expect(contentPane).toHaveAttribute("data-focus-mode", "false");
     await expect(zoomedViewer).toHaveAttribute("data-zoom-level", "100");
 
     await page.getByRole("button", { name: "Zoom in" }).click();
@@ -273,15 +249,15 @@ test.describe("Rooms content viewer registry", () => {
     await page.getByRole("button", { name: "Reset zoom" }).click();
     await expect(zoomedViewer).toHaveAttribute("data-zoom-level", "100");
 
-    await page.getByRole("button", { name: "Enter fullscreen" }).click();
-    await expect(page.getByRole("button", { name: "Exit fullscreen" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Enter fullscreen" })).toBeHidden();
-    await expect(contentPane).toHaveAttribute("data-fullscreen", "true");
+    await page.getByRole("button", { name: "Enter focus mode" }).click();
+    await expect(page.getByRole("button", { name: "Exit focus mode" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Enter focus mode" })).toBeHidden();
+    await expect(contentPane).toHaveAttribute("data-focus-mode", "true");
 
-    await page.getByRole("button", { name: "Exit fullscreen" }).click();
-    await expect(page.getByRole("button", { name: "Enter fullscreen" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Exit fullscreen" })).toBeHidden();
-    await expect(contentPane).toHaveAttribute("data-fullscreen", "false");
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("button", { name: "Enter focus mode" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Exit focus mode" })).toBeHidden();
+    await expect(contentPane).toHaveAttribute("data-focus-mode", "false");
 
     await page.getByRole("button", { name: "Edit", exact: true }).click();
     await page

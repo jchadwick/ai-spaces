@@ -1,13 +1,5 @@
 import { Check, Edit3, Maximize2, Minimize2, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
-import {
-  type CSSProperties,
-  type ReactNode,
-  Suspense,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { type CSSProperties, type ReactNode, Suspense, useEffect, useMemo, useState } from "react";
 import { writeSpaceFileHttp } from "@/api/spaceFiles";
 import { useFileContent } from "@/hooks/useFileContent";
 import { getFileTypeHandler } from "./editors/registry";
@@ -118,11 +110,9 @@ export default function RoomsContentPane({
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [fullscreenError, setFullscreenError] = useState<string | null>(null);
   const [localRefresh, setLocalRefresh] = useState(0);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isFocusMode, setIsFocusMode] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(100);
-  const paneRef = useRef<HTMLDivElement>(null);
   const refreshKey = localRefresh + externalRefreshKey;
   const { content, fileInfo, loading, error } = useFileContent(spaceId, filePath ?? undefined, {
     refreshKey,
@@ -142,31 +132,18 @@ export default function RoomsContentPane({
     setSaveError(null);
     setSaving(false);
     setZoomLevel(100);
-    setFullscreenError(null);
   }, [filePath]);
 
   useEffect(() => {
-    const handleFullscreenChange = () => {
-      setIsFullscreen(document.fullscreenElement === paneRef.current);
+    if (!isFocusMode) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsFocusMode(false);
     };
 
-    document.addEventListener("fullscreenchange", handleFullscreenChange);
-    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
-  }, []);
-
-  async function toggleFullscreen() {
-    setFullscreenError(null);
-    try {
-      if (document.fullscreenElement === paneRef.current) {
-        await document.exitFullscreen();
-        return;
-      }
-
-      await paneRef.current?.requestFullscreen();
-    } catch (err) {
-      setFullscreenError(err instanceof Error ? err.message : "Fullscreen is unavailable.");
-    }
-  }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isFocusMode]);
 
   function adjustZoom(delta: number) {
     setZoomLevel((current) => Math.min(200, Math.max(50, current + delta)));
@@ -204,10 +181,11 @@ export default function RoomsContentPane({
 
   return (
     <div
-      ref={paneRef}
       data-rooms-content-pane
-      data-fullscreen={isFullscreen ? "true" : "false"}
-      className={`flex min-w-0 flex-1 flex-col bg-rooms-paper ${isFullscreen ? "h-screen w-screen" : ""}`}
+      data-focus-mode={isFocusMode ? "true" : "false"}
+      className={`flex min-w-0 flex-1 flex-col bg-rooms-paper ${
+        isFocusMode ? "fixed inset-0 z-[100] h-screen w-screen" : ""
+      }`}
     >
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-rooms-line px-7 h-12">
         {headerContent ?? (
@@ -252,11 +230,11 @@ export default function RoomsContentPane({
             </div>
           )}
           <RoomsIconButton
-            label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-            active={isFullscreen}
-            onClick={() => void toggleFullscreen()}
+            label={isFocusMode ? "Exit focus mode" : "Enter focus mode"}
+            active={isFocusMode}
+            onClick={() => setIsFocusMode((current) => !current)}
           >
-            {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+            {isFocusMode ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
           </RoomsIconButton>
           {editing && (
             <>
@@ -299,11 +277,6 @@ export default function RoomsContentPane({
       {saveError && (
         <div className="shrink-0 border-b border-rooms-error-line bg-rooms-error-soft px-7 py-2 text-[13px] text-rooms-error">
           {saveError}
-        </div>
-      )}
-      {fullscreenError && (
-        <div className="shrink-0 border-b border-rooms-error-line bg-rooms-error-soft px-7 py-2 text-[13px] text-rooms-error">
-          {fullscreenError}
         </div>
       )}
 

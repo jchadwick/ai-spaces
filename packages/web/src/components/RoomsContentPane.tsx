@@ -1,5 +1,13 @@
-import { Check, Edit3 } from "lucide-react";
-import { type ReactNode, Suspense, useEffect, useMemo, useState } from "react";
+import { Check, Edit3, Maximize2, Minimize2, RotateCcw, ZoomIn, ZoomOut } from "lucide-react";
+import {
+  type CSSProperties,
+  type ReactNode,
+  Suspense,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { writeSpaceFileHttp } from "@/api/spaceFiles";
 import { useFileContent } from "@/hooks/useFileContent";
 import { getFileTypeHandler } from "./editors/registry";
@@ -49,6 +57,37 @@ function RoomsButton({
   );
 }
 
+function RoomsIconButton({
+  children,
+  label,
+  onClick,
+  active = false,
+  disabled,
+}: {
+  children: ReactNode;
+  label: string;
+  onClick?: () => void;
+  active?: boolean;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      title={label}
+      disabled={disabled}
+      onClick={onClick}
+      className={`inline-flex size-8 items-center justify-center rounded-[9px] border-[1.5px] p-0 disabled:cursor-default disabled:opacity-45 ${
+        active
+          ? "border-rooms-ink bg-rooms-ink text-rooms-paper"
+          : "border-transparent bg-transparent text-rooms-ink-soft enabled:cursor-pointer enabled:hover:border-rooms-line-strong enabled:hover:bg-rooms-paper-2"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 function PaneState({
   children,
   tone = "muted",
@@ -79,7 +118,11 @@ export default function RoomsContentPane({
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [fullscreenError, setFullscreenError] = useState<string | null>(null);
   const [localRefresh, setLocalRefresh] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(100);
+  const paneRef = useRef<HTMLDivElement>(null);
   const refreshKey = localRefresh + externalRefreshKey;
   const { content, fileInfo, loading, error } = useFileContent(spaceId, filePath ?? undefined, {
     refreshKey,
@@ -91,13 +134,43 @@ export default function RoomsContentPane({
   const Viewer = handler?.viewer;
   const Editor = handler?.editor;
   const showEdit = Boolean(canEdit && Editor && content !== null);
+  const canZoom = Boolean(!editing && Viewer && fileInfo && !loading && !error);
 
   useEffect(() => {
     setEditing(false);
-    setDraft("");
+    setDraft(filePath ? "" : "");
     setSaveError(null);
     setSaving(false);
+    setZoomLevel(100);
+    setFullscreenError(null);
+  }, [filePath]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(document.fullscreenElement === paneRef.current);
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
   }, []);
+
+  async function toggleFullscreen() {
+    setFullscreenError(null);
+    try {
+      if (document.fullscreenElement === paneRef.current) {
+        await document.exitFullscreen();
+        return;
+      }
+
+      await paneRef.current?.requestFullscreen();
+    } catch (err) {
+      setFullscreenError(err instanceof Error ? err.message : "Fullscreen is unavailable.");
+    }
+  }
+
+  function adjustZoom(delta: number) {
+    setZoomLevel((current) => Math.min(200, Math.max(50, current + delta)));
+  }
 
   async function save() {
     if (!filePath || saving) return;
@@ -130,7 +203,12 @@ export default function RoomsContentPane({
   }
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col bg-rooms-paper">
+    <div
+      ref={paneRef}
+      data-rooms-content-pane
+      data-fullscreen={isFullscreen ? "true" : "false"}
+      className={`flex min-w-0 flex-1 flex-col bg-rooms-paper ${isFullscreen ? "h-screen w-screen" : ""}`}
+    >
       <div className="flex shrink-0 items-center justify-between gap-3 border-b border-rooms-line px-7 h-12">
         {headerContent ?? (
           <div className="flex min-w-0 items-baseline gap-2.5">
@@ -144,6 +222,42 @@ export default function RoomsContentPane({
         )}
 
         <div className="flex shrink-0 items-center gap-2">
+          {!editing && (
+            <div className="flex items-center gap-1 border-r border-rooms-line pr-2">
+              <RoomsIconButton
+                label="Zoom out"
+                disabled={!canZoom || zoomLevel <= 50}
+                onClick={() => adjustZoom(-10)}
+              >
+                <ZoomOut size={16} />
+              </RoomsIconButton>
+              <button
+                type="button"
+                aria-label="Reset zoom"
+                title="Reset zoom"
+                disabled={!canZoom || zoomLevel === 100}
+                onClick={() => setZoomLevel(100)}
+                className="inline-flex h-8 min-w-13 items-center justify-center gap-1 rounded-[9px] border-[1.5px] border-transparent bg-transparent px-2 text-xs font-semibold text-rooms-ink-soft disabled:cursor-default disabled:opacity-45 enabled:cursor-pointer enabled:hover:border-rooms-line-strong enabled:hover:bg-rooms-paper-2"
+              >
+                <RotateCcw size={14} />
+                <span>{zoomLevel}%</span>
+              </button>
+              <RoomsIconButton
+                label="Zoom in"
+                disabled={!canZoom || zoomLevel >= 200}
+                onClick={() => adjustZoom(10)}
+              >
+                <ZoomIn size={16} />
+              </RoomsIconButton>
+            </div>
+          )}
+          <RoomsIconButton
+            label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
+            active={isFullscreen}
+            onClick={() => void toggleFullscreen()}
+          >
+            {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+          </RoomsIconButton>
           {editing && (
             <>
               <RoomsButton
@@ -187,6 +301,11 @@ export default function RoomsContentPane({
           {saveError}
         </div>
       )}
+      {fullscreenError && (
+        <div className="shrink-0 border-b border-rooms-error-line bg-rooms-error-soft px-7 py-2 text-[13px] text-rooms-error">
+          {fullscreenError}
+        </div>
+      )}
 
       <div className="rooms-scrollbar flex min-h-0 flex-1 flex-col overflow-auto">
         {loading && <PaneState>Loading file...</PaneState>}
@@ -201,7 +320,14 @@ export default function RoomsContentPane({
         )}
         {!loading && !error && fileInfo && !editing && Viewer && (
           <Suspense fallback={<PaneState>Loading preview...</PaneState>}>
-            <Viewer content={content} fileInfo={fileInfo} />
+            <div
+              data-testid="rooms-viewer-zoom"
+              data-zoom-level={zoomLevel}
+              className="min-h-full"
+              style={{ zoom: `${zoomLevel}%` } as CSSProperties}
+            >
+              <Viewer content={content} fileInfo={fileInfo} />
+            </div>
           </Suspense>
         )}
         {!loading && !error && fileInfo && !editing && !Viewer && (

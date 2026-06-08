@@ -110,7 +110,6 @@ export const config = {
     process.env.AI_SPACES_PLUGIN_STATE_FILE ??
     path.join(process.env.OPENCLAW_HOME ?? "/home/node", "ai-spaces-registration.json"),
   AI_SPACES_REGISTRATION_TOKEN: process.env.AI_SPACES_REGISTRATION_TOKEN ?? "",
-  GATEWAY_TOKEN: process.env.GATEWAY_TOKEN ?? "",
   PLUGIN_URL: process.env.PLUGIN_URL,
   GATEWAY_URL: process.env.GATEWAY_URL,
   DEFAULT_DENIED_TOOLS: parseList(process.env.AI_SPACES_DENIED_TOOLS, [
@@ -138,6 +137,5 @@ export const diagnostics = Object.freeze(configDiagnostics);
 
 export const configStatus = Object.freeze({
   hasRegistrationToken: Boolean(config.AI_SPACES_REGISTRATION_TOKEN),
-  hasGatewayToken: Boolean(config.GATEWAY_TOKEN),
   isDegraded: configDiagnostics.invalid.length > 0,
 });

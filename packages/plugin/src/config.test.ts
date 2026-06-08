@@ -12,14 +12,6 @@ describe("config", () => {
     process.env = { ...ORIGINAL_ENV };
   });
 
-  it("does not degrade when GATEWAY_TOKEN is missing", async () => {
-    delete process.env.GATEWAY_TOKEN;
-    const module = await import("./config.js");
-    expect(module.configStatus.hasGatewayToken).toBe(false);
-    expect(module.configStatus.isDegraded).toBe(false);
-    expect(module.diagnostics.invalid).not.toContain("GATEWAY_TOKEN");
-  });
-
   it("falls back safely for invalid env values", async () => {
     process.env.AI_SPACES_URL = "not-a-url";
     process.env.AI_SPACES_WS_PORT = "99999";

@@ -12,7 +12,6 @@ const config = {
   AI_SPACES_PORT: parseInt(process.env.AI_SPACES_PORT ?? "3001", 10),
   AI_SPACES_URL: process.env.AI_SPACES_URL ?? "http://127.0.0.1:3001",
   PLUGIN_URL: process.env.PLUGIN_URL,
-  GATEWAY_TOKEN: process.env.GATEWAY_TOKEN,
   JWT_SECRET: process.env.JWT_SECRET,
 };
 
@@ -42,8 +41,6 @@ function checkNodeVersion(): CheckResult {
 
 function checkEnvVars(): CheckResult[] {
   const checks: CheckResult[] = [];
-  if (!config.GATEWAY_TOKEN) checks.push(fail("GATEWAY_TOKEN", "not set"));
-  else checks.push(pass("GATEWAY_TOKEN", "set"));
 
   if (!config.JWT_SECRET) checks.push(warn("JWT_SECRET", "not set — using insecure default"));
   else if (config.JWT_SECRET === "ai-spaces-dev-secret-change-in-production")

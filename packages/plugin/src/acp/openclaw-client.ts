@@ -2,7 +2,6 @@ import type { ChildProcess } from "node:child_process";
 import { spawn } from "node:child_process";
 import * as crypto from "node:crypto";
 import * as fs from "node:fs";
-import * as path from "node:path";
 import { Writable } from "node:stream";
 import { ClientSideConnection, ndJsonStream, PROTOCOL_VERSION } from "@agentclientprotocol/sdk";
 import { config } from "../config.js";
@@ -10,25 +9,26 @@ import { logger as rootLogger } from "../logger.js";
 
 const log = rootLogger.child({ component: "openclaw-acp-client" });
 
-let cachedGatewayToken: string | null = null;
+interface GatewayConfig {
+  url: string;
+  token: string;
+}
 
-function getGatewayToken(): string {
-  if (process.env.GATEWAY_TOKEN) return process.env.GATEWAY_TOKEN;
-  if (cachedGatewayToken) return cachedGatewayToken;
-
-  const configPath = path.join(config.OPENCLAW_HOME, ".openclaw", "openclaw.json");
+function readGatewayConfig(): GatewayConfig | null {
+  const configPath = `${config.OPENCLAW_HOME}/.openclaw/openclaw.json`;
   try {
     const raw = JSON.parse(fs.readFileSync(configPath, "utf-8"));
     const token = raw?.gateway?.auth?.token;
     if (typeof token === "string" && token) {
-      cachedGatewayToken = token;
-      return token;
+      return {
+        url: process.env.GATEWAY_URL ?? "http://127.0.0.1:19000",
+        token,
+      };
     }
   } catch {
-    log.warn({ configPath }, "Could not read gateway auth token from OpenClaw config");
+    /* config not yet available */
   }
-
-  return "secret";
+  return null;
 }
 
 function createFilteredAcpInput(stdout: NodeJS.ReadableStream): ReadableStream<Uint8Array> {
@@ -262,15 +262,17 @@ export class OpenClawAcpClient {
     if (signal) signal.addEventListener("abort", () => abort.abort(), { once: true });
 
     const timeout = setTimeout(() => abort.abort(), 90_000);
-    const gatewayUrl = process.env.GATEWAY_URL ?? "http://127.0.0.1:19000";
-    const gatewayToken = getGatewayToken();
+    const gatewayConfig = readGatewayConfig() ?? {
+      url: process.env.GATEWAY_URL ?? "http://127.0.0.1:19000",
+      token: "",
+    };
 
     try {
       log.info({ spaceId }, "forwarding prompt via OpenClaw gateway chat completions");
-      const response = await fetch(`${gatewayUrl}/v1/chat/completions`, {
+      const response = await fetch(`${gatewayConfig.url}/v1/chat/completions`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${gatewayToken}`,
+          Authorization: `Bearer ${gatewayConfig.token}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({

@@ -35,7 +35,6 @@ vi.mock("../config.js", () => ({
     OPENCLAW_HOME: "/tmp/openclaw",
     AI_SPACES_URL: "http://127.0.0.1:3001",
     AI_SPACES_WS_HOST: "0.0.0.0",
-    GATEWAY_TOKEN: "secret",
   },
 }));
 

@@ -20,7 +20,6 @@ export const config = {
   AI_SPACES_DATA,
   AI_SPACES_DB: process.env.AI_SPACES_DB ?? path.join(AI_SPACES_DATA, "ai-spaces.db"),
   AI_SPACES_PORT: parseInt(process.env.AI_SPACES_PORT ?? "3001", 10),
-  GATEWAY_TOKEN: process.env.GATEWAY_TOKEN ?? "secret",
   // WEB_DIST default assumes project at ~/ai-spaces — set explicitly in production
   WEB_DIST: process.env.WEB_DIST ?? path.join(HOME, "ai-spaces", "packages", "web", "dist"),
   BASE_URL: resolveBaseUrl(process.env.BASE_URL),

@@ -24,7 +24,6 @@ describe("plugin entrypoint import safety", () => {
   });
 
   it("imports entrypoint with malformed env without throwing", async () => {
-    delete process.env.GATEWAY_TOKEN;
     process.env.AI_SPACES_URL = "::::";
     process.env.OPENCLAW_HOME = "relative/path";
     process.env.AI_SPACES_WS_PORT = "-1";

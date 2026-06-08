@@ -1,6 +1,7 @@
 import { execSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { fileURLToPath } from "node:url";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
@@ -44,20 +45,43 @@ const log = rootLogger.child({ component: "server" });
 
 function runGit(command: string): string {
   try {
-    return execSync(command, { encoding: "utf8" }).trim();
+    return execSync(command, {
+      cwd: resolveRepoRoot(),
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
   } catch {
     return "";
   }
 }
 
+function firstEnv(...names: string[]): string {
+  for (const name of names) {
+    const value = process.env[name]?.trim();
+    if (value) return value;
+  }
+  return "";
+}
+
+function resolveRepoRoot(): string {
+  if (process.env.AI_SPACES_REPO_DIR) return process.env.AI_SPACES_REPO_DIR;
+  const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+  return path.resolve(moduleDir, "..", "..", "..");
+}
+
 function resolveBuildInfo(): BuildInfo {
-  const tag = runGit("git describe --tags --exact-match");
-  const sha = runGit("git rev-parse --short HEAD");
-  const branch = runGit("git rev-parse --abbrev-ref HEAD");
+  const tag = firstEnv("AI_SPACES_TAG", "GIT_TAG") || runGit("git describe --tags --exact-match");
+  const sha =
+    firstEnv("AI_SPACES_SHA", "GIT_SHA", "GIT_COMMIT", "SOURCE_VERSION") ||
+    runGit("git rev-parse --short HEAD");
+  const branch =
+    firstEnv("AI_SPACES_BRANCH", "GIT_BRANCH", "BRANCH_NAME") ||
+    runGit("git rev-parse --abbrev-ref HEAD");
+  const envBuild = firstEnv("AI_SPACES_BUILD", "BUILD_VERSION");
   const packageVersion = process.env.npm_package_version?.trim() ?? "";
 
   const versionFallback = packageVersion ? `v${packageVersion}` : "unknown";
-  const display = tag || (sha && branch ? `${branch}-${sha}` : sha || versionFallback);
+  const display = envBuild || tag || (sha && branch ? `${branch}-${sha}` : sha || versionFallback);
 
   return {
     display,
@@ -69,12 +93,24 @@ function resolveBuildInfo(): BuildInfo {
 
 function injectBuildMetaTags(html: string, buildInfo: BuildInfo): string {
   const metaTags = [
-    `<meta name="ai-spaces-build" content="${buildInfo.display}">`,
-    `<meta name="ai-spaces-sha" content="${buildInfo.sha}">`,
-    `<meta name="ai-spaces-branch" content="${buildInfo.branch}">`,
-    `<meta name="ai-spaces-tag" content="${buildInfo.tag}">`,
+    `<meta name="ai-spaces-build" content="${escapeHtmlAttribute(buildInfo.display)}">`,
+    `<meta name="ai-spaces-sha" content="${escapeHtmlAttribute(buildInfo.sha)}">`,
+    `<meta name="ai-spaces-branch" content="${escapeHtmlAttribute(buildInfo.branch)}">`,
+    `<meta name="ai-spaces-tag" content="${escapeHtmlAttribute(buildInfo.tag)}">`,
   ].join("\n    ");
-  return html.replace("</head>", `    ${metaTags}\n  </head>`);
+  const htmlWithoutBuildMeta = html.replace(
+    /\s*<meta name="ai-spaces-(?:build|sha|branch|tag)" content="[^"]*"\s*\/?>/g,
+    "",
+  );
+  return htmlWithoutBuildMeta.replace("</head>", `    ${metaTags}\n  </head>`);
+}
+
+function escapeHtmlAttribute(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
 }
 
 const buildInfo = resolveBuildInfo();

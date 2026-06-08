@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState } from "react";
 import { Grid2X2, LogOut, Plus, Shield, User } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { RoomsAvatar } from "@/components/rooms/controls/RoomsAvatar";
-import type { RoomSummary, SpaceSummary } from "@/components/rooms/types";
 import { roleIsOwner, spaceColor, uniqueSpaceAbbreviations } from "@/components/rooms/roomsUtils";
-import { cn } from "@/lib/utils";
+import type { RoomSummary, SpaceSummary } from "@/components/rooms/types";
 import { useAuth } from "@/contexts/AuthContext";
+import { getBuildLabel } from "@/lib/buildInfo";
+import { cn } from "@/lib/utils";
 
 export function RoomsRail({
   spaces,
@@ -35,6 +36,7 @@ export function RoomsRail({
   );
   const spaceAbbreviations = uniqueSpaceAbbreviations(visibleSpaces);
   const userLabel = user?.displayName || user?.email || "User";
+  const buildLabel = getBuildLabel();
 
   useEffect(() => {
     if (!userMenuOpen) return;
@@ -170,6 +172,11 @@ export function RoomsRail({
               <LogOut size={16} className="text-rooms-muted" />
               Sign out
             </button>
+            {buildLabel && (
+              <div className="mt-1 border-t border-rooms-line px-2.5 pb-1.5 pt-2 font-mono text-[11.5px] leading-none text-rooms-muted">
+                {buildLabel}
+              </div>
+            )}
           </div>
         )}
       </div>

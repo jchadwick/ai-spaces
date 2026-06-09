@@ -62,8 +62,14 @@ async function seedRooms() {
   console.log(`[seed-dev-rooms] Found ${spaces.length} spaces`);
 
   const roomMap = {
-    TestSpace: [{ topicPath: "/CostaRica.md", targetType: "file" }],
-    Vacations: [{ topicPath: "/Maine.md", targetType: "file" }],
+    TestSpace: [
+      { topicPath: "/Maine/", targetType: "directory" },
+      { topicPath: "/CostaRica/", targetType: "directory" },
+    ],
+    Vacations: [
+      { topicPath: "/Maine/", targetType: "directory" },
+      { topicPath: "/CostaRica/", targetType: "directory" },
+    ],
   };
 
   for (const space of spaces) {

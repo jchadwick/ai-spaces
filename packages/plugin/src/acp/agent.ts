@@ -155,11 +155,18 @@ export class AISpacesAgent implements Agent {
       systemContext: getServerContext(params),
     });
 
-    // Replay chat history — OpenClaw does not do this itself
+    // Ensure an ACP session exists in OpenClaw for this space (server restart case)
     if (spaceId) {
       const space = getSpace(spaceId);
       if (space) {
         const spaceRoot = resolveSpaceRoot(space);
+        await openClawAcpClient
+          .getOrCreateSession(this.runtimeSessionKey(spaceId, topicPath), spaceId, spaceRoot)
+          .catch((err) => {
+            log.warn({ err, spaceId }, "could not create OpenClaw session on load — prompts will fail");
+          });
+
+        // Replay chat history — OpenClaw does not do this itself
         const history = getSessionMessages(spaceRoot, this.historyUserKey(userId, topicPath));
         for (const msg of history) {
           const updateType = msg.role === "user" ? "user_message_chunk" : "agent_message_chunk";

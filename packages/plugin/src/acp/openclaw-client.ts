@@ -1,35 +1,10 @@
 import type { ChildProcess } from "node:child_process";
 import { spawn } from "node:child_process";
-import * as crypto from "node:crypto";
-import * as fs from "node:fs";
 import { Writable } from "node:stream";
 import { ClientSideConnection, ndJsonStream, PROTOCOL_VERSION } from "@agentclientprotocol/sdk";
-import { config } from "../config.js";
 import { logger as rootLogger } from "../logger.js";
 
 const log = rootLogger.child({ component: "openclaw-acp-client" });
-
-interface GatewayConfig {
-  url: string;
-  token: string;
-}
-
-function readGatewayConfig(): GatewayConfig | null {
-  const configPath = `${config.OPENCLAW_HOME}/.openclaw/openclaw.json`;
-  try {
-    const raw = JSON.parse(fs.readFileSync(configPath, "utf-8"));
-    const token = raw?.gateway?.auth?.token;
-    if (typeof token === "string" && token) {
-      return {
-        url: process.env.GATEWAY_URL ?? "http://127.0.0.1:19000",
-        token,
-      };
-    }
-  } catch {
-    /* config not yet available */
-  }
-  return null;
-}
 
 function createFilteredAcpInput(stdout: NodeJS.ReadableStream): ReadableStream<Uint8Array> {
   const decoder = new TextDecoder();
@@ -96,14 +71,6 @@ export interface SessionUpdateParams {
 
 export type SessionUpdateHandler = (params: SessionUpdateParams) => void | Promise<void>;
 
-interface GatewayCompletionResponse {
-  choices?: Array<{
-    message?: {
-      content?: string;
-    };
-  }>;
-}
-
 interface ManagedSession {
   sessionId: string;
   spaceId: string;
@@ -139,7 +106,7 @@ export class OpenClawAcpClient {
 
   private async connect(): Promise<void> {
     log.info("spawning openclaw acp subprocess");
-    const proc = spawn("openclaw", ["acp"], {
+    const proc = spawn("openclaw", ["acp", "-v"], {
       stdio: ["pipe", "pipe", "inherit"],
       env: { ...process.env, OPENCLAW_SHELL: "acp-client" },
     });
@@ -212,17 +179,6 @@ export class OpenClawAcpClient {
     const existing = this.sessions.get(runtimeSessionKey);
     if (existing) return existing.sessionId;
 
-    // Primary path: use OpenClaw gateway chat-completions API for prompt execution.
-    // Keep a lightweight logical session per space for cancellation tracking.
-    if ((process.env.AI_SPACES_USE_OPENCLAW_ACP ?? "false") !== "true") {
-      const sessionId = crypto.randomUUID();
-      const session: ManagedSession = { sessionId, spaceId, activeAbort: null };
-      this.sessions.set(runtimeSessionKey, session);
-      this.sessionById.set(sessionId, session);
-      log.info({ spaceId, sessionId }, "created logical gateway session");
-      return sessionId;
-    }
-
     await this.ensureConnected();
 
     const { sessionId } = await this.connection!.newSession({
@@ -239,8 +195,8 @@ export class OpenClawAcpClient {
   }
 
   /**
-   * Forward a prompt to OpenClaw and relay session/update notifications via onUpdate.
-   * Returns the stopReason from OpenClaw's prompt response.
+   * Forward a prompt to OpenClaw via the ACP subprocess.
+   * Each space/topic gets its own ACP session, maintaining conversation context.
    */
   async forwardPrompt(
     runtimeSessionKey: string,
@@ -249,12 +205,14 @@ export class OpenClawAcpClient {
     onUpdate: SessionUpdateHandler,
     signal?: AbortSignal,
   ): Promise<string> {
-    const session = this.sessions.get(runtimeSessionKey) ?? {
-      sessionId: crypto.randomUUID(),
-      spaceId,
-      activeAbort: null,
-    };
-    this.sessions.set(runtimeSessionKey, session);
+    let session = this.sessions.get(runtimeSessionKey);
+    if (!session) {
+      // Session missing: create it in OpenClaw before forwarding
+      log.warn({ runtimeSessionKey, spaceId }, "ACP session missing on forwardPrompt — creating");
+      const spaceRoot = "/home/openclaw/workspace"; // default workspace root
+      await this.getOrCreateSession(runtimeSessionKey, spaceId, spaceRoot);
+      session = this.sessions.get(runtimeSessionKey)!;
+    }
 
     session.activeAbort?.abort();
     const abort = new AbortController();
@@ -262,54 +220,75 @@ export class OpenClawAcpClient {
     if (signal) signal.addEventListener("abort", () => abort.abort(), { once: true });
 
     const timeout = setTimeout(() => abort.abort(), 90_000);
-    const gatewayConfig = readGatewayConfig() ?? {
-      url: process.env.GATEWAY_URL ?? "http://127.0.0.1:19000",
-      token: "",
-    };
 
     try {
-      log.info({ spaceId }, "forwarding prompt via OpenClaw gateway chat completions");
-      const response = await fetch(`${gatewayConfig.url}/v1/chat/completions`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${gatewayConfig.token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "openclaw",
-          messages: [
-            { role: "system", content: prompt.systemPrompt },
-            { role: "user", content: prompt.userPrompt },
-          ],
-          stream: false,
-        }),
-        signal: abort.signal,
-      });
-
-      if (!response.ok) {
-        throw new Error(
-          `Gateway chat completion failed: ${response.status} ${await response.text()}`,
-        );
-      }
-
-      const data = (await response.json()) as GatewayCompletionResponse;
-      const content = data.choices?.[0]?.message?.content ?? "";
-      if (content) {
-        await Promise.resolve(
-          onUpdate({
-            sessionId: session.sessionId,
-            update: {
-              sessionUpdate: "agent_message_chunk",
-              content: { type: "text", text: content },
-            },
-          }),
-        );
-      }
-
-      return "end_turn";
+      return await this.forwardPromptViaAcp(
+        spaceId,
+        prompt,
+        onUpdate,
+        abort.signal,
+        session,
+      );
     } finally {
       clearTimeout(timeout);
       if (session.activeAbort === abort) session.activeAbort = null;
+    }
+  }
+
+  /**
+   * Forward a prompt using the ACP subprocess connection.
+   * OpenClaw maintains session context natively through ACP sessions.
+   */
+  private async forwardPromptViaAcp(
+    spaceId: string,
+    prompt: { systemPrompt: string; userPrompt: string },
+    onUpdate: SessionUpdateHandler,
+    signal: AbortSignal,
+    session: ManagedSession,
+  ): Promise<string> {
+    await this.ensureConnected();
+
+    // Register update handler for this session so we receive agent response chunks
+    this.updateHandlers.set(session.sessionId, onUpdate);
+
+    const cleanup = () => {
+      this.updateHandlers.delete(session.sessionId);
+    };
+
+    // Build prompt text: prepend system prompt if provided
+    const fullPrompt = prompt.systemPrompt
+      ? `${prompt.systemPrompt}\n\n${prompt.userPrompt}`
+      : prompt.userPrompt;
+
+    log.info({ spaceId, sessionId: session.sessionId }, "forwarding prompt via OpenClaw ACP");
+
+    // Handle cancellation via abort signal
+    const abortListener = () => {
+      this.connection?.cancel({ sessionId: session.sessionId });
+    };
+    signal.addEventListener("abort", abortListener, { once: true });
+
+    try {
+      const response = await this.connection!.prompt({
+        sessionId: session.sessionId,
+        prompt: [{ type: "text", text: fullPrompt }],
+      });
+
+      log.info(
+        { spaceId, sessionId: session.sessionId, stopReason: response.stopReason },
+        "prompt completed",
+      );
+
+      return response.stopReason;
+    } catch (err) {
+      if (signal.aborted) {
+        log.info({ spaceId, sessionId: session.sessionId }, "prompt cancelled");
+        return "cancelled";
+      }
+      throw err;
+    } finally {
+      cleanup();
+      signal.removeEventListener("abort", abortListener);
     }
   }
 
@@ -322,7 +301,7 @@ export class OpenClawAcpClient {
     if (!session) return;
     session.activeAbort?.abort();
     // Note: connection.cancel() sends an ACP notification — don't await
-    this.connection?.extNotification?.("session/cancel", { sessionId: session.sessionId });
+    this.connection?.cancel({ sessionId: session.sessionId });
   }
 
   closeSession(runtimeSessionKey: string): void {

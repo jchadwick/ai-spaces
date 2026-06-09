@@ -2,7 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../logger.js", () => ({
   logger: {
-    child: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn() }),
+    child: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
+  },
+}));
+
+vi.mock("../config.js", () => ({
+  config: {
+    OPENCLAW_HOME: "/tmp/test-openclaw",
   },
 }));
 
@@ -20,56 +26,33 @@ describe("OpenClawAcpClient prompt forwarding", () => {
     vi.unstubAllGlobals();
   });
 
-  it("returns end_turn and relays response content", async () => {
-    const fetchMock = vi.fn(async () => ({
-      ok: true,
-      json: async () => ({ choices: [{ message: { content: "hello from gateway" } }] }),
-    }));
-    vi.stubGlobal("fetch", fetchMock);
-
-    const { OpenClawAcpClient } = await import("./openclaw-client.js");
-    const client = new OpenClawAcpClient();
-    await client.getOrCreateSession("space-1:/", "space-1", "/tmp/workspace");
-
-    const updates: unknown[] = [];
-    const result = await client.forwardPrompt(
-      "space-1",
-      "space-1",
-      { systemPrompt: "sys", userPrompt: "hi" },
-      async (u) => {
-        updates.push(u);
-      },
-    );
-
-    expect(result).toBe("end_turn");
-    expect(updates.length).toBe(1);
-  });
-
-  it("rejects when gateway responds non-OK", async () => {
-    const fetchMock = vi.fn(async () => ({
-      ok: false,
-      status: 500,
-      text: async () => "boom",
-    }));
-    vi.stubGlobal("fetch", fetchMock);
-
-    const { OpenClawAcpClient } = await import("./openclaw-client.js");
-    const client = new OpenClawAcpClient();
-    await client.getOrCreateSession("space-2:/", "space-2", "/tmp/workspace");
-
-    await expect(
-      client.forwardPrompt(
-        "space-2",
-        "space-2",
-        { systemPrompt: "sys", userPrompt: "hi" },
-        async () => undefined,
-      ),
-    ).rejects.toThrow(/Gateway chat completion failed/);
-  });
-
   it("cancelPrompt is safe for unknown session", async () => {
     const { OpenClawAcpClient } = await import("./openclaw-client.js");
     const client = new OpenClawAcpClient();
     expect(() => client.cancelPrompt("missing-space")).not.toThrow();
+  });
+
+  it("throws when openclaw acp subprocess fails to spawn", async () => {
+    const { EventEmitter } = await import("node:events");
+    const mockProc = Object.assign(new EventEmitter(), {
+      stdin: { write: vi.fn(), end: vi.fn() },
+      stdout: { on: vi.fn(), off: vi.fn() },
+      kill: vi.fn(),
+    });
+
+    vi.doMock("node:child_process", () => ({
+      spawn: vi.fn(() => {
+        // Emit error immediately to simulate spawn failure
+        setImmediate(() => mockProc.emit("error", new Error("spawn openclaw ENOENT")));
+        return mockProc;
+      }),
+    }));
+
+    const { OpenClawAcpClient } = await import("./openclaw-client.js");
+    const client = new OpenClawAcpClient();
+
+    await expect(
+      client.getOrCreateSession("space-1:/", "space-1", "/tmp/workspace"),
+    ).rejects.toThrow();
   });
 });

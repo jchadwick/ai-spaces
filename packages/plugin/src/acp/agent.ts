@@ -276,6 +276,11 @@ export class AISpacesAgent implements Agent {
                 const text =
                   (update.update as unknown as { content: { text: string } }).content?.text ?? "";
                 accumulated += text;
+                // Stream chunks to browser in real-time
+                await this.conn.sessionUpdate({
+                  sessionId: params.sessionId,
+                  update: update.update as SessionNotification["update"],
+                });
               } else {
                 // Relay all other update types (tool_call, plan, etc.) as-is
                 await this.conn.sessionUpdate({
@@ -287,16 +292,37 @@ export class AISpacesAgent implements Agent {
             abort.signal,
           );
 
+          // Handle cancellation/timeout: send error if no content was received
+          if (stopReason === "cancelled" && !accumulated) {
+            const errorMsg = "Request timed out — please try again";
+            await this.conn.sessionUpdate({
+              sessionId: params.sessionId,
+              update: {
+                sessionUpdate: "agent_message_chunk",
+                content: { type: "text", text: errorMsg },
+              } as unknown as SessionNotification["update"],
+            });
+            addMessageToSession(spaceRoot, historyUserKey, {
+              id: crypto.randomUUID(),
+              role: "assistant",
+              content: errorMsg,
+              timestamp: new Date().toISOString(),
+            });
+            return { stopReason };
+          }
+
+          // Send final sanitized message with replace flag
           const sanitized = sanitizeAssistantText(accumulated, { spaceRoot, role: state.role });
           await this.conn.sessionUpdate({
             sessionId: params.sessionId,
             update: {
               sessionUpdate: "agent_message_chunk",
               content: { type: "text", text: sanitized },
+              _meta: { replace: accumulated.length > 0 },
             } as unknown as SessionNotification["update"],
           });
 
-          // Store assistant message
+          // Store assistant message (sanitized version for history)
           addMessageToSession(spaceRoot, historyUserKey, {
             id: crypto.randomUUID(),
             role: "assistant",

@@ -82,10 +82,9 @@ function buildSpaceWebSocketUrl(spaceId: string, accessToken?: string | null): s
   return accessToken ? `${base}?token=${encodeURIComponent(accessToken)}` : base;
 }
 
-function wsDebug(_event: string, _data?: Record<string, unknown>): void {
-  try {
-  } catch {
-    // ignore
+function wsDebug(event: string, data?: Record<string, unknown>): void {
+  if (import.meta.env.DEV) {
+    console.debug(`[ws] ${event}`, data);
   }
 }
 
@@ -309,14 +308,15 @@ export function ConnectionStatusProvider({
               if (updateType === "agent_message_chunk" || updateType === "user_message_chunk") {
                 const block = update.content;
                 const text = block.type === "text" ? block.text : "";
+                const replace = (update as { _meta?: { replace?: boolean } })._meta?.replace ?? false;
 
                 if (updateType === "agent_message_chunk") {
                   if (streamMessageIdRef.current) {
-                    // Active stream: append to current message
+                    // Active stream: append or replace current message
                     setMessages((prev) =>
                       prev.map((msg) =>
                         msg.id === streamMessageIdRef.current
-                          ? { ...msg, content: msg.content + text }
+                          ? { ...msg, content: replace ? text : msg.content + text }
                           : msg,
                       ),
                     );

@@ -40,12 +40,12 @@ interface ConnectionStatusContextValue {
   clearReconnected: () => void;
   messages: ChatMessage[];
   isStreaming: boolean;
-  activeTopicPath: string;
-  promotedTopicPaths: ReadonlySet<string>;
-  selectTopic: (topicPath: string) => Promise<void>;
-  promoteTopic: (topicPath: string, targetType: "file" | "directory") => Promise<void>;
-  archiveTopic: (topicPath: string) => Promise<void>;
-  refreshTopics: () => Promise<void>;
+  activeRoomPath: string;
+  promotedRoomPaths: ReadonlySet<string>;
+  selectRoom: (roomPath: string) => Promise<void>;
+  promoteRoom: (roomPath: string, targetType: "file" | "directory") => Promise<void>;
+  archiveRoom: (roomPath: string) => Promise<void>;
+  refreshRooms: () => Promise<void>;
   sendMessage: (content: string) => void;
   writeFile: (
     path: string,
@@ -97,15 +97,15 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: str
   ]);
 }
 
-function normalizeTopicPath(topicPath: string): string {
-  const segments = topicPath.replace(/\\/g, "/").split("/").filter(Boolean);
+function normalizeRoomPath(roomPath: string): string {
+  const segments = roomPath.replace(/\\/g, "/").split("/").filter(Boolean);
   if (segments.includes("..") || segments.some((segment) => segment.startsWith(".")))
-    throw new Error("Invalid topic path");
+    throw new Error("Invalid room path");
   return segments.length > 0 ? `/${segments.join("/")}` : "/";
 }
 
-function topicPathToCwd(topicPath: string): string {
-  return topicPath === "/" ? "" : topicPath.slice(1);
+function roomPathToCwd(roomPath: string): string {
+  return roomPath === "/" ? "" : roomPath.slice(1);
 }
 
 interface ConnectionStatusProviderProps {
@@ -125,8 +125,8 @@ export function ConnectionStatusProvider({
   const [status, setStatus] = useState<ConnectionStatus>("connecting");
   const [reconnectAttempt, setReconnectAttempt] = useState(0);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [activeTopicPath, setActiveTopicPath] = useState("/");
-  const [promotedTopicPaths, setPromotedTopicPaths] = useState<ReadonlySet<string>>(new Set());
+  const [activeRoomPath, setActiveRoomPath] = useState("/");
+  const [promotedRoomPaths, setPromotedRoomPaths] = useState<ReadonlySet<string>>(new Set());
   const [wasReconnected, setWasReconnected] = useState(false);
   const [pendingPermission, setPendingPermission] = useState<{
     request: RequestPermissionRequest;
@@ -139,7 +139,7 @@ export function ConnectionStatusProvider({
 
   const connectionRef = useRef<ClientSideConnection | null>(null);
   const sessionIdRef = useRef<string | null>(null);
-  const activeTopicPathRef = useRef("/");
+  const activeRoomPathRef = useRef("/");
   const wsRef = useRef<WebSocket | null>(null);
   const streamMessageIdRef = useRef<string | null>(null);
   const onFileChangedRef = useRef(onFileChanged);
@@ -152,50 +152,50 @@ export function ConnectionStatusProvider({
     onFileChangedRef.current = onFileChanged;
   }, [onFileChanged]);
   useEffect(() => {
-    activeTopicPathRef.current = activeTopicPath;
-  }, [activeTopicPath]);
+    activeRoomPathRef.current = activeRoomPath;
+  }, [activeRoomPath]);
 
-  const refreshTopics = useCallback(async (): Promise<void> => {
-    const response = await fetch(`/api/spaces/${spaceId}/topics`, {
+  const refreshRooms = useCallback(async (): Promise<void> => {
+    const response = await fetch(`/api/spaces/${spaceId}/rooms`, {
       headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
     });
-    if (!response.ok) throw new Error("Failed to load promoted topics");
-    const data = (await response.json()) as { topics: Array<{ topicPath: string }> };
-    setPromotedTopicPaths(new Set(data.topics.map((topic) => topic.topicPath.replace(/^\/+/, ""))));
+    if (!response.ok) throw new Error("Failed to load promoted rooms");
+    const data = (await response.json()) as { rooms: Array<{ roomPath: string }> };
+    setPromotedRoomPaths(new Set(data.rooms.map((room) => room.roomPath.replace(/^\/+/, ""))));
   }, [accessToken, spaceId]);
 
   useEffect(() => {
     if (accessToken === null) return;
-    const timeout = setTimeout(() => void refreshTopics(), 0);
+    const timeout = setTimeout(() => void refreshRooms(), 0);
     return () => clearTimeout(timeout);
-  }, [accessToken, refreshTopics]);
+  }, [accessToken, refreshRooms]);
 
   const fetchPersistedSessionId = useCallback(
-    async (topicPath: string): Promise<string | null> => {
+    async (roomPath: string): Promise<string | null> => {
       const response = await fetch(
-        `/api/spaces/${spaceId}/topics/session?path=${encodeURIComponent(topicPath)}`,
+        `/api/spaces/${spaceId}/rooms/session?path=${encodeURIComponent(roomPath)}`,
         {
           headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
         },
       );
-      if (!response.ok) throw new Error("Failed to load topic session");
-      const data = (await response.json()) as { topic: { acpSessionId: string } | null };
-      return data.topic?.acpSessionId ?? null;
+      if (!response.ok) throw new Error("Failed to load room session");
+      const data = (await response.json()) as { room: { acpSessionId: string } | null };
+      return data.room?.acpSessionId ?? null;
     },
     [accessToken, spaceId],
   );
 
   const persistSessionId = useCallback(
-    async (topicPath: string, acpSessionId: string): Promise<void> => {
-      const response = await fetch(`/api/spaces/${spaceId}/topics/session`, {
+    async (roomPath: string, acpSessionId: string): Promise<void> => {
+      const response = await fetch(`/api/spaces/${spaceId}/rooms/session`, {
         method: "PUT",
         headers: {
           ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ topicPath, acpSessionId }),
+        body: JSON.stringify({ roomPath, acpSessionId }),
       });
-      if (!response.ok) throw new Error("Failed to persist topic session");
+      if (!response.ok) throw new Error("Failed to persist room session");
     },
     [accessToken, spaceId],
   );
@@ -379,8 +379,8 @@ export function ConnectionStatusProvider({
         wsDebug("acp:initialize_ok", { spaceId });
         if (cancelled || wsRef.current !== ws) return;
 
-        const topicPath = activeTopicPathRef.current;
-        const storedSessionId = await fetchPersistedSessionId(topicPath);
+        const roomPath = activeRoomPathRef.current;
+        const storedSessionId = await fetchPersistedSessionId(roomPath);
         let sessionId: string;
 
         setMessages([]); // clear before history replay
@@ -391,7 +391,7 @@ export function ConnectionStatusProvider({
             await withTimeout(
               connection.loadSession({
                 sessionId: storedSessionId,
-                cwd: topicPathToCwd(topicPath),
+                cwd: roomPathToCwd(roomPath),
                 mcpServers: [],
               }),
               12_000,
@@ -404,7 +404,7 @@ export function ConnectionStatusProvider({
             if (cancelled || wsRef.current !== ws) return;
             wsDebug("acp:newSession_start_after_load_fail", { spaceId });
             const result = await withTimeout(
-              connection.newSession({ cwd: topicPathToCwd(topicPath), mcpServers: [] }),
+              connection.newSession({ cwd: roomPathToCwd(roomPath), mcpServers: [] }),
               12_000,
               "ACP newSession (after load fail)",
             );
@@ -415,7 +415,7 @@ export function ConnectionStatusProvider({
         } else {
           wsDebug("acp:newSession_start", { spaceId });
           const result = await withTimeout(
-            connection.newSession({ cwd: topicPathToCwd(topicPath), mcpServers: [] }),
+            connection.newSession({ cwd: roomPathToCwd(roomPath), mcpServers: [] }),
             12_000,
             "ACP newSession",
           );
@@ -424,7 +424,7 @@ export function ConnectionStatusProvider({
           sessionId = result.sessionId;
         }
 
-        await persistSessionId(topicPath, sessionId);
+        await persistSessionId(roomPath, sessionId);
         connectionRef.current = connection;
         sessionIdRef.current = sessionId;
 
@@ -484,11 +484,11 @@ export function ConnectionStatusProvider({
     persistSessionId,
   ]);
 
-  const selectTopic = useCallback(
-    async (requestedTopicPath: string): Promise<void> => {
+  const selectRoom = useCallback(
+    async (requestedRoomPath: string): Promise<void> => {
       const connection = connectionRef.current;
       if (!connection || status !== "connected" || isStreaming) return;
-      const topicPath = normalizeTopicPath(requestedTopicPath);
+      const roomPath = normalizeRoomPath(requestedRoomPath);
       // #region agent log
       fetch("http://127.0.0.1:7399/ingest/acbd8104-ecfc-434c-a54a-bcf58319b4b4", {
         method: "POST",
@@ -497,23 +497,23 @@ export function ConnectionStatusProvider({
           sessionId: "897816",
           runId: "pre-fix",
           hypothesisId: "H1",
-          location: "ConnectionStatusContext.tsx:selectTopic",
-          message: "selectTopic normalized path",
-          data: { requestedTopicPath, normalizedTopicPath: topicPath, spaceId },
+          location: "ConnectionStatusContext.tsx:selectRoom",
+          message: "selectRoom normalized path",
+          data: { requestedRoomPath, normalizedRoomPath: roomPath, spaceId },
           timestamp: Date.now(),
         }),
       }).catch(() => {});
       // #endregion
-      if (topicPath === activeTopicPathRef.current) return;
+      if (roomPath === activeRoomPathRef.current) return;
 
       setMessages([]);
-      const storedSessionId = await fetchPersistedSessionId(topicPath);
+      const storedSessionId = await fetchPersistedSessionId(roomPath);
       let sessionId = storedSessionId;
       if (sessionId) {
         try {
           await connection.loadSession({
             sessionId,
-            cwd: topicPathToCwd(topicPath),
+            cwd: roomPathToCwd(roomPath),
             mcpServers: [],
           });
         } catch {
@@ -522,56 +522,56 @@ export function ConnectionStatusProvider({
       }
       if (!sessionId) {
         const result = await connection.newSession({
-          cwd: topicPathToCwd(topicPath),
+          cwd: roomPathToCwd(roomPath),
           mcpServers: [],
         });
         sessionId = result.sessionId;
       }
-      await persistSessionId(topicPath, sessionId);
+      await persistSessionId(roomPath, sessionId);
       sessionIdRef.current = sessionId;
-      activeTopicPathRef.current = topicPath;
-      setActiveTopicPath(topicPath);
+      activeRoomPathRef.current = roomPath;
+      setActiveRoomPath(roomPath);
     },
     [fetchPersistedSessionId, isStreaming, persistSessionId, status],
   );
 
-  const promoteTopic = useCallback(
-    async (topicPath: string, targetType: "file" | "directory"): Promise<void> => {
-      const response = await fetch(`/api/spaces/${spaceId}/topics`, {
+  const promoteRoom = useCallback(
+    async (roomPath: string, targetType: "file" | "directory"): Promise<void> => {
+      const response = await fetch(`/api/spaces/${spaceId}/rooms`, {
         method: "POST",
         headers: {
           ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ topicPath, targetType }),
+        body: JSON.stringify({ roomPath, targetType }),
       });
       if (!response.ok)
         throw new Error(
-          ((await response.json()) as { error?: string }).error ?? "Failed to promote topic",
+          ((await response.json()) as { error?: string }).error ?? "Failed to promote room",
         );
-      await refreshTopics();
+      await refreshRooms();
     },
-    [accessToken, refreshTopics, spaceId],
+    [accessToken, refreshRooms, spaceId],
   );
 
-  const archiveTopic = useCallback(
-    async (topicPath: string): Promise<void> => {
-      const response = await fetch(`/api/spaces/${spaceId}/topics`, {
+  const archiveRoom = useCallback(
+    async (roomPath: string): Promise<void> => {
+      const response = await fetch(`/api/spaces/${spaceId}/rooms`, {
         method: "DELETE",
         headers: {
           ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ topicPath }),
+        body: JSON.stringify({ roomPath }),
       });
       if (!response.ok)
         throw new Error(
-          ((await response.json()) as { error?: string }).error ?? "Failed to convert topic back",
+          ((await response.json()) as { error?: string }).error ?? "Failed to convert room back",
         );
-      if (normalizeTopicPath(topicPath) === activeTopicPathRef.current) await selectTopic("/");
-      await refreshTopics();
+      if (normalizeRoomPath(roomPath) === activeRoomPathRef.current) await selectRoom("/");
+      await refreshRooms();
     },
-    [accessToken, refreshTopics, selectTopic, spaceId],
+    [accessToken, refreshRooms, selectRoom, spaceId],
   );
 
   const reconnect = useCallback(() => {
@@ -627,7 +627,7 @@ export function ConnectionStatusProvider({
           data: {
             spaceId,
             sessionId,
-            activeTopicPath: activeTopicPathRef.current,
+            activeRoomPath: activeRoomPathRef.current,
             status,
             contentLength: content.length,
           },
@@ -678,12 +678,12 @@ export function ConnectionStatusProvider({
       clearReconnected,
       messages,
       isStreaming,
-      activeTopicPath,
-      promotedTopicPaths,
-      selectTopic,
-      promoteTopic,
-      archiveTopic,
-      refreshTopics,
+      activeRoomPath,
+      promotedRoomPaths,
+      selectRoom,
+      promoteRoom,
+      archiveRoom,
+      refreshRooms,
       sendMessage,
       writeFile,
       writeFileHttp,
@@ -697,12 +697,12 @@ export function ConnectionStatusProvider({
       clearReconnected,
       messages,
       isStreaming,
-      activeTopicPath,
-      promotedTopicPaths,
-      selectTopic,
-      promoteTopic,
-      archiveTopic,
-      refreshTopics,
+      activeRoomPath,
+      promotedRoomPaths,
+      selectRoom,
+      promoteRoom,
+      archiveRoom,
+      refreshRooms,
       sendMessage,
       writeFile,
       writeFileHttp,

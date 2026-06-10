@@ -16,12 +16,12 @@ interface FileExplorerProps {
   role: SpaceRole;
   selectedFile: string | null;
   onFileSelect: (filePath: string | null) => void;
-  onTopicSelect: (topicPath: string) => void;
+  onRoomSelect: (roomPath: string) => void;
   onSpaceSettingsSelect: () => void;
-  promotedTopicPaths: ReadonlySet<string>;
-  onPromoteTopic: (topicPath: string, targetType: "file" | "directory") => Promise<void>;
-  onArchiveTopic: (topicPath: string) => Promise<void>;
-  onPathDeleted: (topicPath: string) => Promise<void>;
+  promotedRoomPaths: ReadonlySet<string>;
+  onPromoteRoom: (roomPath: string, targetType: "file" | "directory") => Promise<void>;
+  onArchiveRoom: (roomPath: string) => Promise<void>;
+  onPathDeleted: (roomPath: string) => Promise<void>;
   onPathRenamed: (fromPath: string, toPath: string) => Promise<void>;
 }
 
@@ -36,11 +36,11 @@ export default function FileExplorer({
   role,
   selectedFile,
   onFileSelect,
-  onTopicSelect,
+  onRoomSelect,
   onSpaceSettingsSelect,
-  promotedTopicPaths,
-  onPromoteTopic,
-  onArchiveTopic,
+  promotedRoomPaths,
+  onPromoteRoom,
+  onArchiveRoom,
   onPathDeleted,
   onPathRenamed,
 }: FileExplorerProps) {
@@ -245,34 +245,34 @@ export default function FileExplorer({
     onPathDeleted,
   ]);
 
-  const handlePromoteTopic = useCallback(
+  const handlePromoteRoom = useCallback(
     async (node: FileNode) => {
       setContextMenu(null);
       try {
-        await onPromoteTopic(node.path, node.type === "directory" ? "directory" : "file");
-        showToast(`Promoted "${node.name}" to topic`, "success", 3000);
+        await onPromoteRoom(node.path, node.type === "directory" ? "directory" : "file");
+        showToast(`Promoted "${node.name}" to room`, "success", 3000);
       } catch (err) {
-        showToast(err instanceof Error ? err.message : "Failed to promote topic", "error", 4000);
+        showToast(err instanceof Error ? err.message : "Failed to promote room", "error", 4000);
       }
     },
-    [onPromoteTopic, showToast],
+    [onPromoteRoom, showToast],
   );
 
-  const handleArchiveTopic = useCallback(
+  const handleArchiveRoom = useCallback(
     async (node: FileNode) => {
       setContextMenu(null);
       try {
-        await onArchiveTopic(node.path);
+        await onArchiveRoom(node.path);
         showToast(`Converted "${node.name}" back`, "success", 3000);
       } catch (err) {
         showToast(
-          err instanceof Error ? err.message : "Failed to convert topic back",
+          err instanceof Error ? err.message : "Failed to convert room back",
           "error",
           4000,
         );
       }
     },
-    [onArchiveTopic, showToast],
+    [onArchiveRoom, showToast],
   );
 
   useEffect(() => {
@@ -697,7 +697,7 @@ export default function FileExplorer({
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => onTopicSelect("/")}
+                onClick={() => onRoomSelect("/")}
                 className="cursor-pointer border-0 bg-transparent p-0 font-mono text-[11px] font-medium uppercase tracking-[1.4px] text-t-ink-dim"
               >
                 Files
@@ -772,7 +772,7 @@ export default function FileExplorer({
                     selectedFile={selectedFile}
                     selectedFolderPath={selectedFolderPath}
                     onFileSelect={onFileSelect}
-                    onTopicSelect={onTopicSelect}
+                    onRoomSelect={onRoomSelect}
                     onSpaceSettingsSelect={onSpaceSettingsSelect}
                     expandedFolders={expandedFolders}
                     toggleFolder={toggleFolder}
@@ -788,7 +788,7 @@ export default function FileExplorer({
                     onFolderDragLeave={handleFolderDragLeave}
                     onFolderDrop={handleFolderDrop}
                     getDisplayName={getDisplayName}
-                    promotedTopicPaths={promotedTopicPaths}
+                    promotedRoomPaths={promotedRoomPaths}
                     onFolderSelect={(path) => setSelectedFolderPath(path)}
                     onDragStart={handleDragStart}
                     onDragEnd={handleDragEnd}
@@ -861,15 +861,15 @@ export default function FileExplorer({
                 type="button"
                 className="w-full flex items-center gap-2 px-3 py-2 text-sm text-t-ink hover:bg-t-bg-raised/80 transition-colors text-left"
                 onClick={() =>
-                  promotedTopicPaths.has(contextMenu.node.path)
-                    ? void handleArchiveTopic(contextMenu.node)
-                    : void handlePromoteTopic(contextMenu.node)
+                  promotedRoomPaths.has(contextMenu.node.path)
+                    ? void handleArchiveRoom(contextMenu.node)
+                    : void handlePromoteRoom(contextMenu.node)
                 }
               >
                 <span className="material-symbols-outlined text-base">forum</span>
-                {promotedTopicPaths.has(contextMenu.node.path)
+                {promotedRoomPaths.has(contextMenu.node.path)
                   ? `Convert Back to ${contextMenu.node.type === "directory" ? "Folder" : "File"}`
-                  : "Promote to Topic"}
+                  : "Promote to Room"}
               </button>
             )}
           <button

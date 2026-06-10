@@ -45,14 +45,14 @@ describe("OpenClawAcpClient prompt forwarding", () => {
     expect(() => client.cancelPrompt("missing-space")).not.toThrow();
   });
 
-  it("buildTopicSessionKey scopes by agent and room/topic, not user", async () => {
-    const { buildTopicSessionKey } = await import("./openclaw-client.js");
-    expect(buildTopicSessionKey("travel", "vacations:Maine")).toBe(
+  it("buildRoomSessionKey scopes by agent and room, not user", async () => {
+    const { buildRoomSessionKey } = await import("./openclaw-client.js");
+    expect(buildRoomSessionKey("travel", "vacations:Maine")).toBe(
       "ai-spaces:travel:vacations:Maine",
     );
   });
 
-  it("forwards prompts with a shared topic session key", async () => {
+  it("forwards prompts with a shared room session key", async () => {
     vi.doMock("node:fs", () => ({
       readFileSync: vi.fn(() =>
         JSON.stringify({ gateway: { auth: { token: "test-token" } } }),

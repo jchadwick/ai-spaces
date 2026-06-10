@@ -15,7 +15,7 @@ export interface SpaceSummary {
 export interface RoomSummary {
   id: string;
   spaceId: string;
-  topicPath: string;
+  roomPath: string;
   targetType: "file" | "directory";
   name: string;
   summary: string;

@@ -137,34 +137,34 @@ export interface SpaceMember {
   displayName?: string;
 }
 
-export interface SpaceTopic {
+export interface SpaceRoom {
   id: string;
   spaceId: string;
-  topicPath: string;
+  roomPath: string;
   targetType: "root" | "file" | "directory";
   status: "active" | "archived";
   updatedAt?: string;
 }
 
-export async function fetchSpaceTopics(spaceId: string): Promise<SpaceTopic[]> {
-  const data = await jsonRequest<{ rooms: SpaceTopic[] }>(`/api/spaces/${spaceId}/rooms`);
+export async function fetchSpaceRooms(spaceId: string): Promise<SpaceRoom[]> {
+  const data = await jsonRequest<{ rooms: SpaceRoom[] }>(`/api/spaces/${spaceId}/rooms`);
   return data.rooms;
 }
 
-export async function promoteSpaceTopic(
+export async function promoteSpaceRoom(
   spaceId: string,
-  topicPath: string,
+  roomPath: string,
   targetType: "file" | "directory",
-): Promise<SpaceTopic> {
-  const data = await jsonRequest<{ room: SpaceTopic }>(`/api/spaces/${spaceId}/rooms`, {
+): Promise<SpaceRoom> {
+  const data = await jsonRequest<{ room: SpaceRoom }>(`/api/spaces/${spaceId}/rooms`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ topicPath, targetType }),
+    body: JSON.stringify({ roomPath, targetType }),
   });
   return data.room;
 }
 
-export async function archiveSpaceTopic(spaceId: string, roomId: string): Promise<void> {
+export async function archiveSpaceRoom(spaceId: string, roomId: string): Promise<void> {
   await jsonRequest<{ success: true }>(
     `/api/spaces/${spaceId}/rooms/${encodeURIComponent(roomId)}`,
     {

@@ -17,11 +17,11 @@ import {
 } from "lucide-react";
 
 import {
-  archiveSpaceTopic,
+  archiveSpaceRoom,
   createSpaceDirectory,
   createSpaceFile,
   deleteSpacePath,
-  promoteSpaceTopic,
+  promoteSpaceRoom,
   renameSpacePath,
   uploadSpaceFile,
 } from "@/api/spaceFiles";
@@ -59,8 +59,8 @@ export function SpaceExplorer({
   space,
   spaces,
   rooms,
-  promotedTopicPaths,
-  promotedTopicIdsByPath,
+  promotedRoomPaths,
+  promotedRoomIdsByPath,
   initialPath,
   onOpenRoom,
   onNewRoom,
@@ -70,11 +70,11 @@ export function SpaceExplorer({
   space: SpaceSummary;
   spaces: SpaceSummary[];
   rooms: RoomSummary[];
-  promotedTopicPaths: ReadonlySet<string>;
-  promotedTopicIdsByPath: ReadonlyMap<string, string>;
+  promotedRoomPaths: ReadonlySet<string>;
+  promotedRoomIdsByPath: ReadonlyMap<string, string>;
   initialPath: string | null;
   onBack: () => void;
-  onOpenRoom: (spaceId: string, topicPath: string) => void;
+  onOpenRoom: (spaceId: string, roomPath: string) => void;
   onNewRoom: () => void;
   onRefreshRooms: () => void;
   onUpdateSpaceConfig: (spaceId: string, patch: Partial<SpaceSummary["config"]>) => Promise<void>;
@@ -91,8 +91,8 @@ export function SpaceExplorer({
               space={space}
               spaces={spaces}
               rooms={rooms}
-              promotedTopicPaths={promotedTopicPaths}
-              promotedTopicIdsByPath={promotedTopicIdsByPath}
+              promotedRoomPaths={promotedRoomPaths}
+              promotedRoomIdsByPath={promotedRoomIdsByPath}
               initialPath={initialPath}
               onOpenRoom={onOpenRoom}
               onNewRoom={onNewRoom}
@@ -113,8 +113,8 @@ function SpaceExplorerInner({
   space,
   spaces,
   rooms,
-  promotedTopicPaths,
-  promotedTopicIdsByPath,
+  promotedRoomPaths,
+  promotedRoomIdsByPath,
   initialPath,
   onOpenRoom,
   onNewRoom,
@@ -124,10 +124,10 @@ function SpaceExplorerInner({
   space: SpaceSummary;
   spaces: SpaceSummary[];
   rooms: RoomSummary[];
-  promotedTopicPaths: ReadonlySet<string>;
-  promotedTopicIdsByPath: ReadonlyMap<string, string>;
+  promotedRoomPaths: ReadonlySet<string>;
+  promotedRoomIdsByPath: ReadonlyMap<string, string>;
   initialPath: string | null;
-  onOpenRoom: (spaceId: string, topicPath: string) => void;
+  onOpenRoom: (spaceId: string, roomPath: string) => void;
   onNewRoom: () => void;
   onRefreshRooms: () => void;
   onUpdateSpaceConfig: (spaceId: string, patch: Partial<SpaceSummary["config"]>) => Promise<void>;
@@ -201,7 +201,7 @@ function SpaceExplorerInner({
       return;
     }
     try {
-      await promoteSpaceTopic(
+      await promoteSpaceRoom(
         space.id,
         `/${node.path}`,
         node.type === "directory" ? "directory" : "file",
@@ -214,10 +214,10 @@ function SpaceExplorerInner({
   }
 
   async function demote(node: FileNode) {
-    const roomId = promotedTopicIdsByPath.get(node.path);
+    const roomId = promotedRoomIdsByPath.get(node.path);
     if (!roomId) return;
     try {
-      await archiveSpaceTopic(space.id, roomId);
+      await archiveSpaceRoom(space.id, roomId);
       showToast("Demoted to a folder - files kept", "success");
       onRefreshRooms();
     } catch (error) {
@@ -461,7 +461,7 @@ function SpaceExplorerInner({
                 <button
                   key={room.id}
                   type="button"
-                  onClick={() => onOpenRoom(room.spaceId, room.topicPath)}
+                  onClick={() => onOpenRoom(room.spaceId, room.roomPath)}
                   className="flex min-h-39 cursor-pointer flex-col rounded-2xl border-[1.5px] border-rooms-line bg-rooms-paper px-5 pb-4 pt-5 text-left shadow-rooms-card transition hover:border-rooms-line-strong"
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -541,7 +541,7 @@ function SpaceExplorerInner({
             <TreeList
               nodes={files}
               selected={selectedFile ?? currentFolder}
-              promotedTopicPaths={promotedTopicPaths}
+              promotedRoomPaths={promotedRoomPaths}
               metadata={metadata}
               onOpen={openNode}
               onMenu={(event, node) => setMenu({ x: event.clientX, y: event.clientY, node })}
@@ -677,7 +677,7 @@ function SpaceExplorerInner({
                     onClick: () => void renameNode(menu.node!),
                   },
                   ...(menu.node.type === "directory"
-                    ? promotedTopicPaths.has(menu.node.path)
+                    ? promotedRoomPaths.has(menu.node.path)
                       ? [
                           {
                             label: "Demote to folder",

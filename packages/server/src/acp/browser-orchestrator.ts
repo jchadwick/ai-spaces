@@ -1,7 +1,7 @@
 import type { SpaceRole } from "@ai-spaces/shared";
-import { buildTopicPromptContext } from "../context/topic-context.js";
+import { buildRoomPromptContext } from "../context/room-context.js";
 import type { SpaceRecord } from "../space-store.js";
-import { getActiveTopic, normalizeTopicPath, type TopicTargetType } from "../topics/topic-store.js";
+import { getActiveRoom, normalizeRoomPath, type RoomTargetType } from "../rooms/room-store.js";
 
 type Packet = {
   jsonrpc?: string;
@@ -20,14 +20,14 @@ const ALLOWED_BROWSER_METHODS = new Set([
   "session/cancel",
 ]);
 
-function cwdToTopicPath(cwd: unknown): string {
+function cwdToRoomPath(cwd: unknown): string {
   if (typeof cwd !== "string") throw new Error("Session cwd is required");
-  return normalizeTopicPath(cwd);
+  return normalizeRoomPath(cwd);
 }
 
 export class BrowserAcpOrchestrator {
-  private readonly pendingNewTopics = new Map<string | number, string>();
-  private readonly sessionTopics = new Map<string, string>();
+  private readonly pendingNewRooms = new Map<string | number, string>();
+  private readonly sessionRooms = new Map<string, string>();
 
   constructor(
     private readonly space: SpaceRecord,
@@ -43,25 +43,25 @@ export class BrowserAcpOrchestrator {
 
     if (packet.method === "session/new" || packet.method === "session/load") {
       const params = packet.params ?? {};
-      const topicPath = cwdToTopicPath(params.cwd);
-      const topic = this.requireActiveTopic(topicPath);
+      const roomPath = cwdToRoomPath(params.cwd);
+      const room = this.requireActiveRoom(roomPath);
       if (packet.method === "session/load") {
         const sessionId = String(params.sessionId ?? "");
-        if (!sessionId || (topic.acpSessionId && topic.acpSessionId !== sessionId)) {
-          return { response: this.error(packet.id, "Session does not belong to active topic") };
+        if (!sessionId || (room.acpSessionId && room.acpSessionId !== sessionId)) {
+          return { response: this.error(packet.id, "Session does not belong to active room") };
         }
-        this.sessionTopics.set(sessionId, topicPath);
+        this.sessionRooms.set(sessionId, roomPath);
       } else if (packet.id !== undefined) {
-        this.pendingNewTopics.set(packet.id, topicPath);
+        this.pendingNewRooms.set(packet.id, roomPath);
       }
       packet.params = {
         ...params,
-        cwd: topicPath === "/" ? "" : topicPath.slice(1),
+        cwd: roomPath === "/" ? "" : roomPath.slice(1),
         _meta: {
-          aiSpacesSystemContext: await buildTopicPromptContext(
+          aiSpacesSystemContext: await buildRoomPromptContext(
             this.space,
-            topicPath,
-            topic.targetType as TopicTargetType,
+            roomPath,
+            room.targetType as RoomTargetType,
             this.role,
           ),
         },
@@ -71,16 +71,16 @@ export class BrowserAcpOrchestrator {
     if (packet.method === "session/prompt") {
       const params = packet.params ?? {};
       const sessionId = String(params.sessionId ?? "");
-      const topicPath = this.sessionTopics.get(sessionId);
-      if (!topicPath) return { response: this.error(packet.id, "Prompt session is not active") };
-      const topic = this.requireActiveTopic(topicPath);
+      const roomPath = this.sessionRooms.get(sessionId);
+      if (!roomPath) return { response: this.error(packet.id, "Prompt session is not active") };
+      const room = this.requireActiveRoom(roomPath);
       packet.params = {
         ...params,
         _meta: {
-          aiSpacesSystemContext: await buildTopicPromptContext(
+          aiSpacesSystemContext: await buildRoomPromptContext(
             this.space,
-            topicPath,
-            topic.targetType as TopicTargetType,
+            roomPath,
+            room.targetType as RoomTargetType,
             this.role,
           ),
         },
@@ -93,17 +93,17 @@ export class BrowserAcpOrchestrator {
   observeGatewayChunk(chunk: Buffer): void {
     const packet = JSON.parse(chunk.toString("utf8").trim()) as Packet;
     if (packet.id === undefined || !packet.result) return;
-    const topicPath = this.pendingNewTopics.get(packet.id);
+    const roomPath = this.pendingNewRooms.get(packet.id);
     const sessionId = packet.result.sessionId;
-    if (topicPath && typeof sessionId === "string") {
-      this.sessionTopics.set(sessionId, topicPath);
-      this.pendingNewTopics.delete(packet.id);
+    if (roomPath && typeof sessionId === "string") {
+      this.sessionRooms.set(sessionId, roomPath);
+      this.pendingNewRooms.delete(packet.id);
     }
   }
 
-  private requireActiveTopic(topicPath: string) {
-    if (topicPath === "/") return { topicPath: "/", targetType: "root", acpSessionId: null };
-    const topic = getActiveTopic(this.space.id, topicPath);
+  private requireActiveRoom(roomPath: string) {
+    if (roomPath === "/") return { roomPath: "/", targetType: "root", acpSessionId: null };
+    const room = getActiveRoom(this.space.id, roomPath);
     // #region agent log
     fetch("http://host.docker.internal:7399/ingest/acbd8104-ecfc-434c-a54a-bcf58319b4b4", {
       method: "POST",
@@ -112,20 +112,20 @@ export class BrowserAcpOrchestrator {
         sessionId: "897816",
         runId: "pre-fix",
         hypothesisId: "H1",
-        location: "browser-orchestrator.ts:requireActiveTopic",
-        message: "requireActiveTopic lookup",
+        location: "browser-orchestrator.ts:requireActiveRoom",
+        message: "requireActiveRoom lookup",
         data: {
           spaceId: this.space.id,
-          requestedTopicPath: topicPath,
-          found: Boolean(topic),
-          storedTopicPath: topic?.topicPath ?? null,
+          requestedRoomPath: roomPath,
+          found: Boolean(room),
+          storedRoomPath: room?.roomPath ?? null,
         },
         timestamp: Date.now(),
       }),
     }).catch(() => {});
     // #endregion
-    if (!topic) throw new Error("Topic is not active");
-    return topic;
+    if (!room) throw new Error("Room is not active");
+    return room;
   }
 
   private error(id: Packet["id"], message: string): Buffer {

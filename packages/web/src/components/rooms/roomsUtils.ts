@@ -1,7 +1,7 @@
 import type { FileNode, SpaceMetadata, SpaceRole } from "@ai-spaces/shared";
 import type { DragEvent } from "react";
 
-import type { SpaceMember, SpaceTopic } from "@/api/spaceFiles";
+import type { SpaceMember, SpaceRoom } from "@/api/spaceFiles";
 import type { RoomSummary, SpaceSummary } from "@/components/rooms/types";
 
 const SPACE_COLORS = [
@@ -19,16 +19,16 @@ export function spaceColor(spaces: SpaceSummary[], spaceId: string) {
   return SPACE_COLORS[index % SPACE_COLORS.length];
 }
 
-export function stripTopicPath(topicPath: string) {
-  return topicPath.replace(/^\/+/, "");
+export function stripRoomPath(roomPath: string) {
+  return roomPath.replace(/^\/+/, "");
 }
 
-export function pathParts(topicPath: string) {
-  return stripTopicPath(topicPath).split("/").filter(Boolean);
+export function pathParts(roomPath: string) {
+  return stripRoomPath(roomPath).split("/").filter(Boolean);
 }
 
-export function basename(topicPath: string) {
-  const parts = pathParts(topicPath);
+export function basename(roomPath: string) {
+  const parts = pathParts(roomPath);
   return parts[parts.length - 1] || "Root";
 }
 
@@ -210,34 +210,34 @@ export function isRestricted(metadata: SpaceMetadata, nodePath: string) {
 
 export function makeRooms(
   spaces: SpaceSummary[],
-  topicsBySpace: Map<string, SpaceTopic[]>,
+  roomsBySpace: Map<string, SpaceRoom[]>,
   metadataBySpace: Map<string, SpaceMetadata>,
   membersBySpace: Map<string, SpaceMember[]>,
 ): RoomSummary[] {
   return spaces.flatMap((space) => {
     const metadata = metadataBySpace.get(space.id) ?? { files: {} };
     const members = membersBySpace.get(space.id) ?? [];
-    return (topicsBySpace.get(space.id) ?? [])
+    return (roomsBySpace.get(space.id) ?? [])
       .filter(
-        (topic) =>
-          topic.targetType === "directory" || topic.targetType === "file",
+        (room) =>
+          room.targetType === "directory" || room.targetType === "file",
       )
-      .map((topic) => {
-        const cleanPath = stripTopicPath(topic.topicPath);
+      .map((room) => {
+        const cleanPath = stripRoomPath(room.roomPath);
         const entry =
-          metadata.files[cleanPath] ?? metadata.files[topic.topicPath] ?? {};
+          metadata.files[cleanPath] ?? metadata.files[room.roomPath] ?? {};
         return {
-          id: topic.id,
+          id: room.id,
           spaceId: space.id,
-          topicPath: topic.topicPath,
-          targetType: topic.targetType === "file" ? "file" : "directory",
-          name: entry.displayName || basename(topic.topicPath),
+          roomPath: room.roomPath,
+          targetType: room.targetType === "file" ? "file" : "directory",
+          name: entry.displayName || basename(room.roomPath),
           summary:
             entry.summary ??
-            `Focused room for ${basename(topic.topicPath)} inside ${space.config.name}.`,
-          pathParts: pathParts(topic.topicPath),
+            `Focused room for ${basename(room.roomPath)} inside ${space.config.name}.`,
+          pathParts: pathParts(room.roomPath),
           members,
-          updatedAt: topic.updatedAt,
+          updatedAt: room.updatedAt,
         };
       });
   });

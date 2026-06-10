@@ -49,13 +49,13 @@ interface SessionState {
   spaceId: string;
   userId: string;
   role: SpaceRole;
-  topicPath: string;
+  roomPath: string;
   abort: AbortController | null;
   systemContext: string;
 }
 
-function normalizeTopicPath(topicPath: string): string {
-  return topicPath.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+/g, "/");
+function normalizeRoomPath(roomPath: string): string {
+  return roomPath.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+/g, "/");
 }
 
 function getServerContext(params: { _meta?: { [key: string]: unknown } | null }): string {
@@ -107,7 +107,7 @@ export class AISpacesAgent implements Agent {
   async newSession(params: NewSessionRequest): Promise<NewSessionResponse> {
     const sessionId = crypto.randomUUID();
     const spaceId = this.spaceId;
-    const topicPath = normalizeTopicPath(params.cwd ?? "");
+    const roomPath = normalizeRoomPath(params.cwd ?? "");
     const userId = (params as unknown as Record<string, string>).userId ?? "unknown";
 
     this.sessions.set(sessionId, {
@@ -115,17 +115,17 @@ export class AISpacesAgent implements Agent {
       spaceId,
       userId,
       role: this.role,
-      topicPath,
+      roomPath,
       abort: null,
       systemContext: getServerContext(params),
     });
 
-    // Ensure a logical OpenClaw session exists for this space/topic
+    // Ensure a logical OpenClaw session exists for this space/room
     if (spaceId) {
       const space = getSpace(spaceId);
       if (space) {
         await openClawAcpClient
-          .getOrCreateSession(this.runtimeSessionKey(spaceId, topicPath), spaceId, space.agentId)
+          .getOrCreateSession(this.runtimeSessionKey(spaceId, roomPath), spaceId, space.agentId)
           .catch((err) => {
             log.warn({ err, spaceId }, "could not create OpenClaw session — prompts will fail");
           });
@@ -139,7 +139,7 @@ export class AISpacesAgent implements Agent {
   async loadSession(params: LoadSessionRequest): Promise<LoadSessionResponse> {
     const sessionId = params.sessionId;
     const spaceId = this.spaceId;
-    const topicPath = normalizeTopicPath(params.cwd ?? "");
+    const roomPath = normalizeRoomPath(params.cwd ?? "");
     const userId = (params as unknown as Record<string, string>).userId ?? "unknown";
 
     // Re-register the session state
@@ -148,7 +148,7 @@ export class AISpacesAgent implements Agent {
       spaceId,
       userId,
       role: this.role,
-      topicPath,
+      roomPath,
       abort: null,
       systemContext: getServerContext(params),
     });
@@ -159,13 +159,13 @@ export class AISpacesAgent implements Agent {
       if (space) {
         const spaceRoot = resolveSpaceRoot(space);
         await openClawAcpClient
-          .getOrCreateSession(this.runtimeSessionKey(spaceId, topicPath), spaceId, space.agentId)
+          .getOrCreateSession(this.runtimeSessionKey(spaceId, roomPath), spaceId, space.agentId)
           .catch((err) => {
             log.warn({ err, spaceId }, "could not create OpenClaw session on load — prompts will fail");
           });
 
         // Replay chat history — OpenClaw does not do this itself
-        const history = getSessionMessages(spaceRoot, this.historyTopicKey(topicPath));
+        const history = getSessionMessages(spaceRoot, this.historyRoomKey(roomPath));
         for (const msg of history) {
           const updateType = msg.role === "user" ? "user_message_chunk" : "agent_message_chunk";
           await this.conn.sessionUpdate({
@@ -203,9 +203,9 @@ export class AISpacesAgent implements Agent {
       const space = getSpace(state.spaceId);
       if (space) {
         const spaceRoot = resolveSpaceRoot(space);
-        const historyTopicKey = this.historyTopicKey(state.topicPath);
-        getOrCreateSession(spaceRoot, historyTopicKey);
-        addMessageToSession(spaceRoot, historyTopicKey, {
+        const historyRoomKey = this.historyRoomKey(state.roomPath);
+        getOrCreateSession(spaceRoot, historyRoomKey);
+        addMessageToSession(spaceRoot, historyRoomKey, {
           id: crypto.randomUUID(),
           role: "user",
           content: promptText,
@@ -221,7 +221,7 @@ export class AISpacesAgent implements Agent {
               content: { type: "text", text: decision.message },
             } as unknown as SessionNotification["update"],
           });
-          addMessageToSession(spaceRoot, historyTopicKey, {
+          addMessageToSession(spaceRoot, historyRoomKey, {
             id: crypto.randomUUID(),
             role: "assistant",
             content: decision.message,
@@ -244,7 +244,7 @@ export class AISpacesAgent implements Agent {
               content: { type: "text", text: summary },
             } as unknown as SessionNotification["update"],
           });
-          addMessageToSession(spaceRoot, historyTopicKey, {
+          addMessageToSession(spaceRoot, historyRoomKey, {
             id: crypto.randomUUID(),
             role: "assistant",
             content: summary,
@@ -259,7 +259,7 @@ export class AISpacesAgent implements Agent {
 
         try {
           const stopReason = await openClawAcpClient.forwardPrompt(
-            this.runtimeSessionKey(state.spaceId, state.topicPath),
+            this.runtimeSessionKey(state.spaceId, state.roomPath),
             state.spaceId,
             space.agentId,
             {
@@ -298,7 +298,7 @@ export class AISpacesAgent implements Agent {
                 content: { type: "text", text: errorMsg },
               } as unknown as SessionNotification["update"],
             });
-            addMessageToSession(spaceRoot, historyTopicKey, {
+            addMessageToSession(spaceRoot, historyRoomKey, {
               id: crypto.randomUUID(),
               role: "assistant",
               content: errorMsg,
@@ -319,7 +319,7 @@ export class AISpacesAgent implements Agent {
           });
 
           // Store assistant message (sanitized version for history)
-          addMessageToSession(spaceRoot, historyTopicKey, {
+          addMessageToSession(spaceRoot, historyRoomKey, {
             id: crypto.randomUUID(),
             role: "assistant",
             content: sanitized,
@@ -351,7 +351,7 @@ export class AISpacesAgent implements Agent {
     const state = this.sessions.get(params.sessionId);
     if (!state) return;
     state.abort?.abort();
-    openClawAcpClient.cancelPrompt(this.runtimeSessionKey(state.spaceId, state.topicPath));
+    openClawAcpClient.cancelPrompt(this.runtimeSessionKey(state.spaceId, state.roomPath));
   }
 
   // Extension method handler — routes workspace/* calls to file operations
@@ -435,11 +435,11 @@ export class AISpacesAgent implements Agent {
     }
   }
 
-  private runtimeSessionKey(spaceId: string, topicPath: string): string {
-    return `${spaceId}:${topicPath || "/"}`;
+  private runtimeSessionKey(spaceId: string, roomPath: string): string {
+    return `${spaceId}:${roomPath || "/"}`;
   }
 
-  private historyTopicKey(topicPath: string): string {
-    return topicPath || "/";
+  private historyRoomKey(roomPath: string): string {
+    return roomPath || "/";
   }
 }

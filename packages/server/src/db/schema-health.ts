@@ -169,18 +169,18 @@ function ensureSpacesServerId(sqlite: Database.Database, repaired: string[]): vo
   }
 }
 
-function ensureTopicPathNormalization(sqlite: Database.Database, repaired: string[]): void {
-  if (!tableExists(sqlite, "space_topics")) return;
+function ensureRoomPathNormalization(sqlite: Database.Database, repaired: string[]): void {
+  if (!tableExists(sqlite, "space_rooms")) return;
 
   const rows = sqlite
-    .prepare("SELECT id, topic_path FROM space_topics WHERE topic_path != '/' AND topic_path LIKE '%/'")
-    .all() as Array<{ id: string; topic_path: string }>;
+    .prepare("SELECT id, room_path FROM space_rooms WHERE room_path != '/' AND room_path LIKE '%/'")
+    .all() as Array<{ id: string; room_path: string }>;
 
   for (const row of rows) {
-    const normalized = row.topic_path.replace(/\/+$/, "");
-    if (normalized === row.topic_path) continue;
-    sqlite.prepare("UPDATE space_topics SET topic_path = ? WHERE id = ?").run(normalized, row.id);
-    repaired.push(`normalized space_topics.topic_path ${row.topic_path} -> ${normalized}`);
+    const normalized = row.room_path.replace(/\/+$/, "");
+    if (normalized === row.room_path) continue;
+    sqlite.prepare("UPDATE space_rooms SET room_path = ? WHERE id = ?").run(normalized, row.id);
+    repaired.push(`normalized space_rooms.room_path ${row.room_path} -> ${normalized}`);
   }
 }
 
@@ -210,7 +210,7 @@ export function ensureSchemaHealth(sqlite: Database.Database): SchemaHealthResul
     ensureDefaultServer(sqlite, repaired);
     ensureServerRegistrationTokensTable(sqlite, repaired);
     ensureSpacesServerId(sqlite, repaired);
-    ensureTopicPathNormalization(sqlite, repaired);
+    ensureRoomPathNormalization(sqlite, repaired);
     sqlite.exec("COMMIT");
   } catch (error) {
     sqlite.exec("ROLLBACK");

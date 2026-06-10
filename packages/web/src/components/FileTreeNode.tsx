@@ -9,7 +9,7 @@ interface FileTreeNodeProps {
   selectedFile: string | null;
   selectedFolderPath: string | null;
   onFileSelect: (path: string) => void;
-  onTopicSelect: (path: string) => void;
+  onRoomSelect: (path: string) => void;
   onSpaceSettingsSelect: () => void;
   expandedFolders: Set<string>;
   toggleFolder: (path: string) => void;
@@ -25,7 +25,7 @@ interface FileTreeNodeProps {
   onFolderDragLeave: (path: string) => void;
   onFolderDrop: (e: DragEvent, path: string) => void;
   getDisplayName: (path: string) => string | undefined;
-  promotedTopicPaths: ReadonlySet<string>;
+  promotedRoomPaths: ReadonlySet<string>;
   onFolderSelect: (path: string) => void;
   onDragStart: (e: DragEvent, node: FileNode) => void;
   onDragEnd: () => void;
@@ -37,7 +37,7 @@ export default function FileTreeNode({
   selectedFile,
   selectedFolderPath,
   onFileSelect,
-  onTopicSelect,
+  onRoomSelect,
   onSpaceSettingsSelect,
   expandedFolders,
   toggleFolder,
@@ -53,7 +53,7 @@ export default function FileTreeNode({
   onFolderDragLeave,
   onFolderDrop,
   getDisplayName,
-  promotedTopicPaths,
+  promotedRoomPaths,
   onFolderSelect,
   onDragStart,
   onDragEnd,
@@ -65,7 +65,7 @@ export default function FileTreeNode({
   const isSpaceFolder = node.name === ".space";
   const isRenaming = renamingPath === node.path;
   const isDragTarget = isDirectory && dragOverFolder === node.path;
-  const isTopic = promotedTopicPaths.has(node.path);
+  const isRoom = promotedRoomPaths.has(node.path);
   const paddingLeft = 8 + depth * 16;
   const icon = getFileNodeIcon(node.name, node.type);
 
@@ -89,7 +89,7 @@ export default function FileTreeNode({
         : "";
       onFolderSelect(parentPath || "");
     }
-    if (!isSpaceFolder && isTopic) onTopicSelect(node.path);
+    if (!isSpaceFolder && isRoom) onRoomSelect(node.path);
   };
 
   const iconClass = cn(
@@ -133,8 +133,8 @@ export default function FileTreeNode({
           <span className={iconClass}>{isExpanded ? "folder_open" : "folder"}</span>
         )}
         {isSpaceFolder && <span className={iconClass}>settings</span>}
-        {isTopic && (
-          <span className="material-symbols-outlined text-sm text-t-agent" title="Topic">
+        {isRoom && (
+          <span className="material-symbols-outlined text-sm text-t-agent" title="Room">
             forum
           </span>
         )}
@@ -155,7 +155,7 @@ export default function FileTreeNode({
         ) : (
           <span
             className={cn(
-              isTopic && isDirectory
+              isRoom && isDirectory
                 ? "font-semibold text-primary"
                 : isSelected
                   ? "font-semibold"
@@ -191,7 +191,7 @@ export default function FileTreeNode({
               selectedFile={selectedFile}
               selectedFolderPath={selectedFolderPath}
               onFileSelect={onFileSelect}
-              onTopicSelect={onTopicSelect}
+              onRoomSelect={onRoomSelect}
               expandedFolders={expandedFolders}
               toggleFolder={toggleFolder}
               onLoadChildren={onLoadChildren}
@@ -206,7 +206,7 @@ export default function FileTreeNode({
               onFolderDragLeave={onFolderDragLeave}
               onFolderDrop={onFolderDrop}
               getDisplayName={getDisplayName}
-              promotedTopicPaths={promotedTopicPaths}
+              promotedRoomPaths={promotedRoomPaths}
               onFolderSelect={onFolderSelect}
               onDragStart={onDragStart}
               onDragEnd={onDragEnd}

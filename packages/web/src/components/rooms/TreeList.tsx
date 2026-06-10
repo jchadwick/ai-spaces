@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 export function TreeList({
   nodes,
   selected,
-  promotedTopicPaths,
+  promotedRoomPaths,
   metadata,
   onOpen,
   onMenu,
@@ -23,7 +23,7 @@ export function TreeList({
 }: {
   nodes: FileNode[];
   selected: string | null;
-  promotedTopicPaths: ReadonlySet<string>;
+  promotedRoomPaths: ReadonlySet<string>;
   metadata: SpaceMetadata;
   onOpen: (node: FileNode) => void;
   onMenu: (event: MouseEvent, node: FileNode) => void;
@@ -56,7 +56,7 @@ export function TreeList({
   function render(node: FileNode, depth: number): ReactNode {
     const active = selected === node.path;
     const open = node.type === "directory" && !collapsed.has(node.path);
-    const promoted = promotedTopicPaths.has(node.path);
+    const promoted = promotedRoomPaths.has(node.path);
     const restricted = isRestricted(metadata, node.path);
     const dropTarget = folderDropTarget(node);
     const isFolderDropTarget = dragOverFolder === dropTarget && dragOverNode === node.path;

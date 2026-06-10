@@ -22,7 +22,7 @@ interface ManagedSession {
   sessionId: string;
   spaceId: string;
   agentId: string;
-  topicSessionKey: string;
+  roomSessionKey: string;
   activeAbort: AbortController | null;
 }
 
@@ -56,16 +56,16 @@ function gatewayModelForAgent(agentId: string): string {
   return agentId && agentId !== "main" ? `openclaw/${agentId}` : "openclaw";
 }
 
-/** Stable OpenClaw channel session key scoped to agent + room/topic (shared by all collaborators). */
-export function buildTopicSessionKey(agentId: string, runtimeSessionKey: string): string {
+/** Stable OpenClaw channel session key scoped to agent + room (shared by all collaborators). */
+export function buildRoomSessionKey(agentId: string, runtimeSessionKey: string): string {
   return `ai-spaces:${agentId}:${runtimeSessionKey}`;
 }
 
 /**
- * Forwards prompts to OpenClaw gateway HTTP using per-topic channel sessions.
+ * Forwards prompts to OpenClaw gateway HTTP using per-room channel sessions.
  *
  * OpenClaw's `openclaw acp` subprocess hangs on session/prompt in current builds.
- * HTTP chat/completions with a stable topic session key gives us working prompts
+ * HTTP chat/completions with a stable room session key gives us working prompts
  * plus OpenClaw-managed shared room history (not per-user, not manually attached).
  */
 export class OpenClawAcpClient {
@@ -79,17 +79,17 @@ export class OpenClawAcpClient {
     const existing = this.sessions.get(runtimeSessionKey);
     if (existing) return existing.sessionId;
 
-    const topicSessionKey = buildTopicSessionKey(agentId, runtimeSessionKey);
+    const roomSessionKey = buildRoomSessionKey(agentId, runtimeSessionKey);
     const sessionId = crypto.randomUUID();
     const session: ManagedSession = {
       sessionId,
       spaceId,
       agentId,
-      topicSessionKey,
+      roomSessionKey,
       activeAbort: null,
     };
     this.sessions.set(runtimeSessionKey, session);
-    log.info({ spaceId, sessionId, agentId, topicSessionKey }, "created logical OpenClaw topic session");
+    log.info({ spaceId, sessionId, agentId, roomSessionKey }, "created logical OpenClaw room session");
     return sessionId;
   }
 
@@ -120,7 +120,7 @@ export class OpenClawAcpClient {
       return await this.forwardPromptViaHttp(
         spaceId,
         session.agentId || agentId,
-        session.topicSessionKey,
+        session.roomSessionKey,
         prompt,
         onUpdate,
         abort.signal,
@@ -136,7 +136,7 @@ export class OpenClawAcpClient {
   private async forwardPromptViaHttp(
     spaceId: string,
     agentId: string,
-    topicSessionKey: string,
+    roomSessionKey: string,
     prompt: { systemPrompt: string; userPrompt: string },
     onUpdate: SessionUpdateHandler,
     signal: AbortSignal,
@@ -153,8 +153,8 @@ export class OpenClawAcpClient {
 
     const model = gatewayModelForAgent(agentId);
     log.info(
-      { spaceId, agentId, model, topicSessionKey },
-      "forwarding prompt via OpenClaw HTTP topic session",
+      { spaceId, agentId, model, roomSessionKey },
+      "forwarding prompt via OpenClaw HTTP room session",
     );
 
     // #region agent log
@@ -163,11 +163,11 @@ export class OpenClawAcpClient {
       headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "897816" },
       body: JSON.stringify({
         sessionId: "897816",
-        runId: "topic-session",
+        runId: "room-session",
         hypothesisId: "H5",
         location: "openclaw-client.ts:forwardPromptViaHttp",
-        message: "topic session prompt start",
-        data: { spaceId, agentId, model, topicSessionKey },
+        message: "room session prompt start",
+        data: { spaceId, agentId, model, roomSessionKey },
         timestamp: Date.now(),
       }),
     }).catch(() => {});
@@ -181,9 +181,9 @@ export class OpenClawAcpClient {
       },
       body: JSON.stringify({
         model,
-        // OpenClaw maps this field to its channel session store; we use a topic key so
+        // OpenClaw maps this field to its channel session store; we use a room key so
         // all collaborators in a room share one conversation history.
-        user: topicSessionKey,
+        user: roomSessionKey,
         messages,
         stream: true,
       }),
@@ -241,8 +241,8 @@ export class OpenClawAcpClient {
 
     const elapsedMs = Date.now() - startedAt;
     log.info(
-      { spaceId, agentId, model, topicSessionKey, elapsedMs, contentLength: accumulated.length },
-      "prompt completed via OpenClaw HTTP topic session",
+      { spaceId, agentId, model, roomSessionKey, elapsedMs, contentLength: accumulated.length },
+      "prompt completed via OpenClaw HTTP room session",
     );
 
     // #region agent log
@@ -251,11 +251,11 @@ export class OpenClawAcpClient {
       headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "897816" },
       body: JSON.stringify({
         sessionId: "897816",
-        runId: "topic-session",
+        runId: "room-session",
         hypothesisId: "H5",
         location: "openclaw-client.ts:forwardPromptViaHttp",
-        message: "topic session prompt complete",
-        data: { spaceId, agentId, topicSessionKey, elapsedMs, contentLength: accumulated.length },
+        message: "room session prompt complete",
+        data: { spaceId, agentId, roomSessionKey, elapsedMs, contentLength: accumulated.length },
         timestamp: Date.now(),
       }),
     }).catch(() => {});

@@ -8,7 +8,7 @@ let originalDbPath: string | undefined;
 
 async function importStoreWithTempDb() {
   vi.resetModules();
-  tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "ai-spaces-topic-store-"));
+  tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "ai-spaces-room-store-"));
   process.env.AI_SPACES_DB = path.join(tempDir, "ai-spaces.db");
 
   const { runMigrations } = await import("../db/migrate.js");
@@ -38,10 +38,10 @@ async function importStoreWithTempDb() {
       now,
     );
 
-  return import("./topic-store.js");
+  return import("./room-store.js");
 }
 
-describe("topic store", () => {
+describe("room store", () => {
   beforeEach(() => {
     originalDbPath = process.env.AI_SPACES_DB;
   });
@@ -60,22 +60,22 @@ describe("topic store", () => {
     }
   });
 
-  it("normalizes topic paths without trailing slashes", async () => {
-    const { normalizeTopicPath } = await importStoreWithTempDb();
-    expect(normalizeTopicPath("/Maine/")).toBe("/Maine");
-    expect(normalizeTopicPath("/Maine")).toBe("/Maine");
-    expect(normalizeTopicPath("Maine/")).toBe("/Maine");
-    expect(normalizeTopicPath("/")).toBe("/");
+  it("normalizes room paths without trailing slashes", async () => {
+    const { normalizeRoomPath } = await importStoreWithTempDb();
+    expect(normalizeRoomPath("/Maine/")).toBe("/Maine");
+    expect(normalizeRoomPath("/Maine")).toBe("/Maine");
+    expect(normalizeRoomPath("Maine/")).toBe("/Maine");
+    expect(normalizeRoomPath("/")).toBe("/");
   });
 
   it("archives only the selected room when demoting by id", async () => {
-    const { archiveTopicById, getTopicById, upsertPromotedTopic } = await importStoreWithTempDb();
-    const parent = upsertPromotedTopic("space-1", "/Parent", "directory", "user-1");
-    const child = upsertPromotedTopic("space-1", "/Parent/Child", "directory", "user-1");
+    const { archiveRoomById, getRoomById, upsertPromotedRoom } = await importStoreWithTempDb();
+    const parent = upsertPromotedRoom("space-1", "/Parent", "directory", "user-1");
+    const child = upsertPromotedRoom("space-1", "/Parent/Child", "directory", "user-1");
 
-    archiveTopicById("space-1", parent.id);
+    archiveRoomById("space-1", parent.id);
 
-    expect(getTopicById("space-1", parent.id)?.status).toBe("archived");
-    expect(getTopicById("space-1", child.id)?.status).toBe("active");
+    expect(getRoomById("space-1", parent.id)?.status).toBe("archived");
+    expect(getRoomById("space-1", child.id)?.status).toBe("active");
   });
 });

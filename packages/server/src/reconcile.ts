@@ -8,7 +8,7 @@ import { eq } from "drizzle-orm";
 import { config } from "./config.js";
 import { db } from "./db/connection.js";
 import { DEFAULT_SERVER_ID } from "./db/constants.js";
-import { spaceMembers, spaceTopics, users } from "./db/index.js";
+import { spaceMembers, spaceRooms, users } from "./db/index.js";
 import { deleteSpace, insertSpace, listSpaces, listSpacesByServerId } from "./space-store.js";
 
 /**
@@ -78,15 +78,15 @@ export async function migrateCollaboratorsToMembers(): Promise<void> {
 }
 
 /**
- * Ensures the root topic "/" exists for a newly registered space.
- * Idempotent: safe to call even if the topic already exists.
+ * Ensures the root room "/" exists for a newly registered space.
+ * Idempotent: safe to call even if the room already exists.
  */
-function ensureRootTopic(spaceId: string, now: string): void {
-  db.insert(spaceTopics)
+function ensureRootRoom(spaceId: string, now: string): void {
+  db.insert(spaceRooms)
     .values({
       id: crypto.randomUUID(),
       spaceId,
-      topicPath: "/",
+      roomPath: "/",
       targetType: "root",
       status: "active",
       acpSessionId: null,
@@ -127,7 +127,7 @@ export async function reconcileFromSpaceList(
       });
       if (!dbSpace) {
         log.info({ runtimeSpaceId, path: diskSpace.path }, "Registered missing space");
-        ensureRootTopic(space.id, now);
+        ensureRootRoom(space.id, now);
       } else {
         log.info(
           { id: dbSpace.id, runtimeSpaceId, from: dbSpace.path, to: diskSpace.path },

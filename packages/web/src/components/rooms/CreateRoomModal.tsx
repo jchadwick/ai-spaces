@@ -6,7 +6,7 @@ import {
   createSpaceDirectory,
   createSpaceFile,
   patchFileMetadata,
-  promoteSpaceTopic,
+  promoteSpaceRoom,
 } from "@/api/spaceFiles";
 import { RoomsButton } from "@/components/rooms/controls/RoomsButton";
 import { RoomsField } from "@/components/rooms/controls/RoomsField";
@@ -52,7 +52,7 @@ export function CreateRoomModal({
         displayName: name.trim(),
         summary: summary.trim() || undefined,
       });
-      const room = await promoteSpaceTopic(spaceId, `/${normalizedPath}`, "directory");
+      const room = await promoteSpaceRoom(spaceId, `/${normalizedPath}`, "directory");
       showToast("Room created", "success");
       onCreated(spaceId, room.id);
     } catch (error) {

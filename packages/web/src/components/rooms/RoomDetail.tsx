@@ -28,7 +28,7 @@ import {
   replaceNodeChildren,
   roleIsOwner,
   sortFileNodes,
-  stripTopicPath,
+  stripRoomPath,
 } from "@/components/rooms/roomsUtils";
 import { TreeList } from "@/components/rooms/TreeList";
 import type { RoomSummary } from "@/components/rooms/types";
@@ -81,7 +81,7 @@ function RoomDetailInner({
   onUpdateRoomMetadata: (room: RoomSummary, patch: Partial<FileMetadataEntry>) => Promise<void>;
 }) {
   const apiFetch = useAPI();
-  const { selectTopic } = useConnectionStatus();
+  const { selectRoom } = useConnectionStatus();
   const { showToast } = useToast();
   const canEdit = hasPermission(role, "files:write");
   const canManageSpace = hasPermission(role, "space:manage");
@@ -108,7 +108,7 @@ function RoomDetailInner({
   const [isDragOver, setIsDragOver] = useState(false);
   const [contentRefreshKey, setContentRefreshKey] = useState(0);
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
-  const roomRoot = stripTopicPath(room.topicPath);
+  const roomRoot = stripRoomPath(room.roomPath);
   const routedFilePath = initialFilePath ? joinPath(roomRoot, initialFilePath) : null;
 
   const fetchDir = useCallback(
@@ -163,8 +163,8 @@ function RoomDetailInner({
   }, [routedFilePath]);
 
   useEffect(() => {
-    void selectTopic(room.topicPath);
-  }, [room.topicPath, selectTopic]);
+    void selectRoom(room.roomPath);
+  }, [room.roomPath, selectRoom]);
 
   const activeFile = activePath ? findNode(nodes, activePath) : firstFileNode(nodes);
   const activeFilePath = activeFile?.type === "file" ? activeFile.path : null;
@@ -439,7 +439,7 @@ function RoomDetailInner({
             <TreeList
               nodes={nodes}
               selected={activeFilePath ?? selectedFolder}
-              promotedTopicPaths={new Set()}
+              promotedRoomPaths={new Set()}
               metadata={{ files: {} }}
               onOpen={openNode}
               onMenu={(event, node) => {

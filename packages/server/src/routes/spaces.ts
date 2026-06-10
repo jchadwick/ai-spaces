@@ -17,17 +17,17 @@ import {
   updateSpaceConfig,
 } from "../space-store.js";
 import {
-  archiveTopicById,
-  archiveTopicTree,
-  getActiveTopic,
-  getTopic,
-  getTopicById,
-  listActiveTopics,
-  normalizeTopicPath,
-  persistTopicSession,
-  renameTopicTree,
-  upsertPromotedTopic,
-} from "../topics/topic-store.js";
+  archiveRoomById,
+  archiveRoomTree,
+  getActiveRoom,
+  getRoom,
+  getRoomById,
+  listActiveRooms,
+  normalizeRoomPath,
+  persistRoomSession,
+  renameRoomTree,
+  upsertPromotedRoom,
+} from "../rooms/room-store.js";
 
 export interface SpaceVariables extends AuthVariables {
   spaceRole: SpaceRole;
@@ -238,50 +238,50 @@ function requirePermission(
   if (!hasPermission(c.get("spaceRole"), permission)) throw new Error("Forbidden");
 }
 
-const topicSchema = z.object({
-  topicPath: z.string(),
+const roomSessionSchema = z.object({
+  roomPath: z.string(),
   acpSessionId: z.string().min(1),
 });
 
-spacesRouter.get("/:id/topics/session", async (c) => {
+spacesRouter.get("/:id/rooms/session", async (c) => {
   const spaceId = c.req.param("id");
   const space = getSpace(spaceId);
   const role = c.get("spaceRole");
   try {
-    const topicPath = normalizeTopicPath(c.req.query("path") ?? "/");
+    const roomPath = normalizeRoomPath(c.req.query("path") ?? "/");
     if (
       space &&
       !hasPermission(role, "files:read-internal") &&
-      isPathRestricted(await loadSpaceMetadata(space), topicPath)
+      isPathRestricted(await loadSpaceMetadata(space), roomPath)
     ) {
       return c.json({ error: "Access denied: restricted path" }, 403);
     }
-    const topic =
-      topicPath === "/" ? getTopic(spaceId, topicPath) : getActiveTopic(spaceId, topicPath);
-    return c.json({ topic: topic ?? null });
+    const room =
+      roomPath === "/" ? getRoom(spaceId, roomPath) : getActiveRoom(spaceId, roomPath);
+    return c.json({ room: room ?? null });
   } catch (err) {
     return c.json({ error: (err as Error).message }, 400);
   }
 });
 
 // @ts-expect-error -- tsgo TS2589: type instantiation depth limit on Hono+zValidator chains
-spacesRouter.put("/:id/topics/session", zValidator("json", topicSchema), async (c) => {
+spacesRouter.put("/:id/rooms/session", zValidator("json", roomSessionSchema), async (c) => {
   const spaceId = c.req.param("id");
   const { userId } = c.get("user");
   const { acpSessionId } = c.req.valid("json");
   const space = getSpace(spaceId);
   const role = c.get("spaceRole");
   try {
-    const topicPath = normalizeTopicPath(c.req.valid("json").topicPath);
+    const roomPath = normalizeRoomPath(c.req.valid("json").roomPath);
     if (
       space &&
       !hasPermission(role, "files:read-internal") &&
-      isPathRestricted(await loadSpaceMetadata(space), topicPath)
+      isPathRestricted(await loadSpaceMetadata(space), roomPath)
     ) {
       return c.json({ error: "Access denied: restricted path" }, 403);
     }
-    const topic = persistTopicSession(spaceId, topicPath, acpSessionId, userId);
-    return c.json({ topic });
+    const room = persistRoomSession(spaceId, roomPath, acpSessionId, userId);
+    return c.json({ room });
   } catch (err) {
     return c.json({ error: (err as Error).message }, 400);
   }
@@ -295,60 +295,30 @@ async function listVisibleRooms(c: {
   const role = c.get("spaceRole");
   const metadata =
     space && !hasPermission(role, "files:read-internal") ? await loadSpaceMetadata(space) : null;
-  return listActiveTopics(c.req.param("id")).filter((topic) => {
-    if (topic.topicPath === "/") return false;
-    return !metadata || !isPathRestricted(metadata, topic.topicPath);
+  return listActiveRooms(c.req.param("id")).filter((room) => {
+    if (room.roomPath === "/") return false;
+    return !metadata || !isPathRestricted(metadata, room.roomPath);
   });
 }
-
-spacesRouter.get("/:id/topics", async (c) => {
-  return c.json({ topics: await listVisibleRooms(c) });
-});
 
 spacesRouter.get("/:id/rooms", async (c) => {
   return c.json({ rooms: await listVisibleRooms(c) });
 });
 
-const promoteTopicSchema = z.object({
-  topicPath: z.string().min(1),
+const promoteRoomSchema = z.object({
+  roomPath: z.string().min(1),
   targetType: z.enum(["file", "directory"]),
 });
 
 // @ts-expect-error -- tsgo TS2589
-spacesRouter.post("/:id/topics", zValidator("json", promoteTopicSchema), async (c) => {
+spacesRouter.post("/:id/rooms", zValidator("json", promoteRoomSchema), async (c) => {
   try {
     requirePermission(c, "space:manage");
     const spaceId = c.req.param("id");
     const space = getSpace(spaceId);
     if (!space) return c.json({ error: "Space not found" }, 404);
-    const { topicPath, targetType } = c.req.valid("json");
-    const normalized = normalizeTopicPath(topicPath);
-    if (normalized === "/") return c.json({ error: "Root topic is built in" }, 400);
-    if (isPathRestricted(await loadSpaceMetadata(space), normalized)) {
-      return c.json({ error: "Restricted paths cannot be promoted to Rooms" }, 400);
-    }
-    const approved = await workspacePolicy.approvePath(space, normalized.slice(1), {
-      expectedType: targetType,
-    });
-    workspacePolicy.consume(approved.token);
-    const topic = upsertPromotedTopic(spaceId, normalized, targetType, c.get("user").userId);
-    return c.json({ topic }, 201);
-  } catch (err) {
-    return c.json(
-      { error: (err as Error).message },
-      (err as Error).message === "Forbidden" ? 403 : 400,
-    );
-  }
-});
-
-spacesRouter.post("/:id/rooms", zValidator("json", promoteTopicSchema), async (c) => {
-  try {
-    requirePermission(c, "space:manage");
-    const spaceId = c.req.param("id");
-    const space = getSpace(spaceId);
-    if (!space) return c.json({ error: "Space not found" }, 404);
-    const { topicPath, targetType } = c.req.valid("json");
-    const normalized = normalizeTopicPath(topicPath);
+    const { roomPath, targetType } = c.req.valid("json");
+    const normalized = normalizeRoomPath(roomPath);
     if (normalized === "/") return c.json({ error: "Root room is built in" }, 400);
     if (isPathRestricted(await loadSpaceMetadata(space), normalized)) {
       return c.json({ error: "Restricted paths cannot be promoted to Rooms" }, 400);
@@ -357,7 +327,7 @@ spacesRouter.post("/:id/rooms", zValidator("json", promoteTopicSchema), async (c
       expectedType: targetType,
     });
     workspacePolicy.consume(approved.token);
-    const room = upsertPromotedTopic(spaceId, normalized, targetType, c.get("user").userId);
+    const room = upsertPromotedRoom(spaceId, normalized, targetType, c.get("user").userId);
     return c.json({ room }, 201);
   } catch (err) {
     return c.json(
@@ -368,43 +338,25 @@ spacesRouter.post("/:id/rooms", zValidator("json", promoteTopicSchema), async (c
 });
 
 spacesRouter.get("/:id/rooms/:roomId", async (c) => {
-  const room = getTopicById(c.req.param("id"), c.req.param("roomId"));
-  if (room?.status !== "active" || room.topicPath === "/")
+  const room = getRoomById(c.req.param("id"), c.req.param("roomId"));
+  if (room?.status !== "active" || room.roomPath === "/")
     return c.json({ error: "Room not found" }, 404);
   const space = getSpace(c.req.param("id"));
   const role = c.get("spaceRole");
   if (
     space &&
     !hasPermission(role, "files:read-internal") &&
-    isPathRestricted(await loadSpaceMetadata(space), room.topicPath)
+    isPathRestricted(await loadSpaceMetadata(space), room.roomPath)
   ) {
     return c.json({ error: "Access denied: restricted path" }, 403);
   }
   return c.json({ room });
 });
 
-spacesRouter.delete(
-  "/:id/topics",
-  // @ts-expect-error -- tsgo TS2589
-  zValidator("json", z.object({ topicPath: z.string().min(1) })),
-  (c) => {
-    try {
-      requirePermission(c, "space:manage");
-      archiveTopicTree(c.req.param("id"), c.req.valid("json").topicPath);
-      return c.json({ success: true });
-    } catch (err) {
-      return c.json(
-        { error: (err as Error).message },
-        (err as Error).message === "Forbidden" ? 403 : 400,
-      );
-    }
-  },
-);
-
 spacesRouter.delete("/:id/rooms/:roomId", (c) => {
   try {
     requirePermission(c, "space:manage");
-    archiveTopicById(c.req.param("id"), c.req.param("roomId"));
+    archiveRoomById(c.req.param("id"), c.req.param("roomId"));
     return c.json({ success: true });
   } catch (err) {
     return c.json(
@@ -622,7 +574,7 @@ spacesRouter.delete("/:id/files/:filePath{.*}", async (c) => {
       return c.json({ error: "Access denied: restricted path" }, 403);
     }
     await agentAdapter.deleteFile(space, resolution.path, resolution.token);
-    archiveTopicTree(id, `/${resolution.path}`);
+    archiveRoomTree(id, `/${resolution.path}`);
     return c.json({ success: true });
   } catch (err: any) {
     return c.json({ error: err.message ?? "Failed to delete file" }, routeErrorStatus(err));
@@ -665,7 +617,7 @@ spacesRouter.patch("/:id/files/:filePath{.*}", zValidator("json", renameFileSche
       sourceResolution.token,
       targetResolution.token,
     );
-    renameTopicTree(id, `/${sourceResolution.path}`, `/${targetResolution.path}`);
+    renameRoomTree(id, `/${sourceResolution.path}`, `/${targetResolution.path}`);
     return c.json({ success: true, path: newPath });
   } catch (err: any) {
     return c.json({ error: err.message ?? "Failed to rename file" }, routeErrorStatus(err));
@@ -694,7 +646,7 @@ spacesRouter.delete("/:id/directories/:dirPath{.*}", async (c) => {
       return c.json({ error: "Access denied: restricted path" }, 403);
     }
     await agentAdapter.deleteDirectory(space, resolution.path, resolution.token);
-    archiveTopicTree(id, `/${resolution.path}`);
+    archiveRoomTree(id, `/${resolution.path}`);
     return c.json({ success: true });
   } catch (err: any) {
     return c.json({ error: err.message ?? "Failed to delete directory" }, routeErrorStatus(err));
@@ -740,7 +692,7 @@ spacesRouter.patch(
         sourceResolution.token,
         targetResolution.token,
       );
-      renameTopicTree(id, `/${sourceResolution.path}`, `/${targetResolution.path}`);
+      renameRoomTree(id, `/${sourceResolution.path}`, `/${targetResolution.path}`);
       return c.json({ success: true, path: newPath });
     } catch (err: any) {
       return c.json({ error: err.message ?? "Failed to rename directory" }, routeErrorStatus(err));

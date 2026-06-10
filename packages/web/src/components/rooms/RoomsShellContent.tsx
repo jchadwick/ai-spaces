@@ -5,17 +5,17 @@ import { useLocation, useNavigate, useParams, useSearchParams } from "react-rout
 import {
   fetchSpaceMembers,
   fetchSpaceMetadata,
-  fetchSpaceTopics,
+  fetchSpaceRooms,
   patchFileMetadata,
   type SpaceMember,
-  type SpaceTopic,
+  type SpaceRoom,
 } from "@/api/spaceFiles";
 import { CreateRoomModal } from "@/components/rooms/CreateRoomModal";
 import { RoomDetail } from "@/components/rooms/RoomDetail";
 import { RoomsHome } from "@/components/rooms/RoomsHome";
 import { RoomsRail } from "@/components/rooms/RoomsRail";
 import { SpaceExplorer } from "@/components/rooms/SpaceExplorer";
-import { makeRooms, roleIsOwner, roomUrl, stripTopicPath } from "@/components/rooms/roomsUtils";
+import { makeRooms, roleIsOwner, roomUrl, stripRoomPath } from "@/components/rooms/roomsUtils";
 import type { RoomSummary, SpaceSummary } from "@/components/rooms/types";
 import { useToast } from "@/components/ui/use-toast";
 import { useAPI } from "@/hooks/useAPI";
@@ -28,7 +28,7 @@ export function RoomsShellContent() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
   const [spaces, setSpaces] = useState<SpaceSummary[]>([]);
-  const [topicsBySpace, setTopicsBySpace] = useState<Map<string, SpaceTopic[]>>(new Map());
+  const [roomsBySpace, setRoomsBySpace] = useState<Map<string, SpaceRoom[]>>(new Map());
   const [metadataBySpace, setMetadataBySpace] = useState<Map<string, SpaceMetadata>>(new Map());
   const [membersBySpace, setMembersBySpace] = useState<Map<string, SpaceMember[]>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -47,8 +47,8 @@ export function RoomsShellContent() {
   const querySpace = searchParams.get("space");
   const activeSpaceId = view === "space" || view === "room" ? routeSpaceId : querySpace;
   const rooms = useMemo(
-    () => makeRooms(spaces, topicsBySpace, metadataBySpace, membersBySpace),
-    [spaces, topicsBySpace, metadataBySpace, membersBySpace],
+    () => makeRooms(spaces, roomsBySpace, metadataBySpace, membersBySpace),
+    [spaces, roomsBySpace, metadataBySpace, membersBySpace],
   );
   const activeRoom =
     view === "room" && routeSpaceId && (routeRoomId || routePath)
@@ -56,7 +56,7 @@ export function RoomsShellContent() {
           (room) =>
             room.spaceId === routeSpaceId &&
             (room.id === routeRoomId ||
-              (!routeRoomId && stripTopicPath(room.topicPath) === routePath)),
+              (!routeRoomId && stripRoomPath(room.roomPath) === routePath)),
         )
       : null;
   const activeSpace = activeSpaceId ? spaces.find((space) => space.id === activeSpaceId) : null;
@@ -68,8 +68,8 @@ export function RoomsShellContent() {
       if (!response.ok) throw new Error("Failed to load spaces");
       const data = (await response.json()) as { spaces?: SpaceSummary[] };
       const nextSpaces = data.spaces ?? [];
-      const topicPairs = await Promise.all(
-        nextSpaces.map(async (space) => [space.id, await fetchSpaceTopics(space.id)] as const),
+      const roomPairs = await Promise.all(
+        nextSpaces.map(async (space) => [space.id, await fetchSpaceRooms(space.id)] as const),
       );
       const metadataPairs = await Promise.all(
         nextSpaces.map(async (space) => [space.id, await fetchSpaceMetadata(space.id)] as const),
@@ -80,7 +80,7 @@ export function RoomsShellContent() {
         ),
       );
       setSpaces(nextSpaces);
-      setTopicsBySpace(new Map(topicPairs));
+      setRoomsBySpace(new Map(roomPairs));
       setMetadataBySpace(new Map(metadataPairs));
       setMembersBySpace(new Map(memberPairs));
     } catch (error) {
@@ -118,7 +118,7 @@ export function RoomsShellContent() {
 
   const updateRoomMetadata = useCallback(
     async (room: RoomSummary, patch: Partial<FileMetadataEntry>) => {
-      const metadataPath = stripTopicPath(room.topicPath);
+      const metadataPath = stripRoomPath(room.roomPath);
       const result = await patchFileMetadata(room.spaceId, metadataPath, patch);
       if (!result.success) throw new Error(result.error || "Failed to save room metadata");
       setMetadataBySpace((current) => {
@@ -170,13 +170,13 @@ export function RoomsShellContent() {
   }
 
   const promotedSet = new Set(
-    (activeSpaceId ? (topicsBySpace.get(activeSpaceId) ?? []) : []).map((topic) =>
-      stripTopicPath(topic.topicPath),
+    (activeSpaceId ? (roomsBySpace.get(activeSpaceId) ?? []) : []).map((room) =>
+      stripRoomPath(room.roomPath),
     ),
   );
   const promotedIdsByPath = new Map(
-    (activeSpaceId ? (topicsBySpace.get(activeSpaceId) ?? []) : []).map(
-      (topic) => [stripTopicPath(topic.topicPath), topic.id] as const,
+    (activeSpaceId ? (roomsBySpace.get(activeSpaceId) ?? []) : []).map(
+      (room) => [stripRoomPath(room.roomPath), room.id] as const,
     ),
   );
   const roomFilePath = view === "room" && routeRoomId ? routePath : null;
@@ -215,7 +215,7 @@ export function RoomsShellContent() {
               onSelectFile={(filePath) =>
                 navigate(
                   `/spaces/${activeRoom.spaceId}/rooms/${activeRoom.id}/${filePath
-                    .slice(stripTopicPath(activeRoom.topicPath).length)
+                    .slice(stripRoomPath(activeRoom.roomPath).length)
                     .replace(/^\/+/, "")}`,
                 )
               }
@@ -230,14 +230,14 @@ export function RoomsShellContent() {
               space={activeSpace}
               spaces={spaces}
               rooms={rooms}
-              promotedTopicPaths={promotedSet}
-              promotedTopicIdsByPath={promotedIdsByPath}
+              promotedRoomPaths={promotedSet}
+              promotedRoomIdsByPath={promotedIdsByPath}
               initialPath={routePath}
               onBack={() => navigate("/spaces")}
-              onOpenRoom={(spaceId, topicPath) => {
-                const roomId = topicsBySpace
+              onOpenRoom={(spaceId, roomPath) => {
+                const roomId = roomsBySpace
                   .get(spaceId)
-                  ?.find((topic) => topic.topicPath === topicPath)?.id;
+                  ?.find((room) => room.roomPath === roomPath)?.id;
                 if (roomId) navigate(`/spaces/${spaceId}/rooms/${roomId}`);
               }}
               onNewRoom={() => setModal("create")}

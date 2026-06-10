@@ -82,10 +82,8 @@ function buildSpaceWebSocketUrl(spaceId: string, accessToken?: string | null): s
   return accessToken ? `${base}?token=${encodeURIComponent(accessToken)}` : base;
 }
 
-function wsDebug(event: string, data?: Record<string, unknown>): void {
-  if (import.meta.env.DEV) {
-    console.debug(`[ws] ${event}`, data);
-  }
+function wsDebug(_event: string, _data?: Record<string, unknown>): void {
+  // Intentionally a no-op; enable browser devtools network filter instead
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
@@ -308,7 +306,8 @@ export function ConnectionStatusProvider({
               if (updateType === "agent_message_chunk" || updateType === "user_message_chunk") {
                 const block = update.content;
                 const text = block.type === "text" ? block.text : "";
-                const replace = (update as { _meta?: { replace?: boolean } })._meta?.replace ?? false;
+                const replace =
+                  (update as { _meta?: { replace?: boolean } })._meta?.replace ?? false;
 
                 if (updateType === "agent_message_chunk") {
                   if (streamMessageIdRef.current) {
@@ -532,7 +531,7 @@ export function ConnectionStatusProvider({
       activeRoomPathRef.current = roomPath;
       setActiveRoomPath(roomPath);
     },
-    [fetchPersistedSessionId, isStreaming, persistSessionId, status],
+    [fetchPersistedSessionId, isStreaming, persistSessionId, spaceId, status],
   );
 
   const promoteRoom = useCallback(
@@ -651,7 +650,7 @@ export function ConnectionStatusProvider({
           streamMessageIdRef.current = null;
         });
     },
-    [status],
+    [spaceId, status],
   );
 
   const writeFile = useCallback(

@@ -7,15 +7,6 @@ import { agentAdapter } from "../agent-adapter-instance.js";
 import { getUserSpaceRole, getUserSpaceRoles } from "../db/queries.js";
 import { type AuthVariables, authMiddleware } from "../middleware/auth.js";
 import { filterRestrictedNodes, isPathRestricted, loadSpaceMetadata } from "../restricted-paths.js";
-import { RuntimeServerUnavailableError } from "../runtime-servers.js";
-import { workspacePolicy } from "../security/workspace-policy-instance.js";
-import {
-  deleteSpace,
-  getSpace,
-  listSpaces,
-  type SpaceRecord,
-  updateSpaceConfig,
-} from "../space-store.js";
 import {
   archiveRoomById,
   archiveRoomTree,
@@ -28,6 +19,15 @@ import {
   renameRoomTree,
   upsertPromotedRoom,
 } from "../rooms/room-store.js";
+import { RuntimeServerUnavailableError } from "../runtime-servers.js";
+import { workspacePolicy } from "../security/workspace-policy-instance.js";
+import {
+  deleteSpace,
+  getSpace,
+  listSpaces,
+  type SpaceRecord,
+  updateSpaceConfig,
+} from "../space-store.js";
 
 export interface SpaceVariables extends AuthVariables {
   spaceRole: SpaceRole;
@@ -256,8 +256,7 @@ spacesRouter.get("/:id/rooms/session", async (c) => {
     ) {
       return c.json({ error: "Access denied: restricted path" }, 403);
     }
-    const room =
-      roomPath === "/" ? getRoom(spaceId, roomPath) : getActiveRoom(spaceId, roomPath);
+    const room = roomPath === "/" ? getRoom(spaceId, roomPath) : getActiveRoom(spaceId, roomPath);
     return c.json({ room: room ?? null });
   } catch (err) {
     return c.json({ error: (err as Error).message }, 400);
@@ -373,7 +372,7 @@ spacesRouter.get("/:id/metadata", async (c) => {
   try {
     const metadata = await agentAdapter.getMetadata(space);
     return c.json(metadata);
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof RuntimeServerUnavailableError) return c.json({ error: err.message }, 503);
     return c.json({ files: {} });
   }
@@ -406,8 +405,11 @@ spacesRouter.patch("/:id/metadata", zValidator("json", patchMetadataSchema), asy
     }
     await agentAdapter.patchMetadata(space, approvedFiles);
     return c.json({ success: true });
-  } catch (err: any) {
-    return c.json({ error: err.message ?? "Failed to update metadata" }, routeErrorStatus(err));
+  } catch (err: unknown) {
+    return c.json(
+      { error: (err instanceof Error ? err.message : undefined) ?? "Failed to update metadata" },
+      routeErrorStatus(err),
+    );
   }
 });
 
@@ -440,8 +442,11 @@ spacesRouter.get("/:id/files", async (c) => {
     return c.json({
       files: includeInternal ? files : filterRestrictedNodes(files, await loadSpaceMetadata(space)),
     });
-  } catch (err: any) {
-    return c.json({ error: err.message ?? "Failed to list files" }, routeErrorStatus(err));
+  } catch (err: unknown) {
+    return c.json(
+      { error: (err instanceof Error ? err.message : undefined) ?? "Failed to list files" },
+      routeErrorStatus(err),
+    );
   }
 });
 
@@ -518,8 +523,11 @@ spacesRouter.put("/:id/files/:filePath{.*}", zValidator("json", writeFileSchema)
     }
     await agentAdapter.writeFile(space, resolution.path, content, resolution.token, encoding);
     return c.json({ success: true, path: filePath });
-  } catch (err: any) {
-    return c.json({ error: err.message ?? "Failed to write file" }, routeErrorStatus(err));
+  } catch (err: unknown) {
+    return c.json(
+      { error: (err instanceof Error ? err.message : undefined) ?? "Failed to write file" },
+      routeErrorStatus(err),
+    );
   }
 });
 
@@ -549,8 +557,11 @@ spacesRouter.post("/:id/directories", zValidator("json", createDirSchema), async
     }
     await agentAdapter.createDirectory(space, resolution.path, resolution.token);
     return c.json({ success: true, path: dirPath });
-  } catch (err: any) {
-    return c.json({ error: err.message ?? "Failed to create directory" }, routeErrorStatus(err));
+  } catch (err: unknown) {
+    return c.json(
+      { error: (err instanceof Error ? err.message : undefined) ?? "Failed to create directory" },
+      routeErrorStatus(err),
+    );
   }
 });
 
@@ -576,8 +587,11 @@ spacesRouter.delete("/:id/files/:filePath{.*}", async (c) => {
     await agentAdapter.deleteFile(space, resolution.path, resolution.token);
     archiveRoomTree(id, `/${resolution.path}`);
     return c.json({ success: true });
-  } catch (err: any) {
-    return c.json({ error: err.message ?? "Failed to delete file" }, routeErrorStatus(err));
+  } catch (err: unknown) {
+    return c.json(
+      { error: (err instanceof Error ? err.message : undefined) ?? "Failed to delete file" },
+      routeErrorStatus(err),
+    );
   }
 });
 
@@ -619,8 +633,11 @@ spacesRouter.patch("/:id/files/:filePath{.*}", zValidator("json", renameFileSche
     );
     renameRoomTree(id, `/${sourceResolution.path}`, `/${targetResolution.path}`);
     return c.json({ success: true, path: newPath });
-  } catch (err: any) {
-    return c.json({ error: err.message ?? "Failed to rename file" }, routeErrorStatus(err));
+  } catch (err: unknown) {
+    return c.json(
+      { error: (err instanceof Error ? err.message : undefined) ?? "Failed to rename file" },
+      routeErrorStatus(err),
+    );
   }
 });
 
@@ -648,8 +665,11 @@ spacesRouter.delete("/:id/directories/:dirPath{.*}", async (c) => {
     await agentAdapter.deleteDirectory(space, resolution.path, resolution.token);
     archiveRoomTree(id, `/${resolution.path}`);
     return c.json({ success: true });
-  } catch (err: any) {
-    return c.json({ error: err.message ?? "Failed to delete directory" }, routeErrorStatus(err));
+  } catch (err: unknown) {
+    return c.json(
+      { error: (err instanceof Error ? err.message : undefined) ?? "Failed to delete directory" },
+      routeErrorStatus(err),
+    );
   }
 });
 
@@ -694,8 +714,11 @@ spacesRouter.patch(
       );
       renameRoomTree(id, `/${sourceResolution.path}`, `/${targetResolution.path}`);
       return c.json({ success: true, path: newPath });
-    } catch (err: any) {
-      return c.json({ error: err.message ?? "Failed to rename directory" }, routeErrorStatus(err));
+    } catch (err: unknown) {
+      return c.json(
+        { error: (err instanceof Error ? err.message : undefined) ?? "Failed to rename directory" },
+        routeErrorStatus(err),
+      );
     }
   },
 );
@@ -748,14 +771,20 @@ spacesRouter.patch("/:id/config", zValidator("json", patchConfigSchema), async (
         JSON.stringify(validated.data, null, 2),
         resolution.token,
       );
-    } catch (writeErr: any) {
-      console.error("[spaces] Failed to write config file to space:", writeErr.message);
+    } catch (writeErr: unknown) {
+      console.error(
+        "[spaces] Failed to write config file to space:",
+        writeErr instanceof Error ? writeErr.message : writeErr,
+      );
       // Config DB updated even if file write fails — space watcher will re-sync on next scan
     }
 
     return c.json({ space: updated });
-  } catch (err: any) {
-    return c.json({ error: err.message ?? "Failed to update config" }, routeErrorStatus(err));
+  } catch (err: unknown) {
+    return c.json(
+      { error: (err instanceof Error ? err.message : undefined) ?? "Failed to update config" },
+      routeErrorStatus(err),
+    );
   }
 });
 

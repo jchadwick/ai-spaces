@@ -1,19 +1,15 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { tryReadSecretFileSync } from "openclaw/plugin-sdk/core";
 import { config, configStatus } from "./config.js";
 import { logger as rootLogger } from "./logger.js";
+import { getRuntime } from "./runtime.js";
 
 const log = rootLogger.child({ component: "registration" });
 
-export interface RegistrationState {
+export interface CredentialEntry {
   serverId: string;
-  callbackToken: string;
-  aiSpacesUrl: string;
-  pluginUrl: string;
-  acpBaseUrl: string;
-  gatewayUrl?: string;
-  runtimeType: "openclaw";
-  registeredAt: string;
+  token: string;
 }
 
 export type RegistrationStatus =
@@ -28,7 +24,7 @@ export type RegistrationStatus =
 
 export interface RegistrationResult {
   status: RegistrationStatus;
-  state: RegistrationState | null;
+  state: CredentialEntry | null;
   error?: string;
 }
 
@@ -38,46 +34,52 @@ export function classifyCallbackResponse(status: number): RegistrationStatus | n
   return null;
 }
 
-export function loadRegistrationState(): RegistrationState | null {
-  try {
-    if (!fs.existsSync(config.AI_SPACES_PLUGIN_STATE_FILE)) return null;
-    const parsed = JSON.parse(fs.readFileSync(config.AI_SPACES_PLUGIN_STATE_FILE, "utf-8"));
-    if (
-      typeof parsed?.serverId === "string" &&
-      typeof parsed?.callbackToken === "string" &&
-      typeof parsed?.aiSpacesUrl === "string" &&
-      typeof parsed?.pluginUrl === "string" &&
-      typeof parsed?.acpBaseUrl === "string" &&
-      parsed?.runtimeType === "openclaw" &&
-      typeof parsed?.registeredAt === "string" &&
-      (typeof parsed?.gatewayUrl === "string" || parsed?.gatewayUrl === undefined)
-    ) {
-      return parsed as RegistrationState;
-    }
-    return null;
-  } catch {
-    return null;
-  }
+function getCredentialsPath(): string {
+  return path.join(getRuntime().state.resolveStateDir(), "ai-spaces", "credentials.json");
 }
 
-function saveState(state: RegistrationState): void {
+export function loadCredentials(): CredentialEntry[] {
   try {
-    fs.mkdirSync(path.dirname(config.AI_SPACES_PLUGIN_STATE_FILE), { recursive: true });
-    fs.writeFileSync(config.AI_SPACES_PLUGIN_STATE_FILE, JSON.stringify(state, null, 2), "utf-8");
-  } catch (err) {
-    log.warn(
-      { err: err instanceof Error ? err.message : String(err) },
-      "Could not persist registration state",
+    const credPath = getCredentialsPath();
+    const raw = tryReadSecretFileSync(credPath, "ai-spaces credentials");
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (e): e is CredentialEntry =>
+        typeof e === "object" &&
+        e !== null &&
+        typeof (e as Record<string, unknown>).serverId === "string" &&
+        typeof (e as Record<string, unknown>).token === "string",
     );
+  } catch {
+    return [];
   }
 }
 
-export function clearRegistrationState(): void {
+export function saveCredentials(entries: CredentialEntry[]): void {
+  const credPath = getCredentialsPath();
+  fs.mkdirSync(path.dirname(credPath), { recursive: true });
+  fs.writeFileSync(credPath, JSON.stringify(entries, null, 2), "utf-8");
+}
+
+export function clearCredentials(): void {
   try {
-    fs.unlinkSync(config.AI_SPACES_PLUGIN_STATE_FILE);
+    fs.unlinkSync(getCredentialsPath());
   } catch {
     /* ignore */
   }
+}
+
+export function upsertCredential(entry: CredentialEntry): void {
+  const existing = loadCredentials();
+  const idx = existing.findIndex((e) => e.serverId === entry.serverId);
+  if (idx >= 0) {
+    existing[idx] = entry;
+  } else {
+    existing.push(entry);
+  }
+  saveCredentials(existing);
 }
 
 function buildPluginBaseUrl(): string {
@@ -89,7 +91,7 @@ async function attemptRegister(
   pluginUrl: string,
   registrationToken: string,
   gatewayUrl?: string,
-): Promise<RegistrationState> {
+): Promise<CredentialEntry> {
   const res = await fetch(`${aiSpacesUrl}/api/internal/register`, {
     method: "POST",
     headers: {
@@ -102,9 +104,6 @@ async function attemptRegister(
       acpBaseUrl: pluginUrl,
       ...(gatewayUrl ? { gatewayUrl } : {}),
       registrationToken,
-      metadata: {
-        stateFile: config.AI_SPACES_PLUGIN_STATE_FILE,
-      },
     }),
     signal: AbortSignal.timeout(3_000),
   });
@@ -123,33 +122,25 @@ async function attemptRegister(
   const data = (await res.json()) as {
     serverId?: unknown;
     callbackToken?: unknown;
-    gatewayUrl?: string;
-    acpBaseUrl?: string;
   };
   if (typeof data.serverId !== "string" || typeof data.callbackToken !== "string") {
     throw new Error("[ai-spaces] Server registration response missing serverId/callbackToken");
   }
   return {
     serverId: data.serverId,
-    callbackToken: data.callbackToken,
-    aiSpacesUrl,
-    pluginUrl,
-    acpBaseUrl: data.acpBaseUrl ?? pluginUrl,
-    ...(data.gatewayUrl ? { gatewayUrl: data.gatewayUrl } : {}),
-    runtimeType: "openclaw",
-    registeredAt: new Date().toISOString(),
+    token: data.callbackToken,
   };
 }
 
-export async function registerWithServer(): Promise<RegistrationState | null> {
+export async function registerWithServer(): Promise<CredentialEntry | null> {
   const result = await tryRegisterWithServer();
   return result.state;
 }
 
 export async function tryRegisterWithServer(): Promise<RegistrationResult> {
-  const existing = loadRegistrationState();
+  const existing = loadCredentials()[0] ?? null;
   if (existing) {
-    log.info({ serverId: existing.serverId }, "Using persisted registration");
+    log.info({ serverId: existing.serverId }, "Using persisted credential");
     return { status: "registered", state: existing };
   }
 
@@ -157,8 +148,7 @@ export async function tryRegisterWithServer(): Promise<RegistrationResult> {
     return {
       status: "unpaired",
       state: null,
-      error:
-        "No local registration state found. Set AI_SPACES_REGISTRATION_TOKEN to pair with AI Spaces.",
+      error: "No local credential found. Set AI_SPACES_REGISTRATION_TOKEN to pair with AI Spaces.",
     };
   }
 
@@ -166,15 +156,15 @@ export async function tryRegisterWithServer(): Promise<RegistrationResult> {
   const pluginUrl = buildPluginBaseUrl();
 
   try {
-    const state = await attemptRegister(
+    const entry = await attemptRegister(
       config.AI_SPACES_URL,
       pluginUrl,
       config.AI_SPACES_REGISTRATION_TOKEN,
       config.GATEWAY_URL,
     );
-    saveState(state);
-    log.info({ serverId: state.serverId }, "Registered with server");
-    return { status: "registered", state };
+    upsertCredential(entry);
+    log.info({ serverId: entry.serverId }, "Registered with server");
+    return { status: "registered", state: entry };
   } catch (err) {
     const error = err instanceof Error ? err.message : String(err);
     log.warn({ err: error }, "Registration failed");

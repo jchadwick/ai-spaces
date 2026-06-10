@@ -6,10 +6,10 @@ import { config, diagnostics as configDiagnostics, configStatus } from "./config
 import { logger as rootLogger } from "./logger.js";
 import { runPluginPreflightChecks } from "./preflight.js";
 import {
+  type CredentialEntry,
   classifyCallbackResponse,
-  clearRegistrationState,
-  loadRegistrationState,
-  type RegistrationState,
+  clearCredentials,
+  loadCredentials,
   type RegistrationStatus,
   tryRegisterWithServer,
 } from "./registration.js";
@@ -114,11 +114,11 @@ export default defineChannelPluginEntry({
       );
     }
 
-    let registration: RegistrationState | null = null;
+    let credential: CredentialEntry | null = null;
     let registrationStatus: RegistrationStatus = "unpaired";
     try {
       const result = await tryRegisterWithServer();
-      registration = result.state;
+      credential = result.state;
       registrationStatus = result.status;
     } catch (err) {
       log.warn(
@@ -162,7 +162,7 @@ export default defineChannelPluginEntry({
       try {
         while (reconcileDirty) {
           reconcileDirty = false;
-          if (!registration) {
+          if (!credential) {
             if (connectionState === "connected") {
               connectionState = "degraded";
             }
@@ -173,21 +173,18 @@ export default defineChannelPluginEntry({
             method: "POST",
             headers: {
               "Content-Type": "application/json",
+              Authorization: `Bearer ${credential.token}`,
             },
-            body: JSON.stringify({
-              spaces: listSpaces(),
-              serverId: registration.serverId,
-              callbackToken: registration.callbackToken,
-            }),
+            body: JSON.stringify({ spaces: listSpaces() }),
           });
           const callbackFailure = classifyCallbackResponse(resp.status);
           if (callbackFailure) {
             log.warn(
               { status: resp.status, callbackFailure },
-              "Server rejected callback registration — clearing registration state and entering degraded mode",
+              "Server rejected callback registration — clearing credentials and entering degraded mode",
             );
-            clearRegistrationState();
-            registration = null;
+            clearCredentials();
+            credential = null;
             registrationStatus = callbackFailure;
             connectionState = "degraded";
             return;
@@ -283,10 +280,10 @@ export default defineChannelPluginEntry({
           serverStatus = "unreachable";
         }
 
-        const persistedRegistration = loadRegistrationState();
-        const pairingStatus: RegistrationStatus = registration
+        const persistedCredential = loadCredentials()[0] ?? null;
+        const pairingStatus: RegistrationStatus = credential
           ? registrationStatus
-          : persistedRegistration
+          : persistedCredential
             ? "registered"
             : registrationStatus;
         const degraded =
@@ -305,9 +302,7 @@ export default defineChannelPluginEntry({
           diagnostics: {
             preflightWarnings,
             registrationStatus,
-            serverId: persistedRegistration?.serverId ?? registration?.serverId,
-            aiSpacesUrl: persistedRegistration?.aiSpacesUrl ?? registration?.aiSpacesUrl,
-            acpBaseUrl: persistedRegistration?.acpBaseUrl ?? registration?.acpBaseUrl,
+            serverId: persistedCredential?.serverId ?? credential?.serverId,
           },
           config: {
             status: configStatus.isDegraded ? "degraded" : "ok",

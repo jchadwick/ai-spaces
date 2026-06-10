@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { config } from "./config.js";
 import { logger as rootLogger } from "./logger.js";
-import { loadRegistrationState } from "./registration.js";
+import { loadCredentials } from "./registration.js";
 
 const log = rootLogger.child({ component: "preflight" });
 
@@ -22,8 +22,8 @@ export async function runPluginPreflightChecks(
     warnings.push(`openclaw config not found at ${openclawConfigPath}`);
   }
 
-  const registration = loadRegistrationState();
-  if (!registration) {
+  const credential = loadCredentials()[0] ?? null;
+  if (!credential) {
     warnings.push(
       `plugin is unpaired; provide AI_SPACES_URL and AI_SPACES_REGISTRATION_TOKEN to pair with AI Spaces`,
     );

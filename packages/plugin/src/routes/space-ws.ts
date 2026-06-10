@@ -151,12 +151,9 @@ export async function registerAndStartSpacesServer(port: number): Promise<void> 
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Authorization: `Bearer ${registration.token}`,
       },
-      body: JSON.stringify({
-        spaces: listSpaces(),
-        serverId: registration.serverId,
-        callbackToken: registration.callbackToken,
-      }),
+      body: JSON.stringify({ spaces: listSpaces() }),
       signal: AbortSignal.timeout(3_000),
     });
   } catch (err) {

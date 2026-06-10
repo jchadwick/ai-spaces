@@ -1,5 +1,5 @@
 import { config } from "../config.js";
-import { loadRegistrationState } from "../registration.js";
+import { loadCredentials } from "../registration.js";
 import { getSpace } from "../space-store.js";
 
 interface InviteOptions {
@@ -27,9 +27,9 @@ export async function createInvite(spaceId: string, options: InviteOptions = {})
     return;
   }
 
-  // Load registration state for authentication
-  const registration = loadRegistrationState();
-  if (!registration) {
+  // Load credential for authentication
+  const credential = loadCredentials()[0] ?? null;
+  if (!credential) {
     if (options.json) {
     } else {
     }
@@ -41,12 +41,11 @@ export async function createInvite(spaceId: string, options: InviteOptions = {})
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Authorization: `Bearer ${credential.token}`,
       },
       body: JSON.stringify({
         spaceId,
         role,
-        serverId: registration.serverId,
-        callbackToken: registration.callbackToken,
       }),
     });
 

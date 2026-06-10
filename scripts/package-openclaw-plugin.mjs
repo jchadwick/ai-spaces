@@ -11,7 +11,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 const args = parseArgs(process.argv.slice(2));
 const distDir = requiredArg(args, "dist");
@@ -37,6 +37,14 @@ try {
   mkdirSync(join(packageRoot, "dist"), { recursive: true });
   cpSync(distDir, join(packageRoot, "dist"), { recursive: true });
   cpSync(packagePath, join(packageRoot, "package.json"));
+
+  // Copy openclaw.plugin.json manifest if present
+  const pluginManifestPath = resolve(dirname(packagePath), "openclaw.plugin.json");
+  try {
+    cpSync(pluginManifestPath, join(packageRoot, "openclaw.plugin.json"));
+  } catch {
+    // Not all plugins have a manifest; skip if absent
+  }
 
   const artifactFilename = `openclaw-spaces-${version}.tar.gz`;
   const artifactPath = resolve(runtimeDir, artifactFilename);

@@ -68,38 +68,43 @@ if [ -d /tpl/brain ]; then
   fi
 fi
 
-# Install plugin via CLI so openclaw writes the installs section it needs at startup
-echo "[entrypoint] Installing ai-spaces plugin..."
-openclaw plugins install --link "$PLUGIN_DIST" 2>&1 || \
-  echo "[entrypoint] Plugin install warning (may already be installed, continuing)"
+# Install plugin via server's install.sh (production-consistent flow).
+# This downloads the tarball, extracts, and links the plugin.
+# No registration token passed — registration is handled by the plugin code.
+echo "[entrypoint] Installing ai-spaces plugin via install.sh..."
+curl -fsSL "${AI_SPACES_URL}/api/plugins/openclaw/install.sh" | bash || \
+  echo "[entrypoint] WARNING: install.sh failed, continuing..."
 
-# Dev-only: bootstrap registration via admin API if not already registered.
-# This mimics the production flow where an admin creates a registration token
-# and the OpenClaw operator configures the container with it.
-if [ ! -f "$OPENCLAW_HOME/ai-spaces-registration.json" ]; then
-  echo "[entrypoint] No persisted registration; bootstrapping via admin API..."
+# Re-link plugin to mounted dist so dev hot-reload works.
+# install.sh links to a temp dir that gets cleaned up on exit;
+# re-link to the mounted dist for dev workflow.
+echo "[entrypoint] Re-linking to mounted dist..."
+openclaw plugins install --link "$PLUGIN_DIST" 2>&1 || \
+  echo "[entrypoint] WARNING: re-link failed, continuing..."
+
+# Restore config from template (overwrites whatever install.sh/link wrote).
+# The template config has load.paths pointing to the mounted dist file path.
+substitute /tpl/openclaw.json.tpl > "$OPENCLAW_HOME/.openclaw/openclaw.json"
+
+# The channel plugin registers itself when loaded.
+# channels.ai-spaces is in the template config.
+
+# Bootstrap registration token via admin API for the gateway plugin.
+# The plugin code calls tryRegisterWithServer(), persists credentials to the
+# SDK state dir, and skips re-registration on restart.
+CREDENTIALS_DIR="$OPENCLAW_HOME/.local/share/openclaw/ai-spaces"
+if [ ! -f "$CREDENTIALS_DIR/credentials.json" ]; then
+  echo "[entrypoint] No persisted credentials; bootstrapping registration token..."
   AI_SPACES_REGISTRATION_TOKEN=$(node /scripts/openclaw-bootstrap.mjs)
   if [ -z "$AI_SPACES_REGISTRATION_TOKEN" ]; then
     echo "[entrypoint] Bootstrap did not return a registration token"
     exit 1
   fi
   export AI_SPACES_REGISTRATION_TOKEN
-  echo "[entrypoint] Registration token acquired via admin API (length: ${#AI_SPACES_REGISTRATION_TOKEN})"
+  echo "[entrypoint] Registration token acquired (length: ${#AI_SPACES_REGISTRATION_TOKEN})"
 else
-  echo "[entrypoint] Using persisted AI Spaces registration state"
+  echo "[entrypoint] Using persisted credentials from SDK state dir"
 fi
-
-# Start the AI Spaces WebSocket server as a standalone process.
-# The gateway plugin loading is unreliable across openclaw versions; running the
-# WS server directly ensures chat is always available regardless of gateway state.
-echo "[entrypoint] Starting AI Spaces server on port ${AI_SPACES_WS_PORT:-3002}..."
-
-node --input-type=module -e "
-import { registerAndStartSpacesServer } from '/plugins/ai-spaces/routes/space-ws.js';
-await registerAndStartSpacesServer(parseInt(process.env.AI_SPACES_WS_PORT ?? '3002', 10));
-" &
-WS_PID=$!
-echo "[entrypoint] AI Spaces server PID: $WS_PID"
 
 # Dev-only: seed default rooms after reconciliation completes.
 echo "[entrypoint] Seeding dev rooms..."

@@ -17,7 +17,17 @@
     "extensions": [
       "./dist/index.js"
     ],
-    "setupEntry": "./dist/setup-entry.js"
+    "setupEntry": "./dist/setup-entry.js",
+    "channel": {
+      "id": "ai-spaces",
+      "label": "AI Spaces",
+      "blurb": "Share portions of your agent workspace with collaborators",
+      "exposure": {
+        "configured": true,
+        "setup": true,
+        "docs": true
+      }
+    }
   },
   "keywords": [
     "openclaw",

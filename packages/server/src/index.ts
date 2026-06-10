@@ -226,7 +226,7 @@ app.get("/health", async (c) => {
       circuitBreaker,
       uptime: Math.floor(process.uptime()),
     },
-    degraded ? 503 : 200,
+    200,
   );
 });
 

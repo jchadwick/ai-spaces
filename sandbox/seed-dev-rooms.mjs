@@ -30,11 +30,11 @@ async function listSpaces(token) {
   return data.spaces;
 }
 
-async function promoteRoom(token, spaceId, topicPath, targetType) {
+async function promoteRoom(token, spaceId, roomPath, targetType) {
   const res = await fetch(`${AI_SPACES_URL}/api/spaces/${spaceId}/rooms`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ topicPath, targetType }),
+    body: JSON.stringify({ roomPath, targetType }),
   });
   if (!res.ok) {
     const body = await res.text();
@@ -63,12 +63,12 @@ async function seedRooms() {
 
   const roomMap = {
     TestSpace: [
-      { topicPath: "/Maine/", targetType: "directory" },
-      { topicPath: "/CostaRica/", targetType: "directory" },
+      { roomPath: "/Maine/", targetType: "directory" },
+      { roomPath: "/CostaRica/", targetType: "directory" },
     ],
     Vacations: [
-      { topicPath: "/Maine/", targetType: "directory" },
-      { topicPath: "/CostaRica/", targetType: "directory" },
+      { roomPath: "/Maine/", targetType: "directory" },
+      { roomPath: "/CostaRica/", targetType: "directory" },
     ],
   };
 
@@ -77,11 +77,11 @@ async function seedRooms() {
     if (!rooms) continue;
     for (const room of rooms) {
       try {
-        await promoteRoom(token, space.id, room.topicPath, room.targetType);
-        console.log(`[seed-dev-rooms] Promoted ${room.topicPath} in ${space.path}`);
+        await promoteRoom(token, space.id, room.roomPath, room.targetType);
+        console.log(`[seed-dev-rooms] Promoted ${room.roomPath} in ${space.path}`);
       } catch (err) {
         console.log(
-          `[seed-dev-rooms] Room ${room.topicPath} in ${space.path}: ${err instanceof Error ? err.message : String(err)}`,
+          `[seed-dev-rooms] Room ${room.roomPath} in ${space.path}: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
     }

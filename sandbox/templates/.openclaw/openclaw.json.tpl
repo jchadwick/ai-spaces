@@ -51,5 +51,10 @@
         "installedAt": "${CURRENT_TIMESTAMP}"
       }
     }
+  },
+  "channels": {
+    "ai-spaces": {
+      "enabled": true
+    }
   }
 }

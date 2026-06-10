@@ -98,6 +98,7 @@ services:
       AI_SPACES_DATA: /data
       AI_SPACES_DB: /data/ai-spaces.db
       ALLOW_OPEN_REGISTRATION: "true"
+      BASE_URL: http://dev:3001
       # Vite proxies /api and /ws to the server within the container
       AI_SPACES_URL: http://127.0.0.1:3001
       AI_SPACES_AGENT_BASE_URL: http://dev:3001
@@ -126,6 +127,7 @@ services:
       - ./scripts/package-openclaw-plugin.mjs:/build/package-openclaw-plugin.mjs:ro
       - ./packages/plugin/dist:/plugin-source/openclaw-spaces/dist:ro
       - ./packages/plugin/package.json:/plugin-source/openclaw-spaces/package.json:ro
+      - ./packages/plugin/openclaw.plugin.json:/plugin-source/openclaw-spaces/openclaw.plugin.json:ro
       - ./sandbox:/build/sandbox:ro
     ports:
       - "3000:80"

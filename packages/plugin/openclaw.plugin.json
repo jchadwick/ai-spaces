@@ -3,6 +3,17 @@
   "name": "AI Spaces",
   "description": "Share portions of your agent workspace with collaborators",
   "kind": "channel",
+  "channels": ["ai-spaces"],
+  "channelConfigs": {
+    "ai-spaces": {
+      "label": "AI Spaces",
+      "description": "Share portions of your agent workspace with collaborators.",
+      "schema": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    }
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,

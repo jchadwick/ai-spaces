@@ -1,6 +1,7 @@
 import * as crypto from "node:crypto";
 import type Database from "better-sqlite3";
 import type { Context } from "hono";
+import jwt from "jsonwebtoken";
 import { config } from "./config.js";
 import { sqlite } from "./db/connection.js";
 import { DEFAULT_SERVER_ID } from "./db/constants.js";
@@ -309,6 +310,11 @@ export function registerRuntimeServer(input: RegisterRuntimeServerInput): {
   callbackToken: string;
   created: boolean;
 } {
+  const redeemed = redeemRegistrationToken(input.registrationToken);
+  if (!redeemed.success) {
+    throw new Error("Registration token is invalid, expired, or already used");
+  }
+
   const pluginUrl = input.pluginUrl
     ? normalizeRuntimeEndpointUrl(input.pluginUrl, "pluginUrl")
     : undefined;
@@ -322,16 +328,9 @@ export function registerRuntimeServer(input: RegisterRuntimeServerInput): {
     ? normalizeRuntimeEndpointUrl(input.gatewayUrl, "gatewayUrl")
     : config.BASE_URL;
 
-  const redeemed = redeemRegistrationToken(input.registrationToken);
-  if (!redeemed.success) {
-    throw new Error("Registration token is invalid, expired, or already used");
-  }
-
-  const callbackToken = createOpaqueToken();
-  const callbackTokenHash = hashOpaqueToken(callbackToken);
   const now = new Date().toISOString();
   const endpoint = acpBaseUrl ?? pluginUrl;
-  const metadataJson = input.metadata ? JSON.stringify(input.metadata) : null;
+  const metadataJson = input.metadata ? JSON.stringify(input.metadata) : "{}";
 
   const existing = sqlite
     .prepare(
@@ -344,12 +343,16 @@ export function registerRuntimeServer(input: RegisterRuntimeServerInput): {
     .get(DEFAULT_SERVER_ID, endpoint, endpoint) as ServerRow | undefined;
 
   const serverId = existing?.id ?? crypto.randomUUID();
+  const callbackToken = jwt.sign({ serverId, type: "callback" }, config.JWT_SECRET, {
+    algorithm: "HS256",
+  });
+
   if (existing) {
     sqlite
       .prepare(
         `UPDATE servers
          SET name = ?, runtime_type = ?, plugin_url = ?, acp_base_url = ?, gateway_url = ?,
-             callback_token = NULL, callback_token_hash = ?, status = 'active',
+             callback_token = ?, callback_token_hash = NULL, status = 'active',
              metadata = ?, last_seen_at = ?, updated_at = ?, revoked_at = NULL
          WHERE id = ?`,
       )
@@ -359,7 +362,7 @@ export function registerRuntimeServer(input: RegisterRuntimeServerInput): {
         pluginUrl ?? acpBaseUrl ?? null,
         acpBaseUrl ?? pluginUrl ?? null,
         gatewayUrl,
-        callbackTokenHash,
+        callbackToken,
         metadataJson,
         now,
         now,
@@ -371,17 +374,17 @@ export function registerRuntimeServer(input: RegisterRuntimeServerInput): {
         `INSERT INTO servers
          (id, name, plugin_url, gateway_url, callback_token, created_at, runtime_type,
           acp_base_url, callback_token_hash, status, metadata, last_seen_at, updated_at, revoked_at)
-         VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, 'active', ?, ?, ?, NULL)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, 'active', ?, ?, ?, NULL)`,
       )
       .run(
         serverId,
         input.name,
         pluginUrl ?? acpBaseUrl ?? null,
         gatewayUrl,
+        callbackToken,
         now,
         input.runtimeType,
         acpBaseUrl ?? pluginUrl ?? null,
-        callbackTokenHash,
         metadataJson,
         now,
         now,
@@ -399,16 +402,24 @@ export function registerRuntimeServer(input: RegisterRuntimeServerInput): {
 }
 
 export function authenticateRuntimeCallback(
-  serverId: string | undefined,
   callbackToken: string | undefined,
 ): RuntimeServerRecord | null {
-  if (!serverId || !callbackToken) return null;
+  if (!callbackToken) return null;
+  let serverId: string;
+  try {
+    const payload = jwt.verify(callbackToken, config.JWT_SECRET) as {
+      serverId: string;
+      type: string;
+    };
+    if (payload.type !== "callback" || typeof payload.serverId !== "string") return null;
+    serverId = payload.serverId;
+  } catch {
+    return null;
+  }
   const row = getServerRow(serverId);
   if (!row) return null;
   const server = toRuntimeServerRecord(row);
   if (server.status === "revoked") return null;
-  const storedToken = row.callback_token_hash ?? row.callback_token;
-  if (!verifyOpaqueToken(callbackToken, storedToken)) return null;
 
   const now = new Date().toISOString();
   sqlite
@@ -418,13 +429,11 @@ export function authenticateRuntimeCallback(
 }
 
 export function getRuntimeAuthFromRequest(c: Context): {
-  serverId: string | undefined;
   callbackToken: string | undefined;
 } {
   const authHeader = c.req.header("Authorization");
   const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.substring(7) : undefined;
   return {
-    serverId: c.req.header("X-AI-Spaces-Server-Id") ?? c.req.header("X-Server-Id") ?? undefined,
     callbackToken: bearerToken ?? c.req.header("X-AI-Spaces-Callback-Token") ?? undefined,
   };
 }

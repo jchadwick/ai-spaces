@@ -45,19 +45,14 @@ internalRouter.post("/register", zValidator("json", RegisterBodySchema), async (
 
 const ReconcileBodySchema = z.object({
   spaces: z.array(z.unknown()).optional(),
-  serverId: z.string().min(1).optional(),
-  callbackToken: z.string().min(1).optional(),
 });
 
 // @ts-expect-error -- tsgo TS2589: type instantiation depth limit on Hono+zValidator chains
 internalRouter.post("/reconcile", zValidator("json", ReconcileBodySchema), async (c) => {
-  const { spaces, serverId, callbackToken } = c.req.valid("json");
+  const { spaces } = c.req.valid("json");
 
-  const headerAuth = getRuntimeAuthFromRequest(c);
-  const runtimeServer = authenticateRuntimeCallback(
-    serverId ?? headerAuth.serverId,
-    callbackToken ?? headerAuth.callbackToken,
-  );
+  const { callbackToken } = getRuntimeAuthFromRequest(c);
+  const runtimeServer = authenticateRuntimeCallback(callbackToken);
   if (!runtimeServer) return c.json({ error: "Unauthorized" }, 401);
 
   if (!Array.isArray(spaces)) return c.json({ success: true });
@@ -72,16 +67,15 @@ internalRouter.post("/reconcile", zValidator("json", ReconcileBodySchema), async
 const CreateInviteBodySchema = z.object({
   spaceId: z.string().min(1),
   role: z.enum(["owner", "editor", "viewer"]),
-  serverId: z.string(),
-  callbackToken: z.string(),
 });
 
 // POST /api/internal/invites — create invite token (plugin-authenticated)
 // @ts-expect-error -- tsgo TS2589: type instantiation depth limit on Hono+zValidator chains
 internalRouter.post("/invites", zValidator("json", CreateInviteBodySchema), async (c) => {
-  const { spaceId, role, serverId, callbackToken } = c.req.valid("json");
+  const { spaceId, role } = c.req.valid("json");
 
-  const runtimeServer = authenticateRuntimeCallback(serverId, callbackToken);
+  const { callbackToken } = getRuntimeAuthFromRequest(c);
+  const runtimeServer = authenticateRuntimeCallback(callbackToken);
   if (!runtimeServer) return c.json({ error: "Unauthorized" }, 401);
 
   // Verify space exists on this server

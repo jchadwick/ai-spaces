@@ -15,8 +15,6 @@ export const confirmRouter = new Hono<{ Variables: AuthVariables }>();
 
 // Internal-only nonce issuance
 const issueNonceSchema = z.object({
-  serverId: z.string().min(1).optional(),
-  callbackToken: z.string().min(1).optional(),
   spaceId: z.string().min(1),
   issuingUserId: z.string().min(1),
   action: z.string().min(1),
@@ -28,12 +26,9 @@ confirmRouter.post(
   // @ts-expect-error -- tsgo TS2589: type instantiation depth limit on Hono+zValidator chains
   zValidator("json", issueNonceSchema),
   async (c) => {
-    const { spaceId, issuingUserId, action, params, serverId, callbackToken } = c.req.valid("json");
-    const headerAuth = getRuntimeAuthFromRequest(c);
-    const runtimeServer = authenticateRuntimeCallback(
-      serverId ?? headerAuth.serverId,
-      callbackToken ?? headerAuth.callbackToken,
-    );
+    const { spaceId, issuingUserId, action, params } = c.req.valid("json");
+    const { callbackToken } = getRuntimeAuthFromRequest(c);
+    const runtimeServer = authenticateRuntimeCallback(callbackToken);
     if (!runtimeServer) return c.json({ error: "Unauthorized" }, 401);
 
     const space = getSpace(spaceId);

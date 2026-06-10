@@ -1,15 +1,15 @@
 import {
-  AgentSideConnection,
-  ndJsonStream,
-  PROTOCOL_VERSION,
   type Agent,
+  AgentSideConnection,
   type CancelNotification,
   type InitializeRequest,
   type NewSessionRequest,
+  ndJsonStream,
+  PROTOCOL_VERSION,
   type PromptRequest,
 } from "@agentclientprotocol/sdk";
 import { expect, test } from "@playwright/test";
-import { WebSocketServer, type WebSocket } from "ws";
+import { type WebSocket, WebSocketServer } from "ws";
 import { API_BASE } from "./helpers/constants.js";
 import { createOwnedSpace } from "./helpers/spaces.js";
 

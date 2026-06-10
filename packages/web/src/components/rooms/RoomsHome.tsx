@@ -1,11 +1,11 @@
-import type { CSSProperties } from "react";
 import { ArrowRight, Folder, MessageSquare, Plus } from "lucide-react";
+import type { CSSProperties } from "react";
 
 import { RoomsAvatarStack } from "@/components/rooms/controls/RoomsAvatar";
 import { RoomsButton } from "@/components/rooms/controls/RoomsButton";
 import { RoomsChip } from "@/components/rooms/controls/RoomsChip";
-import type { RoomSummary, SpaceSummary } from "@/components/rooms/types";
 import { roleIsOwner, spaceColor } from "@/components/rooms/roomsUtils";
+import type { RoomSummary, SpaceSummary } from "@/components/rooms/types";
 
 export function RoomsHome({
   spaces,

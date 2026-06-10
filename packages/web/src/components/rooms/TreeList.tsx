@@ -1,7 +1,7 @@
-import type { CSSProperties, DragEvent, MouseEvent, ReactNode } from "react";
-import { useState } from "react";
 import type { FileNode, SpaceMetadata } from "@ai-spaces/shared";
 import { ChevronRight, FileText, Folder, FolderOpen, Grid2X2, Lock } from "lucide-react";
+import type { CSSProperties, DragEvent, MouseEvent, ReactNode } from "react";
+import { useState } from "react";
 
 import { isRestricted, parentPath } from "@/components/rooms/roomsUtils";
 import { cn } from "@/lib/utils";

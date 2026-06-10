@@ -7,10 +7,10 @@ import { cn } from "@/lib/utils";
 import GeneralSettingsForm from "./space-settings/GeneralSettingsForm";
 import MembersSettings from "./space-settings/MembersSettings";
 import {
-  TABS,
   type SearchResult,
   type SpaceMember,
   type SpaceSettingsConfig,
+  TABS,
   type TabId,
 } from "./space-settings/spaceSettingsTypes";
 
@@ -223,9 +223,7 @@ export default function SpaceSettingsEditor({
           throw new Error(data.error || "Failed to change role");
         }
         setMembers((prev) =>
-          prev.map((member) =>
-            member.userId === userId ? { ...member, role: newRole } : member,
-          ),
+          prev.map((member) => (member.userId === userId ? { ...member, role: newRole } : member)),
         );
         showToast("Role updated", "success", 2000);
       } catch (err) {

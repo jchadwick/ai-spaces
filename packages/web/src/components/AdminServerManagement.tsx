@@ -47,14 +47,8 @@ function getServerLabel(server: AdminServer): string {
 
 export default function AdminServerManagement() {
   const { showToast } = useToast();
-  const {
-    servers,
-    isLoading,
-    loadError,
-    reload,
-    createPairingRegistration,
-    revokeServer,
-  } = useAdminServers();
+  const { servers, isLoading, loadError, reload, createPairingRegistration, revokeServer } =
+    useAdminServers();
   const [pairing, setPairing] = useState<PairingRegistration | null>(null);
   const [pairingError, setPairingError] = useState<string | null>(null);
   const [creatingPairing, setCreatingPairing] = useState(false);

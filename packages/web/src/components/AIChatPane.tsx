@@ -1,7 +1,7 @@
 import type { SpaceRole } from "@ai-spaces/shared";
 import { type FormEvent, useEffect, useRef, useState } from "react";
-import { useConnectionStatus } from "../contexts/ConnectionStatusContext";
 import { cn } from "@/lib/utils";
+import { useConnectionStatus } from "../contexts/ConnectionStatusContext";
 import AgentGlyph from "./AgentGlyph";
 import ChatHeader from "./chat/ChatHeader";
 import MessageBubble from "./chat/MessageBubble";

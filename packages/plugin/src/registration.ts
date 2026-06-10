@@ -111,7 +111,9 @@ async function attemptRegister(
 
   // Pairing token failures won't self-heal without a fresh admin-issued token.
   if (res.status === 401 || res.status === 403) {
-    throw new Error(`[ai-spaces] Server pairing rejected (${res.status}) — check registration token`);
+    throw new Error(
+      `[ai-spaces] Server pairing rejected (${res.status}) — check registration token`,
+    );
   }
 
   if (!res.ok) {
@@ -155,7 +157,8 @@ export async function tryRegisterWithServer(): Promise<RegistrationResult> {
     return {
       status: "unpaired",
       state: null,
-      error: "No local registration state found. Set AI_SPACES_REGISTRATION_TOKEN to pair with AI Spaces.",
+      error:
+        "No local registration state found. Set AI_SPACES_REGISTRATION_TOKEN to pair with AI Spaces.",
     };
   }
 

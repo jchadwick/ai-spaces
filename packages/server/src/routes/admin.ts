@@ -1,9 +1,9 @@
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { z } from "zod";
+import { acpConnectionPool } from "../adapters/acp-connection-pool.js";
 import { DEFAULT_SERVER_ID } from "../db/constants.js";
 import { type AuthVariables, authMiddleware } from "../middleware/auth.js";
-import { acpConnectionPool } from "../adapters/acp-connection-pool.js";
 import {
   createRegistrationToken,
   listRuntimeServers,
@@ -65,7 +65,12 @@ adminRouter.get("/servers", (c) => {
 });
 
 const createRegistrationSchema = z.object({
-  ttlSeconds: z.number().int().positive().max(24 * 60 * 60).optional(),
+  ttlSeconds: z
+    .number()
+    .int()
+    .positive()
+    .max(24 * 60 * 60)
+    .optional(),
 });
 
 // @ts-expect-error -- tsgo TS2589

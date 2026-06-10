@@ -1,4 +1,4 @@
-import { createElement, type ComponentType, type JSX } from "react";
+import { type ComponentType, createElement, type JSX } from "react";
 import type { Components, ExtraProps } from "react-markdown";
 import { cn } from "@/lib/utils";
 

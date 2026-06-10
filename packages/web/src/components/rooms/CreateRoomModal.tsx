@@ -1,6 +1,6 @@
+import { Check, Plus, Shield } from "lucide-react";
 import type { CSSProperties } from "react";
 import { useState } from "react";
-import { Check, Plus, Shield } from "lucide-react";
 
 import {
   createSpaceDirectory,
@@ -11,8 +11,8 @@ import {
 import { RoomsButton } from "@/components/rooms/controls/RoomsButton";
 import { RoomsField } from "@/components/rooms/controls/RoomsField";
 import { RoomsModal } from "@/components/rooms/controls/RoomsModal";
-import type { SpaceSummary } from "@/components/rooms/types";
 import { roleIsOwner, spaceColor } from "@/components/rooms/roomsUtils";
+import type { SpaceSummary } from "@/components/rooms/types";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 

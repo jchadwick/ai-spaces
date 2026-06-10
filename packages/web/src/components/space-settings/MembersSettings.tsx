@@ -1,5 +1,5 @@
-import type { RefObject } from "react";
 import type { SpaceRole } from "@ai-spaces/shared";
+import type { RefObject } from "react";
 import AddMemberPanel from "./AddMemberPanel";
 import MembersTable from "./MembersTable";
 import type { SearchResult, SpaceMember } from "./spaceSettingsTypes";

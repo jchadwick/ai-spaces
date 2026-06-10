@@ -1,7 +1,7 @@
 import type { SpaceRole } from "@ai-spaces/shared";
 import { buildRoomPromptContext } from "../context/room-context.js";
-import type { SpaceRecord } from "../space-store.js";
 import { getActiveRoom, normalizeRoomPath, type RoomTargetType } from "../rooms/room-store.js";
+import type { SpaceRecord } from "../space-store.js";
 
 type Packet = {
   jsonrpc?: string;

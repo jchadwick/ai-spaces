@@ -55,11 +55,7 @@ export function RoomsAvatarStack({
     <span className={cn("inline-flex", className)}>
       {visible.map((member, index) => (
         <span key={member.userId} className={index ? "-ml-2" : undefined}>
-          <RoomsAvatar
-            label={member.displayName || member.email}
-            size={26}
-            index={index}
-          />
+          <RoomsAvatar label={member.displayName || member.email} size={26} index={index} />
         </span>
       ))}
     </span>

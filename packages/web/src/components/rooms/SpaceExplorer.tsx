@@ -1,5 +1,3 @@
-import type { CSSProperties, DragEvent } from "react";
-import { useMemo, useRef, useState } from "react";
 import type { FileNode } from "@ai-spaces/shared";
 import { hasPermission } from "@ai-spaces/shared";
 import {
@@ -15,6 +13,8 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
+import type { CSSProperties, DragEvent } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import {
   archiveSpaceRoom,
@@ -26,11 +26,12 @@ import {
   uploadSpaceFile,
 } from "@/api/spaceFiles";
 import AIChatPane from "@/components/AIChatPane";
+import RoomsContentPane from "@/components/RoomsContentPane";
 import { ContextMenu } from "@/components/rooms/ContextMenu";
+import { InlineEditableText } from "@/components/rooms/controls/InlineEditableText";
 import { RoomsAvatarStack } from "@/components/rooms/controls/RoomsAvatar";
 import { RoomsButton, RoomsIconButton } from "@/components/rooms/controls/RoomsButton";
 import { RoomsChip } from "@/components/rooms/controls/RoomsChip";
-import { InlineEditableText } from "@/components/rooms/controls/InlineEditableText";
 import { RoomsField } from "@/components/rooms/controls/RoomsField";
 import { RoomsModal } from "@/components/rooms/controls/RoomsModal";
 import { InviteButton } from "@/components/rooms/InviteButton";
@@ -46,7 +47,6 @@ import {
 } from "@/components/rooms/roomsUtils";
 import { TreeList } from "@/components/rooms/TreeList";
 import type { RoomSummary, SpaceSummary } from "@/components/rooms/types";
-import RoomsContentPane from "@/components/RoomsContentPane";
 import SpaceSettingsEditor from "@/components/SpaceSettingsEditor";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";

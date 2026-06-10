@@ -1,8 +1,8 @@
-import type { DragEvent } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
 import type { FileMetadataEntry, FileNode, SpaceRole } from "@ai-spaces/shared";
 import { hasPermission } from "@ai-spaces/shared";
 import { FileText, Folder, Plus, Trash2, Upload } from "lucide-react";
+import type { DragEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   createSpaceDirectory,
@@ -12,9 +12,10 @@ import {
   uploadSpaceFile,
 } from "@/api/spaceFiles";
 import AIChatPane from "@/components/AIChatPane";
+import RoomsContentPane from "@/components/RoomsContentPane";
 import { ContextMenu } from "@/components/rooms/ContextMenu";
-import { RoomsButton, RoomsIconButton } from "@/components/rooms/controls/RoomsButton";
 import { InlineEditableText } from "@/components/rooms/controls/InlineEditableText";
+import { RoomsButton, RoomsIconButton } from "@/components/rooms/controls/RoomsButton";
 import { RoomsField } from "@/components/rooms/controls/RoomsField";
 import { RoomsModal } from "@/components/rooms/controls/RoomsModal";
 import {
@@ -32,7 +33,6 @@ import {
 } from "@/components/rooms/roomsUtils";
 import { TreeList } from "@/components/rooms/TreeList";
 import type { RoomSummary } from "@/components/rooms/types";
-import RoomsContentPane from "@/components/RoomsContentPane";
 import ShareSpaceDialog from "@/components/ShareSpaceDialog";
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from "@/contexts/AuthContext";

@@ -47,7 +47,10 @@ export class ACPConnectionPool {
     const endpointUrl = getActiveRuntimeServerEndpoint(space.serverId);
 
     const wsUrl = `${endpointUrl.replace(/^http/, "ws")}/api/spaces/${space.runtimeSpaceId}/acp`;
-    log.info({ spaceId: space.id, runtimeSpaceId: space.runtimeSpaceId, wsUrl }, "connecting to plugin ACP");
+    log.info(
+      { spaceId: space.id, runtimeSpaceId: space.runtimeSpaceId, wsUrl },
+      "connecting to plugin ACP",
+    );
 
     const forwardToken = jwt.sign({ userId: "server", role: "owner" }, config.JWT_SECRET, {
       expiresIn: "1h",

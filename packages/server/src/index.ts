@@ -418,7 +418,10 @@ wss.on("upgrade", (request, socket, head) => {
     return;
   }
   const pluginWsUrl = `${runtimeEndpointUrl.replace(/^http/, "ws")}/api/spaces/${serverSpace.runtimeSpaceId}/acp`;
-  wsLog.info({ userId, spaceId, runtimeSpaceId: serverSpace.runtimeSpaceId, pluginWsUrl }, "Connecting gateway websocket");
+  wsLog.info(
+    { userId, spaceId, runtimeSpaceId: serverSpace.runtimeSpaceId, pluginWsUrl },
+    "Connecting gateway websocket",
+  );
 
   // Mint a forwarding token with the resolved SpaceRole so the plugin gets the correct role
   const forwardToken = jwt.sign({ userId, role: spaceRole }, config.JWT_SECRET, {

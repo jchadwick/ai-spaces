@@ -29,9 +29,7 @@ export default function GeneralSettingsForm({
           />
         </div>
         <div>
-          <label className="mb-1.5 block text-[13px] font-medium text-t-ink-mid">
-            Description
-          </label>
+          <label className="mb-1.5 block text-[13px] font-medium text-t-ink-mid">Description</label>
           <Textarea
             value={description}
             onChange={(e) => onDescriptionChange(e.target.value)}

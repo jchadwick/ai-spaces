@@ -54,9 +54,7 @@ describe("OpenClawAcpClient prompt forwarding", () => {
 
   it("forwards prompts with a shared room session key", async () => {
     vi.doMock("node:fs", () => ({
-      readFileSync: vi.fn(() =>
-        JSON.stringify({ gateway: { auth: { token: "test-token" } } }),
-      ),
+      readFileSync: vi.fn(() => JSON.stringify({ gateway: { auth: { token: "test-token" } } })),
     }));
 
     const { OpenClawAcpClient } = await import("./openclaw-client.js");

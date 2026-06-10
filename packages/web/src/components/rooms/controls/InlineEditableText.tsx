@@ -51,9 +51,7 @@ export function InlineEditableText({
       await onSave(draft.trim());
       setEditing(false);
     } catch (saveError) {
-      setError(
-        saveError instanceof Error ? saveError.message : "Failed to save",
-      );
+      setError(saveError instanceof Error ? saveError.message : "Failed to save");
     } finally {
       setSaving(false);
     }
@@ -99,12 +97,7 @@ export function InlineEditableText({
   );
 
   return (
-    <div
-      className={cn(
-        "flex w-full max-w-full gap-2",
-        multiline ? "items-start" : "items-center",
-      )}
-    >
+    <div className={cn("flex w-full max-w-full gap-2", multiline ? "items-start" : "items-center")}>
       {multiline ? (
         <textarea
           aria-label={ariaLabel}
@@ -114,8 +107,7 @@ export function InlineEditableText({
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Escape") setEditing(false);
-            if ((event.metaKey || event.ctrlKey) && event.key === "Enter")
-              void save();
+            if ((event.metaKey || event.ctrlKey) && event.key === "Enter") void save();
           }}
           className={sharedInputClassName}
         />
@@ -153,9 +145,7 @@ export function InlineEditableText({
           onClick={() => setEditing(false)}
           className="size-[34px] rounded-[9px] p-0"
         />
-        {error && (
-          <span className="text-[12.5px] text-rooms-error">{error}</span>
-        )}
+        {error && <span className="text-[12.5px] text-rooms-error">{error}</span>}
       </div>
     </div>
   );

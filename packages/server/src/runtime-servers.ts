@@ -129,7 +129,9 @@ export function hashOpaqueToken(token: string): string {
 export function verifyOpaqueToken(token: string, storedValue: string | null | undefined): boolean {
   if (!storedValue) return false;
   const expected = storedValue.startsWith("sha256:") ? storedValue : hashOpaqueToken(storedValue);
-  const actual = storedValue.startsWith("sha256:") ? hashOpaqueToken(token) : hashOpaqueToken(token);
+  const actual = storedValue.startsWith("sha256:")
+    ? hashOpaqueToken(token)
+    : hashOpaqueToken(token);
   return timingSafeEqual(actual, expected);
 }
 
@@ -228,9 +230,9 @@ function toRuntimeServerRecord(row: ServerRow): RuntimeServerRecord {
 function getServerRow(serverId: string): ServerRow | null {
   ensureRuntimeServerStorage();
   return (
-    (sqlite
-      .prepare("SELECT * FROM servers WHERE id = ? LIMIT 1")
-      .get(serverId) as ServerRow | undefined) ?? null
+    (sqlite.prepare("SELECT * FROM servers WHERE id = ? LIMIT 1").get(serverId) as
+      | ServerRow
+      | undefined) ?? null
   );
 }
 
@@ -260,7 +262,9 @@ export function createRegistrationToken(
   return { id, token, expiresAt };
 }
 
-function redeemRegistrationToken(token: string): { success: true; id: string } | { success: false } {
+function redeemRegistrationToken(
+  token: string,
+): { success: true; id: string } | { success: false } {
   ensureRuntimeServerStorage();
   const now = new Date().toISOString();
   const tokenHash = hashOpaqueToken(token);
@@ -465,7 +469,10 @@ export function updateRuntimeServer(
   return updated ? toRuntimeServerRecord(updated) : null;
 }
 
-export function revokeOrDeleteRuntimeServer(serverId: string, physicalDelete = false): {
+export function revokeOrDeleteRuntimeServer(
+  serverId: string,
+  physicalDelete = false,
+): {
   deleted: boolean;
   server: RuntimeServerRecord | null;
 } {
@@ -476,9 +483,11 @@ export function revokeOrDeleteRuntimeServer(serverId: string, physicalDelete = f
   const row = getServerRow(serverId);
   if (!row) return { deleted: false, server: null };
 
-  const spaceCount = (sqlite
-    .prepare("SELECT COUNT(*) as count FROM spaces WHERE server_id = ?")
-    .get(serverId) as { count: number }).count;
+  const spaceCount = (
+    sqlite.prepare("SELECT COUNT(*) as count FROM spaces WHERE server_id = ?").get(serverId) as {
+      count: number;
+    }
+  ).count;
   if (physicalDelete && spaceCount === 0) {
     sqlite.prepare("DELETE FROM servers WHERE id = ?").run(serverId);
     return { deleted: true, server: null };

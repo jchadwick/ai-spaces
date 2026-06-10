@@ -33,9 +33,7 @@ export function basename(roomPath: string) {
 }
 
 export function parentPath(filePath: string) {
-  return filePath.includes("/")
-    ? filePath.slice(0, filePath.lastIndexOf("/"))
-    : "";
+  return filePath.includes("/") ? filePath.slice(0, filePath.lastIndexOf("/")) : "";
 }
 
 export function joinPath(parent: string | null | undefined, name: string) {
@@ -77,15 +75,10 @@ export function firstFileNode(nodes: FileNode[]): FileNode | null {
   return null;
 }
 
-export function movePath(
-  path: string | null,
-  fromPath: string,
-  toPath: string,
-) {
+export function movePath(path: string | null, fromPath: string, toPath: string) {
   if (!path) return path;
   if (path === fromPath) return toPath;
-  if (path.startsWith(`${fromPath}/`))
-    return `${toPath}/${path.slice(fromPath.length + 1)}`;
+  if (path.startsWith(`${fromPath}/`)) return `${toPath}/${path.slice(fromPath.length + 1)}`;
   return path;
 }
 
@@ -138,16 +131,10 @@ export function uniqueSpaceAbbreviations(spaces: SpaceSummary[]) {
   for (let width = 3; width <= 4; width += 1) {
     const duplicateCounts = new Map<string, number>();
     abbreviations.forEach((abbreviation) => {
-      duplicateCounts.set(
-        abbreviation,
-        (duplicateCounts.get(abbreviation) ?? 0) + 1,
-      );
+      duplicateCounts.set(abbreviation, (duplicateCounts.get(abbreviation) ?? 0) + 1);
     });
     bases.forEach((base, index) => {
-      if (
-        (duplicateCounts.get(abbreviations[index]) ?? 0) > 1 &&
-        base.length >= width
-      ) {
+      if ((duplicateCounts.get(abbreviations[index]) ?? 0) > 1 && base.length >= width) {
         abbreviations[index] = base.slice(0, width);
       }
     });
@@ -162,8 +149,7 @@ export function uniqueSpaceAbbreviations(spaces: SpaceSummary[]) {
   return new Map(
     spaces.map((space, index) => {
       const abbreviation = abbreviations[index];
-      if ((finalCounts.get(abbreviation) ?? 0) <= 1)
-        return [space.id, abbreviation] as const;
+      if ((finalCounts.get(abbreviation) ?? 0) <= 1) return [space.id, abbreviation] as const;
 
       const seenCount = seen.get(abbreviation) ?? 0;
       seen.set(abbreviation, seenCount + 1);
@@ -184,10 +170,7 @@ export function roomUrl(room: RoomSummary) {
   return `/spaces/${room.spaceId}/rooms/${room.id}`;
 }
 
-export function findNode(
-  nodes: FileNode[],
-  targetPath: string,
-): FileNode | null {
+export function findNode(nodes: FileNode[], targetPath: string): FileNode | null {
   for (const node of nodes) {
     if (node.path === targetPath) return node;
     if (node.children) {
@@ -218,14 +201,10 @@ export function makeRooms(
     const metadata = metadataBySpace.get(space.id) ?? { files: {} };
     const members = membersBySpace.get(space.id) ?? [];
     return (roomsBySpace.get(space.id) ?? [])
-      .filter(
-        (room) =>
-          room.targetType === "directory" || room.targetType === "file",
-      )
+      .filter((room) => room.targetType === "directory" || room.targetType === "file")
       .map((room) => {
         const cleanPath = stripRoomPath(room.roomPath);
-        const entry =
-          metadata.files[cleanPath] ?? metadata.files[room.roomPath] ?? {};
+        const entry = metadata.files[cleanPath] ?? metadata.files[room.roomPath] ?? {};
         return {
           id: room.id,
           spaceId: space.id,

@@ -24,22 +24,14 @@ export function RoomsField({
 
   return (
     <label className={cn("block", className)}>
-      <div className="mb-1.5 text-[13px] font-semibold text-rooms-ink-soft">
-        {label}
-      </div>
+      <div className="mb-1.5 text-[13px] font-semibold text-rooms-ink-soft">{label}</div>
       <div
         className={cn(
           "flex gap-1.5 rounded-[10px] border-[1.5px] border-rooms-line-strong bg-rooms-paper",
-          textarea
-            ? "items-start px-3.5 py-3"
-            : "min-h-11 items-center px-3.5",
+          textarea ? "items-start px-3.5 py-3" : "min-h-11 items-center px-3.5",
         )}
       >
-        {prefix && (
-          <span className="whitespace-nowrap text-sm text-rooms-muted">
-            {prefix}
-          </span>
-        )}
+        {prefix && <span className="whitespace-nowrap text-sm text-rooms-muted">{prefix}</span>}
         {textarea ? (
           <textarea
             rows={3}

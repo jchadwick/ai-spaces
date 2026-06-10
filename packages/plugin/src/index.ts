@@ -6,8 +6,8 @@ import { config, diagnostics as configDiagnostics, configStatus } from "./config
 import { logger as rootLogger } from "./logger.js";
 import { runPluginPreflightChecks } from "./preflight.js";
 import {
-  clearRegistrationState,
   classifyCallbackResponse,
+  clearRegistrationState,
   loadRegistrationState,
   type RegistrationState,
   type RegistrationStatus,

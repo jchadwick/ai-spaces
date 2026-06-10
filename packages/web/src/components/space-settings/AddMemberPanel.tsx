@@ -1,5 +1,5 @@
-import type { RefObject } from "react";
 import type { SpaceRole } from "@ai-spaces/shared";
+import type { RefObject } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ROLES, type SearchResult } from "./spaceSettingsTypes";

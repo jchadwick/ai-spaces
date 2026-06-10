@@ -89,7 +89,10 @@ export class OpenClawAcpClient {
       activeAbort: null,
     };
     this.sessions.set(runtimeSessionKey, session);
-    log.info({ spaceId, sessionId, agentId, roomSessionKey }, "created logical OpenClaw room session");
+    log.info(
+      { spaceId, sessionId, agentId, roomSessionKey },
+      "created logical OpenClaw room session",
+    );
     return sessionId;
   }
 
@@ -103,7 +106,10 @@ export class OpenClawAcpClient {
   ): Promise<string> {
     let session = this.sessions.get(runtimeSessionKey);
     if (!session) {
-      log.warn({ runtimeSessionKey, spaceId, agentId }, "session missing on forwardPrompt — creating");
+      log.warn(
+        { runtimeSessionKey, spaceId, agentId },
+        "session missing on forwardPrompt — creating",
+      );
       await this.getOrCreateSession(runtimeSessionKey, spaceId, agentId);
       session = this.sessions.get(runtimeSessionKey)!;
     }

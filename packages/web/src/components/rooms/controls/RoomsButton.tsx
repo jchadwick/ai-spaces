@@ -2,12 +2,7 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
-type RoomsButtonVariant =
-  | "primary"
-  | "outline"
-  | "ghost"
-  | "boundary"
-  | "danger";
+type RoomsButtonVariant = "primary" | "outline" | "ghost" | "boundary" | "danger";
 type RoomsButtonSize = "sm" | "md";
 
 const buttonVariantClasses: Record<RoomsButtonVariant, string> = {
@@ -23,10 +18,8 @@ const buttonSizeClasses: Record<RoomsButtonSize, string> = {
   md: "px-4 py-2.5 text-[15px]",
 };
 
-export interface RoomsButtonProps extends Omit<
-  ButtonHTMLAttributes<HTMLButtonElement>,
-  "children"
-> {
+export interface RoomsButtonProps
+  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children"> {
   children?: ReactNode;
   icon?: ReactNode;
   variant?: RoomsButtonVariant;
@@ -67,12 +60,7 @@ export interface RoomsIconButtonProps extends ButtonHTMLAttributes<HTMLButtonEle
   active?: boolean;
 }
 
-export function RoomsIconButton({
-  children,
-  active,
-  className,
-  ...props
-}: RoomsIconButtonProps) {
+export function RoomsIconButton({ children, active, className, ...props }: RoomsIconButtonProps) {
   return (
     <button
       type="button"

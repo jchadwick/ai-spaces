@@ -31,10 +31,7 @@ export function getRoom(spaceId: string, roomPath: string): SpaceRoom | undefine
     .select()
     .from(spaceRooms)
     .where(
-      and(
-        eq(spaceRooms.spaceId, spaceId),
-        eq(spaceRooms.roomPath, normalizeRoomPath(roomPath)),
-      ),
+      and(eq(spaceRooms.spaceId, spaceId), eq(spaceRooms.roomPath, normalizeRoomPath(roomPath))),
     )
     .get();
 }

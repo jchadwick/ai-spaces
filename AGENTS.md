@@ -90,3 +90,10 @@ Never add production code paths, guards, or abstractions whose sole purpose is t
 
 - Keep `tk` task statuses current (mark in-progress → complete immediately)
 - Commit and push after each completed task
+
+## Verification
+
+ALWAYS verify changes.  Ensure everything works by running:
+
+`npm run verify`
+

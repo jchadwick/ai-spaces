@@ -40,7 +40,8 @@
     "format:check": "biome format",
     "check": "biome check --write",
     "check:ci": "biome check",
-    "prepare": "husky"
+    "prepare": "husky",
+    "verify": "npm run check"
   },
   "dependencies": {
     "@lexical/table": "^0.43.0"

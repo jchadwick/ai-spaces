@@ -3,9 +3,9 @@ import type { FileNodeType, SpaceRole } from "@ai-spaces/shared";
 import { hasPermission } from "@ai-spaces/shared";
 import { agentAdapter } from "../agent-adapter-instance.js";
 import { filterRestrictedNodes, isPathRestricted, loadSpaceMetadata } from "../restricted-paths.js";
+import type { RoomTargetType } from "../rooms/room-store.js";
 import { workspacePolicy } from "../security/workspace-policy-instance.js";
 import type { SpaceRecord } from "../space-store.js";
-import type { RoomTargetType } from "../rooms/room-store.js";
 
 const TEXT_CONTEXT_PATTERN = /\.(md|json|txt|ini)$/i;
 const MAX_CONTEXT_FILE_BYTES = 64 * 1024;

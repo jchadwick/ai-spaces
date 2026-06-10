@@ -161,7 +161,10 @@ export class AISpacesAgent implements Agent {
         await openClawAcpClient
           .getOrCreateSession(this.runtimeSessionKey(spaceId, roomPath), spaceId, space.agentId)
           .catch((err) => {
-            log.warn({ err, spaceId }, "could not create OpenClaw session on load — prompts will fail");
+            log.warn(
+              { err, spaceId },
+              "could not create OpenClaw session on load — prompts will fail",
+            );
           });
 
         // Replay chat history — OpenClaw does not do this itself

@@ -8,7 +8,11 @@ import { and, eq } from "drizzle-orm";
 import { db } from "../packages/server/src/db/connection.js";
 import { authProviders } from "../packages/server/src/db/index.js";
 import { runMigrations } from "../packages/server/src/db/migrate.js";
-import { createUser, getUserWithServerRoleByEmail, hashPassword } from "../packages/server/src/user-service.js";
+import {
+  createUser,
+  getUserWithServerRoleByEmail,
+  hashPassword,
+} from "../packages/server/src/user-service.js";
 
 async function resetPassword(userId: string, passwordHash: string): Promise<void> {
   db.update(authProviders)

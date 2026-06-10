@@ -88,7 +88,7 @@ export default function AIChatPane({ onClose }: AIChatPaneProps) {
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
               disabled={isStreaming || isDisconnected}
-              className="h-18 w-full resize-none border-0 bg-transparent font-sans text-[13.5px] text-t-ink outline-none disabled:opacity-60"
+              className="h-12 w-full resize-none border-0 bg-transparent font-sans text-[13.5px] text-t-ink outline-none disabled:opacity-60"
               placeholder={
                 isDisconnected
                   ? "Reconnecting..."
@@ -118,11 +118,7 @@ export default function AIChatPane({ onClose }: AIChatPaneProps) {
             </div>
           </div>
         </form>
-        <div className="mt-2 text-center font-mono text-[10px] tracking-[0.4px] text-t-ink-faint">
-          agent sees only files in this space
-        </div>
       </div>
-
     </aside>
   );
 }

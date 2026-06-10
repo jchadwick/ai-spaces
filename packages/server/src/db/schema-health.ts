@@ -169,6 +169,21 @@ function ensureSpacesServerId(sqlite: Database.Database, repaired: string[]): vo
   }
 }
 
+function ensureTopicPathNormalization(sqlite: Database.Database, repaired: string[]): void {
+  if (!tableExists(sqlite, "space_topics")) return;
+
+  const rows = sqlite
+    .prepare("SELECT id, topic_path FROM space_topics WHERE topic_path != '/' AND topic_path LIKE '%/'")
+    .all() as Array<{ id: string; topic_path: string }>;
+
+  for (const row of rows) {
+    const normalized = row.topic_path.replace(/\/+$/, "");
+    if (normalized === row.topic_path) continue;
+    sqlite.prepare("UPDATE space_topics SET topic_path = ? WHERE id = ?").run(normalized, row.id);
+    repaired.push(`normalized space_topics.topic_path ${row.topic_path} -> ${normalized}`);
+  }
+}
+
 function validateCriticalSchema(sqlite: Database.Database): void {
   if (!tableExists(sqlite, "servers")) {
     throw new Error("Schema health check failed: servers table is missing after repair attempt");
@@ -195,6 +210,7 @@ export function ensureSchemaHealth(sqlite: Database.Database): SchemaHealthResul
     ensureDefaultServer(sqlite, repaired);
     ensureServerRegistrationTokensTable(sqlite, repaired);
     ensureSpacesServerId(sqlite, repaired);
+    ensureTopicPathNormalization(sqlite, repaired);
     sqlite.exec("COMMIT");
   } catch (error) {
     sqlite.exec("ROLLBACK");

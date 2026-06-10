@@ -25,7 +25,6 @@ import {
   buildChatSystemPrompt,
   classifyPrompt,
   formatWorkspaceSummary,
-  REFUSAL_MESSAGE,
   removeInternalFiles,
   sanitizeAssistantText,
 } from "./chat-policy.js";
@@ -121,13 +120,12 @@ export class AISpacesAgent implements Agent {
       systemContext: getServerContext(params),
     });
 
-    // Ensure an ACP session exists in OpenClaw for this space
+    // Ensure a logical OpenClaw session exists for this space/topic
     if (spaceId) {
       const space = getSpace(spaceId);
       if (space) {
-        const spaceRoot = resolveSpaceRoot(space);
         await openClawAcpClient
-          .getOrCreateSession(this.runtimeSessionKey(spaceId, topicPath), spaceId, spaceRoot)
+          .getOrCreateSession(this.runtimeSessionKey(spaceId, topicPath), spaceId, space.agentId)
           .catch((err) => {
             log.warn({ err, spaceId }, "could not create OpenClaw session — prompts will fail");
           });
@@ -161,13 +159,13 @@ export class AISpacesAgent implements Agent {
       if (space) {
         const spaceRoot = resolveSpaceRoot(space);
         await openClawAcpClient
-          .getOrCreateSession(this.runtimeSessionKey(spaceId, topicPath), spaceId, spaceRoot)
+          .getOrCreateSession(this.runtimeSessionKey(spaceId, topicPath), spaceId, space.agentId)
           .catch((err) => {
             log.warn({ err, spaceId }, "could not create OpenClaw session on load — prompts will fail");
           });
 
         // Replay chat history — OpenClaw does not do this itself
-        const history = getSessionMessages(spaceRoot, this.historyUserKey(userId, topicPath));
+        const history = getSessionMessages(spaceRoot, this.historyTopicKey(topicPath));
         for (const msg of history) {
           const updateType = msg.role === "user" ? "user_message_chunk" : "agent_message_chunk";
           await this.conn.sessionUpdate({
@@ -205,9 +203,9 @@ export class AISpacesAgent implements Agent {
       const space = getSpace(state.spaceId);
       if (space) {
         const spaceRoot = resolveSpaceRoot(space);
-        const historyUserKey = this.historyUserKey(state.userId, state.topicPath);
-        getOrCreateSession(spaceRoot, historyUserKey);
-        addMessageToSession(spaceRoot, historyUserKey, {
+        const historyTopicKey = this.historyTopicKey(state.topicPath);
+        getOrCreateSession(spaceRoot, historyTopicKey);
+        addMessageToSession(spaceRoot, historyTopicKey, {
           id: crypto.randomUUID(),
           role: "user",
           content: promptText,
@@ -223,7 +221,7 @@ export class AISpacesAgent implements Agent {
               content: { type: "text", text: decision.message },
             } as unknown as SessionNotification["update"],
           });
-          addMessageToSession(spaceRoot, historyUserKey, {
+          addMessageToSession(spaceRoot, historyTopicKey, {
             id: crypto.randomUUID(),
             role: "assistant",
             content: decision.message,
@@ -246,7 +244,7 @@ export class AISpacesAgent implements Agent {
               content: { type: "text", text: summary },
             } as unknown as SessionNotification["update"],
           });
-          addMessageToSession(spaceRoot, historyUserKey, {
+          addMessageToSession(spaceRoot, historyTopicKey, {
             id: crypto.randomUUID(),
             role: "assistant",
             content: summary,
@@ -255,10 +253,7 @@ export class AISpacesAgent implements Agent {
           return { stopReason: "end_turn" };
         }
 
-        const space_ = getSpace(state.spaceId);
-        const systemPrompt = space_
-          ? `${buildChatSystemPrompt(space_.config)}\n\n${state.systemContext}`
-          : REFUSAL_MESSAGE;
+        const systemPrompt = `${buildChatSystemPrompt(space.config)}\n\n${state.systemContext}`;
 
         let accumulated = "";
 
@@ -266,6 +261,7 @@ export class AISpacesAgent implements Agent {
           const stopReason = await openClawAcpClient.forwardPrompt(
             this.runtimeSessionKey(state.spaceId, state.topicPath),
             state.spaceId,
+            space.agentId,
             {
               systemPrompt,
               userPrompt: promptText,
@@ -302,7 +298,7 @@ export class AISpacesAgent implements Agent {
                 content: { type: "text", text: errorMsg },
               } as unknown as SessionNotification["update"],
             });
-            addMessageToSession(spaceRoot, historyUserKey, {
+            addMessageToSession(spaceRoot, historyTopicKey, {
               id: crypto.randomUUID(),
               role: "assistant",
               content: errorMsg,
@@ -323,7 +319,7 @@ export class AISpacesAgent implements Agent {
           });
 
           // Store assistant message (sanitized version for history)
-          addMessageToSession(spaceRoot, historyUserKey, {
+          addMessageToSession(spaceRoot, historyTopicKey, {
             id: crypto.randomUUID(),
             role: "assistant",
             content: sanitized,
@@ -443,7 +439,7 @@ export class AISpacesAgent implements Agent {
     return `${spaceId}:${topicPath || "/"}`;
   }
 
-  private historyUserKey(userId: string, topicPath: string): string {
-    return `${userId}:${topicPath || "/"}`;
+  private historyTopicKey(topicPath: string): string {
+    return topicPath || "/";
   }
 }

@@ -104,6 +104,26 @@ export class BrowserAcpOrchestrator {
   private requireActiveTopic(topicPath: string) {
     if (topicPath === "/") return { topicPath: "/", targetType: "root", acpSessionId: null };
     const topic = getActiveTopic(this.space.id, topicPath);
+    // #region agent log
+    fetch("http://host.docker.internal:7399/ingest/acbd8104-ecfc-434c-a54a-bcf58319b4b4", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "897816" },
+      body: JSON.stringify({
+        sessionId: "897816",
+        runId: "pre-fix",
+        hypothesisId: "H1",
+        location: "browser-orchestrator.ts:requireActiveTopic",
+        message: "requireActiveTopic lookup",
+        data: {
+          spaceId: this.space.id,
+          requestedTopicPath: topicPath,
+          found: Boolean(topic),
+          storedTopicPath: topic?.topicPath ?? null,
+        },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
     if (!topic) throw new Error("Topic is not active");
     return topic;
   }

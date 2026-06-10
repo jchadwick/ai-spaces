@@ -2,7 +2,7 @@ import type { DragEvent } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FileMetadataEntry, FileNode, SpaceRole } from "@ai-spaces/shared";
 import { hasPermission } from "@ai-spaces/shared";
-import { FileText, Folder, Plus, Shield, Trash2, Upload } from "lucide-react";
+import { FileText, Folder, Plus, Trash2, Upload } from "lucide-react";
 
 import {
   createSpaceDirectory,
@@ -463,12 +463,6 @@ function RoomDetailInner({
               }
               onFolderDrop={(event, path) => handleDrop(event, path)}
             />
-          </div>
-          <div className="flex items-start gap-2 border-t border-rooms-line px-3.5 py-3">
-            <Shield size={15} className="text-rooms-boundary" />
-            <span className="text-[11.5px] leading-normal text-rooms-muted">
-              Only this folder is shared. The rest of the Space stays private.
-            </span>
           </div>
         </div>
         <RoomsContentPane

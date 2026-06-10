@@ -1,66 +1,13 @@
-import type { ChildProcess } from "node:child_process";
-import { spawn } from "node:child_process";
-import { Writable } from "node:stream";
-import { ClientSideConnection, ndJsonStream, PROTOCOL_VERSION } from "@agentclientprotocol/sdk";
+import * as crypto from "node:crypto";
+import * as fs from "node:fs";
+import * as path from "node:path";
+import { config } from "../config.js";
 import { logger as rootLogger } from "../logger.js";
 
 const log = rootLogger.child({ component: "openclaw-acp-client" });
 
-function createFilteredAcpInput(stdout: NodeJS.ReadableStream): ReadableStream<Uint8Array> {
-  const decoder = new TextDecoder();
-  const encoder = new TextEncoder();
-  let buffer = "";
+const PROMPT_TIMEOUT_MS = 90_000;
 
-  return new ReadableStream<Uint8Array>({
-    start(controller) {
-      const onData = (chunk: Buffer | string) => {
-        buffer += typeof chunk === "string" ? chunk : decoder.decode(chunk, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-
-        for (const line of lines) {
-          const trimmed = line.trim();
-          if (!trimmed) continue;
-          try {
-            JSON.parse(trimmed);
-            controller.enqueue(encoder.encode(`${trimmed}\n`));
-          } catch {
-            log.warn(
-              { line: trimmed.slice(0, 160) },
-              "Dropping non-ACP stdout line from openclaw acp",
-            );
-          }
-        }
-      };
-
-      const onEnd = () => {
-        const trimmed = buffer.trim();
-        if (trimmed) {
-          try {
-            JSON.parse(trimmed);
-            controller.enqueue(encoder.encode(trimmed));
-          } catch {
-            log.warn(
-              { line: trimmed.slice(0, 160) },
-              "Dropping trailing non-ACP stdout line from openclaw acp",
-            );
-          }
-        }
-        controller.close();
-      };
-
-      const onError = (err: Error) => {
-        controller.error(err);
-      };
-
-      stdout.on("data", onData);
-      stdout.on("end", onEnd);
-      stdout.on("error", onError);
-    },
-  });
-}
-
-// session/update params from ACP SDK
 export interface SessionUpdateParams {
   sessionId: string;
   update: {
@@ -74,143 +21,90 @@ export type SessionUpdateHandler = (params: SessionUpdateParams) => void | Promi
 interface ManagedSession {
   sessionId: string;
   spaceId: string;
+  agentId: string;
+  topicSessionKey: string;
   activeAbort: AbortController | null;
 }
 
+interface GatewayAuth {
+  url: string;
+  token: string;
+}
+
+let cachedGatewayAuth: GatewayAuth | null = null;
+
+function readGatewayAuth(): GatewayAuth {
+  const url = config.GATEWAY_URL ?? "http://127.0.0.1:19000";
+  if (cachedGatewayAuth?.url === url) return cachedGatewayAuth;
+
+  const configPath = path.join(config.OPENCLAW_HOME, ".openclaw", "openclaw.json");
+  let token = "";
+  try {
+    const parsed = JSON.parse(fs.readFileSync(configPath, "utf8")) as {
+      gateway?: { auth?: { token?: string } };
+    };
+    token = parsed.gateway?.auth?.token ?? "";
+  } catch (err) {
+    log.warn({ err, configPath }, "could not read gateway auth token from openclaw.json");
+  }
+
+  cachedGatewayAuth = { url, token };
+  return cachedGatewayAuth;
+}
+
+function gatewayModelForAgent(agentId: string): string {
+  return agentId && agentId !== "main" ? `openclaw/${agentId}` : "openclaw";
+}
+
+/** Stable OpenClaw channel session key scoped to agent + room/topic (shared by all collaborators). */
+export function buildTopicSessionKey(agentId: string, runtimeSessionKey: string): string {
+  return `ai-spaces:${agentId}:${runtimeSessionKey}`;
+}
+
 /**
- * Plugin-side ACP client to OpenClaw.
+ * Forwards prompts to OpenClaw gateway HTTP using per-topic channel sessions.
  *
- * OpenClaw is spawned as a subprocess (`openclaw acp`) and communicated with
- * via stdio. The client manages one ACP session per runtime session key and forwards
- * session/prompt calls, relaying session/update notifications back.
- *
- * OpenClaw handles: token streaming, cancellation, model failover.
- * The plugin handles: fs ops, permissions, file watching — NOT delegated here.
+ * OpenClaw's `openclaw acp` subprocess hangs on session/prompt in current builds.
+ * HTTP chat/completions with a stable topic session key gives us working prompts
+ * plus OpenClaw-managed shared room history (not per-user, not manually attached).
  */
 export class OpenClawAcpClient {
-  private connection: ClientSideConnection | null = null;
-  private subprocess: ChildProcess | null = null;
-  private sessions = new Map<string, ManagedSession>(); // runtime session key → session
-  private sessionById = new Map<string, ManagedSession>(); // sessionId → session
-  private updateHandlers = new Map<string, SessionUpdateHandler>(); // sessionId → handler
-  private connectPromise: Promise<void> | null = null;
-
-  async ensureConnected(): Promise<void> {
-    if (this.connection) return;
-    if (this.connectPromise) return this.connectPromise;
-    this.connectPromise = this.connect().finally(() => {
-      this.connectPromise = null;
-    });
-    return this.connectPromise;
-  }
-
-  private async connect(): Promise<void> {
-    log.info("spawning openclaw acp subprocess");
-    const proc = spawn("openclaw", ["acp", "-v"], {
-      stdio: ["pipe", "pipe", "inherit"],
-      env: { ...process.env, OPENCLAW_SHELL: "acp-client" },
-    });
-    this.subprocess = proc;
-
-    proc.on("error", (err) => {
-      log.error({ err }, "openclaw acp subprocess error");
-      this.teardown();
-    });
-
-    proc.on("exit", (code) => {
-      log.info({ code }, "openclaw acp subprocess exited");
-      this.teardown();
-    });
-
-    // ACP uses stdio: output=write-to-agent, input=read-from-agent
-    const output = Writable.toWeb(proc.stdin!) as WritableStream<Uint8Array>;
-    const input = createFilteredAcpInput(proc.stdout!);
-    const stream = ndJsonStream(output, input);
-
-    const connection = new ClientSideConnection(
-      (_conn) => ({
-        sessionUpdate: async (params: SessionUpdateParams) => {
-          const handler = this.updateHandlers.get(params.sessionId);
-          if (handler) {
-            await Promise.resolve(handler(params)).catch((err) => {
-              log.warn({ err }, "sessionUpdate handler threw");
-            });
-          }
-        },
-        // OpenClaw never calls requestPermission — return cancelled as defensive fallback
-        requestPermission: async () => ({
-          outcome: { outcome: "cancelled" as const },
-        }),
-      }),
-      stream,
-    );
-
-    try {
-      await connection.initialize({
-        protocolVersion: PROTOCOL_VERSION,
-        clientCapabilities: {},
-      });
-    } catch (err) {
-      proc.kill();
-      throw err;
-    }
-
-    this.connection = connection;
-    log.info("openclaw ACP connection initialized");
-  }
-
-  private teardown(): void {
-    this.connection = null;
-    this.subprocess = null;
-    // Reject any active prompts
-    for (const session of this.sessions.values()) {
-      session.activeAbort?.abort();
-    }
-    this.sessions.clear();
-    this.sessionById.clear();
-    this.updateHandlers.clear();
-  }
+  private sessions = new Map<string, ManagedSession>();
 
   async getOrCreateSession(
     runtimeSessionKey: string,
     spaceId: string,
-    cwd: string,
+    agentId: string,
   ): Promise<string> {
     const existing = this.sessions.get(runtimeSessionKey);
     if (existing) return existing.sessionId;
 
-    await this.ensureConnected();
-
-    const { sessionId } = await this.connection!.newSession({
-      cwd,
-      mcpServers: [],
-    });
-
-    const session: ManagedSession = { sessionId, spaceId, activeAbort: null };
+    const topicSessionKey = buildTopicSessionKey(agentId, runtimeSessionKey);
+    const sessionId = crypto.randomUUID();
+    const session: ManagedSession = {
+      sessionId,
+      spaceId,
+      agentId,
+      topicSessionKey,
+      activeAbort: null,
+    };
     this.sessions.set(runtimeSessionKey, session);
-    this.sessionById.set(sessionId, session);
-
-    log.info({ spaceId, sessionId }, "created new ACP session");
+    log.info({ spaceId, sessionId, agentId, topicSessionKey }, "created logical OpenClaw topic session");
     return sessionId;
   }
 
-  /**
-   * Forward a prompt to OpenClaw via the ACP subprocess.
-   * Each space/topic gets its own ACP session, maintaining conversation context.
-   */
   async forwardPrompt(
     runtimeSessionKey: string,
     spaceId: string,
+    agentId: string,
     prompt: { systemPrompt: string; userPrompt: string },
     onUpdate: SessionUpdateHandler,
     signal?: AbortSignal,
   ): Promise<string> {
     let session = this.sessions.get(runtimeSessionKey);
     if (!session) {
-      // Session missing: create it in OpenClaw before forwarding
-      log.warn({ runtimeSessionKey, spaceId }, "ACP session missing on forwardPrompt — creating");
-      const spaceRoot = "/home/openclaw/workspace"; // default workspace root
-      await this.getOrCreateSession(runtimeSessionKey, spaceId, spaceRoot);
+      log.warn({ runtimeSessionKey, spaceId, agentId }, "session missing on forwardPrompt — creating");
+      await this.getOrCreateSession(runtimeSessionKey, spaceId, agentId);
       session = this.sessions.get(runtimeSessionKey)!;
     }
 
@@ -219,15 +113,19 @@ export class OpenClawAcpClient {
     session.activeAbort = abort;
     if (signal) signal.addEventListener("abort", () => abort.abort(), { once: true });
 
-    const timeout = setTimeout(() => abort.abort(), 90_000);
+    const timeout = setTimeout(() => abort.abort(), PROMPT_TIMEOUT_MS);
+    const startedAt = Date.now();
 
     try {
-      return await this.forwardPromptViaAcp(
+      return await this.forwardPromptViaHttp(
         spaceId,
+        session.agentId || agentId,
+        session.topicSessionKey,
         prompt,
         onUpdate,
         abort.signal,
-        session,
+        session.sessionId,
+        startedAt,
       );
     } finally {
       clearTimeout(timeout);
@@ -235,89 +133,156 @@ export class OpenClawAcpClient {
     }
   }
 
-  /**
-   * Forward a prompt using the ACP subprocess connection.
-   * OpenClaw maintains session context natively through ACP sessions.
-   */
-  private async forwardPromptViaAcp(
+  private async forwardPromptViaHttp(
     spaceId: string,
+    agentId: string,
+    topicSessionKey: string,
     prompt: { systemPrompt: string; userPrompt: string },
     onUpdate: SessionUpdateHandler,
     signal: AbortSignal,
-    session: ManagedSession,
+    logicalSessionId: string,
+    startedAt: number,
   ): Promise<string> {
-    await this.ensureConnected();
+    const { url, token } = readGatewayAuth();
+    if (!token) throw new Error("OpenClaw gateway auth token is not configured");
 
-    // Register update handler for this session so we receive agent response chunks
-    this.updateHandlers.set(session.sessionId, onUpdate);
+    const messages = [
+      { role: "system" as const, content: prompt.systemPrompt },
+      { role: "user" as const, content: prompt.userPrompt },
+    ];
 
-    const cleanup = () => {
-      this.updateHandlers.delete(session.sessionId);
-    };
+    const model = gatewayModelForAgent(agentId);
+    log.info(
+      { spaceId, agentId, model, topicSessionKey },
+      "forwarding prompt via OpenClaw HTTP topic session",
+    );
 
-    // Build prompt text: prepend system prompt if provided
-    const fullPrompt = prompt.systemPrompt
-      ? `${prompt.systemPrompt}\n\n${prompt.userPrompt}`
-      : prompt.userPrompt;
+    // #region agent log
+    fetch("http://host.docker.internal:7399/ingest/acbd8104-ecfc-434c-a54a-bcf58319b4b4", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "897816" },
+      body: JSON.stringify({
+        sessionId: "897816",
+        runId: "topic-session",
+        hypothesisId: "H5",
+        location: "openclaw-client.ts:forwardPromptViaHttp",
+        message: "topic session prompt start",
+        data: { spaceId, agentId, model, topicSessionKey },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
 
-    log.info({ spaceId, sessionId: session.sessionId }, "forwarding prompt via OpenClaw ACP");
+    const response = await fetch(`${url}/v1/chat/completions`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        // OpenClaw maps this field to its channel session store; we use a topic key so
+        // all collaborators in a room share one conversation history.
+        user: topicSessionKey,
+        messages,
+        stream: true,
+      }),
+      signal,
+    });
 
-    // Handle cancellation via abort signal
-    const abortListener = () => {
-      this.connection?.cancel({ sessionId: session.sessionId });
-    };
-    signal.addEventListener("abort", abortListener, { once: true });
-
-    try {
-      const response = await this.connection!.prompt({
-        sessionId: session.sessionId,
-        prompt: [{ type: "text", text: fullPrompt }],
-      });
-
-      log.info(
-        { spaceId, sessionId: session.sessionId, stopReason: response.stopReason },
-        "prompt completed",
-      );
-
-      return response.stopReason;
-    } catch (err) {
-      if (signal.aborted) {
-        log.info({ spaceId, sessionId: session.sessionId }, "prompt cancelled");
-        return "cancelled";
-      }
-      throw err;
-    } finally {
-      cleanup();
-      signal.removeEventListener("abort", abortListener);
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`OpenClaw gateway error (${response.status}): ${body.slice(0, 200)}`);
     }
+
+    if (!response.body) throw new Error("OpenClaw gateway returned an empty response body");
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let accumulated = "";
+
+    const emitChunk = async (text: string) => {
+      if (!text) return;
+      accumulated += text;
+      await onUpdate({
+        sessionId: logicalSessionId,
+        update: {
+          sessionUpdate: "agent_message_chunk",
+          content: { type: "text", text },
+        },
+      });
+    };
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith("data:")) continue;
+        const payload = trimmed.slice(5).trim();
+        if (!payload || payload === "[DONE]") continue;
+        try {
+          const parsed = JSON.parse(payload) as {
+            choices?: Array<{ delta?: { content?: string } }>;
+          };
+          const text = parsed.choices?.[0]?.delta?.content ?? "";
+          await emitChunk(text);
+        } catch {
+          /* ignore malformed SSE chunks */
+        }
+      }
+    }
+
+    const elapsedMs = Date.now() - startedAt;
+    log.info(
+      { spaceId, agentId, model, topicSessionKey, elapsedMs, contentLength: accumulated.length },
+      "prompt completed via OpenClaw HTTP topic session",
+    );
+
+    // #region agent log
+    fetch("http://host.docker.internal:7399/ingest/acbd8104-ecfc-434c-a54a-bcf58319b4b4", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "897816" },
+      body: JSON.stringify({
+        sessionId: "897816",
+        runId: "topic-session",
+        hypothesisId: "H5",
+        location: "openclaw-client.ts:forwardPromptViaHttp",
+        message: "topic session prompt complete",
+        data: { spaceId, agentId, topicSessionKey, elapsedMs, contentLength: accumulated.length },
+        timestamp: Date.now(),
+      }),
+    }).catch(() => {});
+    // #endregion
+
+    return accumulated ? "end_turn" : "cancelled";
   }
 
-  /**
-   * Send cancel notification to OpenClaw for a space's active session.
-   * cancel() is a fire-and-forget notification in ACP.
-   */
   cancelPrompt(runtimeSessionKey: string): void {
     const session = this.sessions.get(runtimeSessionKey);
     if (!session) return;
     session.activeAbort?.abort();
-    // Note: connection.cancel() sends an ACP notification — don't await
-    this.connection?.cancel({ sessionId: session.sessionId });
   }
 
   closeSession(runtimeSessionKey: string): void {
     const session = this.sessions.get(runtimeSessionKey);
     if (!session) return;
     session.activeAbort?.abort();
-    this.updateHandlers.delete(session.sessionId);
-    this.sessionById.delete(session.sessionId);
     this.sessions.delete(runtimeSessionKey);
   }
 
   dispose(): void {
-    this.subprocess?.kill();
-    this.teardown();
+    for (const session of this.sessions.values()) {
+      session.activeAbort?.abort();
+    }
+    this.sessions.clear();
   }
 }
 
-// Singleton per plugin process
 export const openClawAcpClient = new OpenClawAcpClient();

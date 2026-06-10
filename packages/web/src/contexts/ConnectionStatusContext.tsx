@@ -489,6 +489,21 @@ export function ConnectionStatusProvider({
       const connection = connectionRef.current;
       if (!connection || status !== "connected" || isStreaming) return;
       const topicPath = normalizeTopicPath(requestedTopicPath);
+      // #region agent log
+      fetch("http://127.0.0.1:7399/ingest/acbd8104-ecfc-434c-a54a-bcf58319b4b4", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "897816" },
+        body: JSON.stringify({
+          sessionId: "897816",
+          runId: "pre-fix",
+          hypothesisId: "H1",
+          location: "ConnectionStatusContext.tsx:selectTopic",
+          message: "selectTopic normalized path",
+          data: { requestedTopicPath, normalizedTopicPath: topicPath, spaceId },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
       if (topicPath === activeTopicPathRef.current) return;
 
       setMessages([]);
@@ -599,6 +614,27 @@ export function ConnectionStatusProvider({
       ]);
       setIsStreaming(true);
 
+      // #region agent log
+      fetch("http://127.0.0.1:7399/ingest/acbd8104-ecfc-434c-a54a-bcf58319b4b4", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "897816" },
+        body: JSON.stringify({
+          sessionId: "897816",
+          runId: "pre-fix",
+          hypothesisId: "H3",
+          location: "ConnectionStatusContext.tsx:sendMessage",
+          message: "sendMessage prompt",
+          data: {
+            spaceId,
+            sessionId,
+            activeTopicPath: activeTopicPathRef.current,
+            status,
+            contentLength: content.length,
+          },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => {});
+      // #endregion
       connection
         .prompt({ sessionId, prompt: [{ type: "text", text: content }] })
         .catch(() => {

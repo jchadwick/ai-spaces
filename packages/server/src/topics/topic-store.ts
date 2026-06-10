@@ -1,5 +1,4 @@
 import * as crypto from "node:crypto";
-import * as path from "node:path";
 import { and, eq } from "drizzle-orm";
 import { db } from "../db/connection.js";
 import { type SpaceTopic, spaceTopics } from "../db/index.js";
@@ -16,7 +15,7 @@ export function normalizeTopicPath(input: string): string {
   ) {
     throw new Error("Invalid topic path");
   }
-  return path.posix.normalize(`/${normalizedInput}`);
+  return segments.length > 0 ? `/${segments.join("/")}` : "/";
 }
 
 export function listActiveTopics(spaceId: string): SpaceTopic[] {

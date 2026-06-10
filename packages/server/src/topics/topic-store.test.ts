@@ -60,6 +60,14 @@ describe("topic store", () => {
     }
   });
 
+  it("normalizes topic paths without trailing slashes", async () => {
+    const { normalizeTopicPath } = await importStoreWithTempDb();
+    expect(normalizeTopicPath("/Maine/")).toBe("/Maine");
+    expect(normalizeTopicPath("/Maine")).toBe("/Maine");
+    expect(normalizeTopicPath("Maine/")).toBe("/Maine");
+    expect(normalizeTopicPath("/")).toBe("/");
+  });
+
   it("archives only the selected room when demoting by id", async () => {
     const { archiveTopicById, getTopicById, upsertPromotedTopic } = await importStoreWithTempDb();
     const parent = upsertPromotedTopic("space-1", "/Parent", "directory", "user-1");

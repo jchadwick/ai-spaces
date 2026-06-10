@@ -17,3 +17,4 @@ blob-report/
 .codegraph/
 .env
 .worktrees/
+.vscode/

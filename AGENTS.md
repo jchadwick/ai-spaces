@@ -97,3 +97,5 @@ ALWAYS verify changes.  Ensure everything works by running:
 
 `npm run verify`
 
+Do not EVER use `--no-verify`
+

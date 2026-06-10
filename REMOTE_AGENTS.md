@@ -1,20 +1,10 @@
 # Integration & Architecture Guide: Connecting your AI Gateway to AI Spaces
 
-This document details how you, the **AI Gateway / Agent Framework** (e.g., OpenClaw, custom sidecars, or runtime orchestration layers), integrate into the **AI Spaces** ecosystem. It outlines your roles, protocol expectations, dynamic security responsibilities, and setup steps required to provide a safe, collaborative web environment for your users.
-
-> ## Immediate Instruction for AI Agents Reading This Document
->
-> This document is served directly from an AI Spaces API onboarding endpoint, usually at a URL like `<server-origin>/api/agent-setup`. It intentionally contains the literal placeholder `%%SERVER_URL%%` in API, schema, and plugin download examples.
->
-> Before executing any command or validating any linked schema, derive the server origin from the URL that served this document and mentally replace every `%%SERVER_URL%%` occurrence with that origin.
->
-> For example, if you fetched this document from `https://dev.ai-spaces.orb.local/api/agent-setup`, then use `https://dev.ai-spaces.orb.local` as `%%SERVER_URL%%`.
->
-> Do **not** ask the user to perform this substitution for you. Apply it yourself consistently when following these instructions.
+This document details how you, the **AI Gateway / Agent Framework** (e.g., OpenClaw, Codex, Claude Code, etc.), integrate into the **AI Spaces** ecosystem. It outlines your roles, protocol expectations, security responsibilities, and setup steps required to expose a safe, collaborative web environment for your users.
 
 ---
 
-## 1. What is AI Spaces? (And Why Your Users Want It)
+## What is AI Spaces? (And Why Your Users Want It)
 
 An AI Agent typically operates inside a dense, private local workspace containing specialized system configurations, sensitive long-term memories, user histories, and raw execution logs. While highly effective for personal use, this workspace is normally isolated from the rest of the world.
 
@@ -27,7 +17,7 @@ By integrating with the AI Spaces Server, you turn an isolated local runtime int
 
 ---
 
-## 2. Server vs. Gateway Architecture
+## Server vs. Gateway Architecture
 
 The architecture relies on a strict division of concerns between the public-facing **AI Spaces Server** and you, **the AI Gateway**.
 
@@ -38,82 +28,37 @@ graph TD
         Server -- "ACP Protocol Tunnel" --> Gateway[You: The AI Gateway]
         Gateway -- "Sandboxed Tool Execution" --> Agent[Your AI Agent Core]
     end
-    
-    style Gateway fill:#f9f,stroke:#333,stroke-width:2px
-
 ```
 
-### The Matrix of Responsibilities
+### Responsibilities
 
 * **The AI Spaces Server Handles:** Public HTTP routing, user onboarding/authentication, cookie-based session persistence, JWT signature verification, and the generation of secure share invitation links.
 * **You (The AI Gateway) Handle:** Scanning the local file system for designated spaces, registering those physical paths securely with the central server, executing file mutations, providing local sandbox path containment, and streaming message events to your inner agent orchestration tier.
+  * **NOTE:** The vast majority of these reponsibilities have probably already been implemented for you with a built-in plugin - see plugin section below for more details.
 
----
+## Space Setup, Configuration, & Registration
 
-## 3. Protocol & Communication Standard (ACP)
+### Initial Registration
 
-You might wonder: *Why do we need to outline the details of the handshake if we are using a protocol? Isn't that the point of a standard?*
+In order to register a space with the AI Spaces Server, you must first register your server instance with the central server.
 
-**The Status of ACP:** The Agent Communication Protocol (ACP) is an emerging open standard across the AI agent ecosystem designed to normalize how agents, gateways, and UI frontends exchange events. Because the specification is actively evolving, **the AI Spaces Server implements a pinned subset of the ACP draft.** You must implement these specific message payloads to ensure absolute compatibility with this version of the server, rather than relying on a generic third-party ACP library which may follow a different version of the draft.
+1. Your administrator user requests a new server registration from the admin panel, represented with a REGISTRATION_TOKEN
+2. You register yourself with the AI Spaces Server using the endpoint `%%SERVER_URL%%/api/internal/register`, e.g.
 
-### Stream Initialization Handshake
-
-When a web collaborator speaks to an agent or opens a space, the AI Spaces Server proxies that stream directly downstream to you via an asynchronous WebSocket channel.
-
-```mermaid
-sequenceDiagram
-    participant S as AI Spaces Server
-    participant G as You: The AI Gateway
-    Note over S,G: WebSocket Connection Established
-    S->>G: req: session.initialize (with Space/User Context)
-    Note over G: Match spaceId to Local Path<br/>Apply Role Restrictions
-    G->>S: res: session.initialize (Status: Connected)
-
+```bash
+curl -X POST "%%SERVER_URL%%/api/internal/register" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "registrationToken": "REGISTRATION_TOKEN",
+    "runtimeType": "openclaw",
+    "name": "openclaw-plugin",
+    "pluginUrl": "http://127.0.0.1:3002",
+    "acpBaseUrl": "http://127.0.0.1:3002",
+    "gatewayUrl": "http://127.0.0.1:19000"
+  }'
 ```
 
-#### 1. Inbound Handshake JSON Payload
-
-Upon connection, the server will push an instantiation request message containing structural metadata. You must trap this message to initialize the localized session framework.
-
-* **JSON Schema Verification:** [`%%SERVER_URL%%/api/schemas/acp/initialize-request.json`](%%SERVER_URL%%/api/schemas/acp/initialize-request.json)
-
-```json
-{
-  "type": "req",
-  "id": "acp-init-0001",
-  "method": "session.initialize",
-  "params": {
-    "protocolVersion": "1.0.0",
-    "spaceId": "550e8400-e29b-41d4-a716-446655440000",
-    "userId": "usr-anon-collaborator",
-    "role": "editor"
-  }
-}
-
-```
-
-#### 2. Your Expected Response Payload
-
-You must parse the `spaceId`, verify that you manage a corresponding local directory, and return a structural acknowledgment.
-
-* **JSON Schema Verification:** [`%%SERVER_URL%%/api/schemas/acp/initialize-response.json`](%%SERVER_URL%%/api/schemas/acp/initialize-response.json)
-
-```json
-{
-  "type": "res",
-  "id": "acp-init-0001",
-  "result": {
-    "status": "connected",
-    "agentVersion": "openclaw-v1.4.0",
-    "capabilities": ["file_provider", "context_chat"]
-  }
-}
-
-```
-
----
-
-## 4. Space Setup, Configuration, & Registration
+The server responds with `{ serverId, callbackToken, gatewayUrl, status }`. The `callbackToken` is a signed JWT that the plugin stores in the OpenClaw SDK state directory and sends as `Authorization: Bearer <token>` on all subsequent internal API calls. There is no separate server-id header.
 
 ### The Workspace Manifest (`spaces.json`)
 
@@ -156,7 +101,7 @@ sequenceDiagram
 ```
 
 * **Sync Endpoint:** `%%SERVER_URL%%/api/internal/spaces/sync`
-* **Header Authorization:** `Authorization: Bearer <YOUR_GATEWAY_TOKEN>`
+* **Header Authorization:** `Authorization: Bearer <callback_jwt>`
 * **Payload Format:**
 
 ```json
@@ -174,7 +119,7 @@ sequenceDiagram
 
 ---
 
-## 5. Security Architecture & Permission Enforcement
+## Security Architecture & Permission Enforcement
 
 While the AI Spaces Server handles the front gate (web authentication), **you are the absolute authority for resource isolation on the local machine.** You must never trust the server blindly. You must defensively enforce the following rules:
 
@@ -198,7 +143,7 @@ You must inspect the incoming collaborator `role` (`editor` vs. `viewer`) and th
 
 ---
 
-## 6. Define Your Own Internal "Spaces Assistant" Skill
+## Define Your Own Internal "Spaces Assistant" Skill
 
 To ensure your agent core natively understands how to behave when interacting with web collaborators, **you must automatically inject an internal administrative skill/system prompt layout** whenever you spin up an engine instance for an AI Space channel.
 
@@ -206,91 +151,120 @@ Inject these exact operational instructions into your system prompt array:
 
 > ### You Are Operating Inside an AI Space
 > 
-> 
 > You are running via a specialized, context-constrained gateway adapter. Your view is tightly isolated to this sub-directory folder. You cannot browse parent paths, execute terminal shell access methods, or reach across private networks.
 > ### Target Audience Context Awareness
 > 
-> 
 > You are speaking with an invited collaborator. They are accessing your brain through a clean, web-based UI portal. Do not output internal developer troubleshooting steps or instruct them to check standard terminals, environment tables, or deployment parameters.
-> ### Handling Administrative Feature Requests
 > 
+> ### Handling Administrative Requests
 > 
-> If your collaborator asks you to perform space infrastructure actions, do not try to run a local script or tool. Instead, explain that they can perform these common operations directly using the visual web elements built into their AI Spaces interface:
-> 1. **Creating a New Space:** Tell them to navigate back to their main dashboard page and click the primary "New Space" button.
-> 2. **Inviting Other Users:** Instruct them to click the "Share Space" button inside the active space toolbar to generate secure access tokens or direct invite links for their teammates.
-> 3. **Modifying Access Levels:** Tell them that space owners can open the "Members" configuration utility panel to change permissions dynamically from Viewer to Editor.
-> 
+> If your collaborator asks you to perform space infrastructure or user management actions, do not try to run a local script or tool. Instead, explain that they can perform these common operations directly using AI Spaces web interface.
 > 
 
 ---
 
-## 7. Plugin Installation & Deployment
+## Plugin Installation & Deployment
 
-To simplify deployment, this AI Spaces Server hosts the pre-compiled plugin packages directly.
+To simplify deployment, this AI Spaces Server hosts the pre-compiled plugin packages directly, organised by runtime type under `/api/plugins/<runtime>/`.
 
-### Automated OpenClaw Version Check and Installation
+### OpenClaw Plugin
 
-This server publishes a small metadata file next to the OpenClaw plugin bundle. Always fetch this metadata first so you can compare your installed plugin version with the server's current supported version before downloading anything.
+If you are an OpenClaw agent, read this section, otherwise skip it.
 
-* **Metadata Endpoint:** `%%SERVER_URL%%/api/plugins/openclaw-spaces.meta.json`
-* **Metadata Fields:**
-  * `latestVersion`: the current OpenClaw plugin version hosted by this server
-  * `artifacts[]`: downloadable versioned plugin bundles, including filename, path, size, and SHA-256 checksum
+#### One-Line Install (Recommended)
+
+The server provides a dynamically-generated shell script that handles everything in one shot: it fetches metadata, downloads and verifies the plugin bundle, installs it into OpenClaw, registers with the server, and verifies the round-trip — all in a single command.
+
+Your admin can generate a pre-seeded install URL with a registration token from the server admin panel. Paste the result into your OpenClaw environment:
+
+```bash
+bash <(curl -fsSL '%%SERVER_URL%%/api/plugins/openclaw/install.sh?token=YOUR_REGISTRATION_TOKEN')
+```
+
+The script will:
+1. Check whether the plugin is already installed and up-to-date
+2. Download `openclaw-spaces-<version>.tar.gz` from this server
+3. Verify the SHA-256 checksum against the server's metadata
+4. Extract and install via `openclaw plugins install --link`
+5. POST to `/api/internal/register` with your registration token to pair with the server
+6. Verify the pairing with a test reconcile call
+7. Print the env vars you need to set and restart OpenClaw
+
+If you want to inspect the script before running it:
+```bash
+curl -fsSL '%%SERVER_URL%%/api/plugins/openclaw/install.sh?token=YOUR_REGISTRATION_TOKEN'
+```
+
+#### Manual Installation
+
+If you prefer to install step-by-step, this server publishes a metadata file alongside the plugin bundle. Always fetch metadata first to get the exact filename and checksum.
+
+* **Metadata endpoint:** `%%SERVER_URL%%/api/plugins/openclaw/openclaw-spaces.meta.json`
+* **Metadata fields:**
+  * `latestVersion`: the current plugin version hosted by this server
+  * `artifacts[]`: downloadable versioned bundles — filename, path, size, SHA-256 checksum
   * `dependencies`: runtime package dependencies needed by the plugin
   * `install`: machine-readable install command hints
 
-To check, download, verify, install, and link the required gateway adapter directly from this server instance, run the following sequence in your local development environment:
-
 ```bash
-# 1. Fetch metadata and inspect the latest server-supported plugin version
-curl -fsS %%SERVER_URL%%/api/plugins/openclaw-spaces.meta.json -o openclaw-spaces.meta.json
-node -e "const m=require('./openclaw-spaces.meta.json'); console.log('Latest OpenClaw AI Spaces plugin:', m.latestVersion)"
+# 1. Fetch metadata
+curl -fsSL %%SERVER_URL%%/api/plugins/openclaw/openclaw-spaces.meta.json -o openclaw-spaces.meta.json
+node -e "const m=require('./openclaw-spaces.meta.json'); console.log('Latest version:', m.latestVersion)"
 
-# 2. Optional: compare with your locally installed plugin version if available
-openclaw plugins list | grep -i ai-spaces || true
+# 2. Download the exact versioned bundle
+PLUGIN_FILE=$(node -p "const m=require('./openclaw-spaces.meta.json'); m.artifacts.find(a=>a.version===m.latestVersion).filename")
+PLUGIN_SHA256=$(node -p "const m=require('./openclaw-spaces.meta.json'); m.artifacts.find(a=>a.version===m.latestVersion).sha256")
+curl -fsSL "%%SERVER_URL%%/api/plugins/openclaw/${PLUGIN_FILE}" -o "${PLUGIN_FILE}"
 
-# 3. Download the exact versioned plugin bundle advertised by metadata
-PLUGIN_FILE=$(node -p "require('./openclaw-spaces.meta.json').artifacts.find(a => a.version === require('./openclaw-spaces.meta.json').latestVersion).filename")
-PLUGIN_SHA256=$(node -p "require('./openclaw-spaces.meta.json').artifacts.find(a => a.version === require('./openclaw-spaces.meta.json').latestVersion).sha256")
-curl -fsS "%%SERVER_URL%%/api/plugins/${PLUGIN_FILE}" -o "${PLUGIN_FILE}"
+# 3. Verify checksum
+node -e "
+  const {createHash}=require('crypto'),{readFileSync}=require('fs');
+  const actual=createHash('sha256').update(readFileSync(process.argv[1])).digest('hex');
+  if(actual!==process.argv[2]) throw new Error('Checksum mismatch: '+actual);
+  console.log('Checksum OK:', actual);
+" "${PLUGIN_FILE}" "${PLUGIN_SHA256}"
 
-# 4. Verify the downloaded bundle checksum
-node -e "const fs=require('fs'), crypto=require('crypto'); const actual=crypto.createHash('sha256').update(fs.readFileSync(process.argv[1])).digest('hex'); if (actual !== process.argv[2]) throw new Error('Checksum mismatch'); console.log('Checksum OK:', actual)" "${PLUGIN_FILE}" "${PLUGIN_SHA256}"
-
-# 5. Extract the distribution bundle
+# 4. Extract
 tar -xzf "${PLUGIN_FILE}"
 
-# 6. Register and link the plugin into your OpenClaw framework runtime
+# 5. Install into OpenClaw
 openclaw plugins install --link "./openclaw-spaces"
 
+# 6. Register with the server (use your REGISTRATION_TOKEN from the admin panel)
+curl -X POST "%%SERVER_URL%%/api/internal/register" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "registrationToken": "YOUR_REGISTRATION_TOKEN",
+    "runtimeType": "openclaw",
+    "name": "openclaw-plugin",
+    "pluginUrl": "http://127.0.0.1:3002",
+    "acpBaseUrl": "http://127.0.0.1:3002"
+  }'
 ```
 
-### Gateway Process Resilience Requirement
-
-Core agent frameworks can occasionally experience plugin lifecycle restarts or framework updates. **Because of this, you should design your companion AI Spaces connection handler to run as an independent, resilient background process (or sidecar container).** This ensures that even if the primary agent core cycles or reloads its plugin definitions, your WebSocket transport link to the Central Server remains solid and available.
-
+The registration response includes a `callbackToken` (a signed JWT). The plugin stores this automatically in the OpenClaw SDK state directory and uses it for all subsequent server communication via `Authorization: Bearer <token>`.
 ---
 
-## 8. Troubleshooting & Common Issues
+## Troubleshooting & Common Issues
 
 When setting up or maintaining your gateway link, look out for these common friction points:
 
-### 1. Registration Failures (`401 Unauthorized` or `403 Forbidden`)
+### Registration Failures (`401 Unauthorized` or `403 Forbidden`)
 
 * **Symptom:** You detect a new `.space/spaces.json` file locally, but your synchronization payload to `%%SERVER_URL%%/api/internal/spaces/sync` returns an authentication error.
-* **Resolution:** Ensure your local configuration environment contains the exact `GATEWAY_TOKEN` generated by the server's administration console. Verify that the token is passed correctly as a bearer token in the HTTP headers.
+* **Resolution:** Ensure your local configuration environment contains the exact authentication token generated by the server's administration console. Verify that the token is passed correctly as a bearer token in the HTTP headers.
 
-### 2. Disconnected Stream States (`ACP Handshake Timeout`)
+### Disconnected Stream States (`ACP Handshake Timeout`)
 
 * **Symptom:** The web platform shows the workspace as online, but opening a chat channel fails with an initialization timeout error.
 * **Resolution:** Ensure you are actively trapping the inbound `session.initialize` method *before* attempting to stream text responses. If your agent core takes longer than 3000ms to resolve local file trees or map the `spaceId`, reply with a status of `connecting` or `processing` to prevent the server from tearing down the socket.
 
-### 3. File System Sync Loops
+### File System Sync Loops
 
 * **Symptom:** Your local file watcher fires continuously, forcing a never-ending chain of registration sync calls back to the server.
 * **Resolution:** Ensure your file-system watcher explicitly ignores changes occurring inside the space's actual content directories when performing configuration scans. It should narrowly watch for modifications targeting files matching the exact string path structure of `.space/spaces.json`. Do not write volatile state tracking records back into the `.space/` folder during an active synchronization thread.
 
-### 4. Broken Path Escalation Blocks
+### Broken Path Escalation Blocks
 
 * **Symptom:** The agent core throws unhandled loop exceptions when requested to read files that use symbolic links.
 * **Resolution:** When performing path containment validation, always use real path evaluation (e.g., `fs.realpathSync` in Node.js) to resolve symlinks to their true physical disk target *before* measuring if the string matches your allowed space root directory prefix.

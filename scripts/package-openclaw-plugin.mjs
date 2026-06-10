@@ -22,10 +22,12 @@ const pkg = JSON.parse(readFileSync(packagePath, "utf-8"));
 const version = String(pkg.version ?? "").trim();
 if (!version) throw new Error(`Missing version in ${packagePath}`);
 
-mkdirSync(outDir, { recursive: true });
-for (const entry of readdirSync(outDir)) {
+// Runtime artifacts are scoped under {outDir}/openclaw/
+const runtimeDir = join(outDir, "openclaw");
+mkdirSync(runtimeDir, { recursive: true });
+for (const entry of readdirSync(runtimeDir)) {
   if (/^openclaw-spaces-.*\.tar\.gz$/.test(entry) || entry === "openclaw-spaces.meta.json") {
-    rmSync(join(outDir, entry), { force: true });
+    rmSync(join(runtimeDir, entry), { force: true });
   }
 }
 
@@ -37,7 +39,7 @@ try {
   cpSync(packagePath, join(packageRoot, "package.json"));
 
   const artifactFilename = `openclaw-spaces-${version}.tar.gz`;
-  const artifactPath = resolve(outDir, artifactFilename);
+  const artifactPath = resolve(runtimeDir, artifactFilename);
   execFileSync("tar", ["-czf", artifactPath, "-C", tempDir, "openclaw-spaces"], {
     stdio: "inherit",
   });
@@ -53,7 +55,7 @@ try {
       {
         version,
         filename: artifactFilename,
-        path: `/plugins/${artifactFilename}`,
+        path: `/api/plugins/openclaw/${artifactFilename}`,
         contentType: "application/gzip",
         sizeBytes: statSync(artifactPath).size,
         sha256: createHash("sha256").update(artifact).digest("hex"),
@@ -61,15 +63,16 @@ try {
     ],
     dependencies: pkg.dependencies ?? {},
     install: {
-      checkMetadata: "GET /plugins/openclaw-spaces.meta.json",
-      download: `GET /plugins/${artifactFilename}`,
+      oneliner: "bash <(curl -fsSL SERVER_URL/api/plugins/openclaw/install.sh?token=TOKEN)",
+      checkMetadata: "GET /api/plugins/openclaw/openclaw-spaces.meta.json",
+      download: `GET /api/plugins/openclaw/${artifactFilename}`,
       extract: `tar -xzf ${artifactFilename}`,
       register: 'openclaw plugins install --link "./openclaw-spaces"',
     },
   };
 
   writeFileSync(
-    resolve(outDir, "openclaw-spaces.meta.json"),
+    resolve(runtimeDir, "openclaw-spaces.meta.json"),
     `${JSON.stringify(metadata, null, 2)}\n`,
   );
 } finally {

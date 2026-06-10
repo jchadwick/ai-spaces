@@ -31,7 +31,6 @@ services:
     environment:
       OPENCLAW_HOME: /home/openclaw
       OPENCLAW_SANDBOX_HOME: /home/openclaw
-      PLUGIN_DIST: /plugins/ai-spaces/index.js
       OPENCLAW_GATEWAY_PORT: "19000"
       OPENCLAW_DISABLE_BONJOUR: "1"
       AI_SPACES_URL: http://dev:3001
@@ -50,7 +49,6 @@ services:
         max_attempts: 10
     volumes:
       - openclaw-home:/home/openclaw
-      - ./packages/plugin/dist:/plugins/ai-spaces:ro
       - ./packages/shared/dist:/plugins/node_modules/@ai-spaces/shared/dist:ro
       - ./packages/shared/package.json:/plugins/node_modules/@ai-spaces/shared/package.json:ro
       - ./sandbox/templates/.openclaw/openclaw.json.tpl:/tpl/openclaw.json.tpl:ro

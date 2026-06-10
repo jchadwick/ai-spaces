@@ -3,8 +3,6 @@ set -e
 
 OPENCLAW_HOME="${OPENCLAW_HOME:-/home/openclaw}"
 OPENCLAW_SANDBOX_HOME="${OPENCLAW_SANDBOX_HOME:-$OPENCLAW_HOME}"
-PLUGIN_DIST="${PLUGIN_DIST:-/plugins/ai-spaces/index.js}"
-CURRENT_TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%S.000Z)"
 GATEWAY_PORT="${OPENCLAW_GATEWAY_PORT:-19000}"
 
 # Extract OPENCODE_API_KEY from mounted auth.json if not already set
@@ -15,24 +13,14 @@ fi
 export OPENCODE_API_KEY
 
 echo "[entrypoint] OPENCLAW_HOME=$OPENCLAW_HOME"
-echo "[entrypoint] PLUGIN_DIST=$PLUGIN_DIST"
 
 # Create directory structure
 mkdir -p "$OPENCLAW_HOME/.openclaw"
 mkdir -p "$OPENCLAW_HOME/workspace"
 mkdir -p "$OPENCLAW_HOME/data/ai-spaces"
 
-# Portable template substitution (works with or without envsubst)
-substitute() {
-  sed \
-    -e "s|\${OPENCLAW_SANDBOX_HOME}|$OPENCLAW_SANDBOX_HOME|g" \
-    -e "s|\${PLUGIN_DIST}|$PLUGIN_DIST|g" \
-    -e "s|\${CURRENT_TIMESTAMP}|$CURRENT_TIMESTAMP|g" \
-    "$1"
-}
-
 # Process openclaw.json template
-substitute /tpl/openclaw.json.tpl > "$OPENCLAW_HOME/.openclaw/openclaw.json"
+sed -e "s|\${OPENCLAW_SANDBOX_HOME}|$OPENCLAW_SANDBOX_HOME|g" /tpl/openclaw.json.tpl > "$OPENCLAW_HOME/.openclaw/openclaw.json"
 echo "[entrypoint] Config written to $OPENCLAW_HOME/.openclaw/openclaw.json"
 
 # Init workspace from template (only if empty)
@@ -69,25 +57,11 @@ if [ -d /tpl/brain ]; then
 fi
 
 # Install plugin via server's install.sh (production-consistent flow).
-# This downloads the tarball, extracts, and links the plugin.
-# No registration token passed — registration is handled by the plugin code.
+# This downloads the tarball, verifies checksum, extracts to a persistent dir,
+# and runs openclaw plugins install --link to register the plugin.
 echo "[entrypoint] Installing ai-spaces plugin via install.sh..."
 curl -fsSL "${AI_SPACES_URL}/api/plugins/openclaw/install.sh" | bash || \
   echo "[entrypoint] WARNING: install.sh failed, continuing..."
-
-# Re-link plugin to mounted dist so dev hot-reload works.
-# install.sh links to a temp dir that gets cleaned up on exit;
-# re-link to the mounted dist for dev workflow.
-echo "[entrypoint] Re-linking to mounted dist..."
-openclaw plugins install --link "$PLUGIN_DIST" 2>&1 || \
-  echo "[entrypoint] WARNING: re-link failed, continuing..."
-
-# Restore config from template (overwrites whatever install.sh/link wrote).
-# The template config has load.paths pointing to the mounted dist file path.
-substitute /tpl/openclaw.json.tpl > "$OPENCLAW_HOME/.openclaw/openclaw.json"
-
-# The channel plugin registers itself when loaded.
-# channels.ai-spaces is in the template config.
 
 # Bootstrap registration token via admin API for the gateway plugin.
 # The plugin code calls tryRegisterWithServer(), persists credentials to the

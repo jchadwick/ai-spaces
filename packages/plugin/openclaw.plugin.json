@@ -3,6 +3,9 @@
   "name": "AI Spaces",
   "description": "Share portions of your agent workspace with collaborators",
   "kind": "channel",
+  "activation": {
+    "onStartup": true
+  },
   "channels": ["ai-spaces"],
   "channelConfigs": {
     "ai-spaces": {

@@ -33,28 +33,5 @@
         "mode": "api_key"
       }
     }
-  },
-  "plugins": {
-    "entries": {
-      "ai-spaces": {
-        "enabled": true
-      }
-    },
-    "load": {
-      "paths": ["${PLUGIN_DIST}"]
-    },
-    "installs": {
-      "ai-spaces": {
-        "source": "path",
-        "sourcePath": "${PLUGIN_DIST}",
-        "installPath": "${PLUGIN_DIST}",
-        "installedAt": "${CURRENT_TIMESTAMP}"
-      }
-    }
-  },
-  "channels": {
-    "ai-spaces": {
-      "enabled": true
-    }
   }
 }

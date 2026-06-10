@@ -13,29 +13,53 @@ vi.mock("./logger.js", () => ({
   },
 }));
 
+vi.mock("openclaw/plugin-sdk/core", () => ({
+  tryReadSecretFileSync: (filePath: string) => {
+    try {
+      return fs.readFileSync(filePath, "utf-8");
+    } catch {
+      return undefined;
+    }
+  },
+}));
+
+let stateDirOverride: string | null = null;
+
+vi.mock("./runtime.js", () => ({
+  getRuntime: () => ({
+    state: {
+      resolveStateDir: () => {
+        if (!stateDirOverride) throw new Error("stateDirOverride not set");
+        return stateDirOverride;
+      },
+    },
+  }),
+}));
+
 const ORIGINAL_ENV = { ...process.env };
 
 describe("registration", () => {
   let tempDir: string;
-  let stateFile: string;
+  let credentialsFile: string;
 
   beforeEach(() => {
     vi.resetModules();
     process.env = { ...ORIGINAL_ENV };
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "ai-spaces-registration-test-"));
-    stateFile = path.join(tempDir, "ai-spaces-registration.json");
-    process.env.AI_SPACES_PLUGIN_STATE_FILE = stateFile;
+    credentialsFile = path.join(tempDir, "ai-spaces", "credentials.json");
+    stateDirOverride = tempDir;
     process.env.AI_SPACES_URL = "http://ai-spaces.test";
     process.env.PLUGIN_URL = "http://openclaw.test";
   });
 
   afterEach(() => {
     process.env = { ...ORIGINAL_ENV };
+    stateDirOverride = null;
     vi.unstubAllGlobals();
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it("returns unpaired when state and registration token are missing", async () => {
+  it("returns unpaired when credentials and registration token are missing", async () => {
     delete process.env.AI_SPACES_REGISTRATION_TOKEN;
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
@@ -48,7 +72,7 @@ describe("registration", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("pairs with an explicit registration token and persists local callback state", async () => {
+  it("pairs with an explicit registration token and persists local credential", async () => {
     process.env.AI_SPACES_REGISTRATION_TOKEN = "one-time-token";
     vi.stubGlobal(
       "fetch",
@@ -68,24 +92,12 @@ describe("registration", () => {
     const result = await tryRegisterWithServer();
 
     expect(result.status).toBe("registered");
-    expect(result.state).toEqual(
-      expect.objectContaining({
-        serverId: "server-1",
-        callbackToken: "raw-callback-token",
-        aiSpacesUrl: "http://ai-spaces.test",
-        pluginUrl: "http://openclaw.test",
-        acpBaseUrl: "http://openclaw.test",
-        gatewayUrl: "http://gateway.test",
-        runtimeType: "openclaw",
-      }),
-    );
-    expect(JSON.parse(fs.readFileSync(stateFile, "utf-8"))).toEqual(
-      expect.objectContaining({
-        serverId: "server-1",
-        callbackToken: "raw-callback-token",
-        runtimeType: "openclaw",
-      }),
-    );
+    expect(result.state).toEqual({
+      serverId: "server-1",
+      token: "raw-callback-token",
+    });
+    const saved = JSON.parse(fs.readFileSync(credentialsFile, "utf-8")) as unknown[];
+    expect(saved).toEqual([{ serverId: "server-1", token: "raw-callback-token" }]);
     expect(fetch).toHaveBeenCalledWith(
       "http://ai-spaces.test/api/internal/register",
       expect.objectContaining({
@@ -95,18 +107,11 @@ describe("registration", () => {
     );
   });
 
-  it("reuses persisted state and does not re-register even when a token is present", async () => {
+  it("reuses persisted credential and does not re-register even when a token is present", async () => {
+    fs.mkdirSync(path.dirname(credentialsFile), { recursive: true });
     fs.writeFileSync(
-      stateFile,
-      JSON.stringify({
-        serverId: "server-1",
-        callbackToken: "raw-callback-token",
-        aiSpacesUrl: "http://ai-spaces.test",
-        pluginUrl: "http://openclaw.test",
-        acpBaseUrl: "http://openclaw.test",
-        runtimeType: "openclaw",
-        registeredAt: "2026-06-08T00:00:00.000Z",
-      }),
+      credentialsFile,
+      JSON.stringify([{ serverId: "server-1", token: "raw-callback-token" }]),
       "utf-8",
     );
     process.env.AI_SPACES_REGISTRATION_TOKEN = "fresh-token";

@@ -10,6 +10,10 @@ vi.mock("./logger.js", () => ({
   },
 }));
 
+vi.mock("./registration.js", () => ({
+  loadCredentials: vi.fn(() => []),
+}));
+
 const ORIGINAL_ENV = { ...process.env };
 
 describe("preflight", () => {

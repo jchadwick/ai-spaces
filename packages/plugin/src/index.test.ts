@@ -19,12 +19,12 @@ vi.mock("./preflight.js", () => ({
 }));
 
 const tryRegisterWithServerMock = vi.fn(async () => ({ status: "unpaired", state: null }));
-const clearRegistrationStateMock = vi.fn();
-const loadRegistrationStateMock = vi.fn(() => null);
+const clearCredentialsMock = vi.fn();
+const loadCredentialsMock = vi.fn(() => []);
 vi.mock("./registration.js", () => ({
   tryRegisterWithServer: (...args: unknown[]) => tryRegisterWithServerMock(...args),
-  clearRegistrationState: (...args: unknown[]) => clearRegistrationStateMock(...args),
-  loadRegistrationState: (...args: unknown[]) => loadRegistrationStateMock(...args),
+  clearCredentials: (...args: unknown[]) => clearCredentialsMock(...args),
+  loadCredentials: (...args: unknown[]) => loadCredentialsMock(...args),
   classifyCallbackResponse: (status: number) =>
     status === 401 || status === 403
       ? "stale-callback-token"
@@ -249,5 +249,82 @@ describe("index registerFull resilience", () => {
 
     await expect(loginRoute!.handler(req, res)).resolves.toBe(true);
     expect((res as unknown as { statusCode: number }).statusCode).toBe(500);
+  });
+});
+
+describe("triggerReconcile auth behaviour", () => {
+  beforeEach(() => {
+    vi.resetModules();
+    vi.clearAllMocks();
+    vi.spyOn(process, "exit").mockImplementation((() => undefined) as never);
+    vi.stubGlobal(
+      "setInterval",
+      vi.fn(() => 1 as unknown as NodeJS.Timeout),
+    );
+    vi.stubGlobal("clearInterval", vi.fn());
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("sends Authorization: Bearer header in reconcile request (not body fields)", async () => {
+    const credential = { serverId: "srv-1", token: "jwt-abc" };
+    tryRegisterWithServerMock.mockResolvedValueOnce({
+      status: "registered",
+      state: credential,
+    });
+
+    let capturedInit: RequestInit | undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: unknown, init: RequestInit) => {
+        capturedInit = init;
+        return { ok: true, status: 200 } as Response;
+      }),
+    );
+
+    const plugin = (await import("./index.js")).default as {
+      registerFull: (api: unknown) => Promise<void>;
+    };
+    const api = createFakeApi();
+    await plugin.registerFull(api);
+
+    // Allow the initial triggerReconcile to settle
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(capturedInit).toBeDefined();
+    const headers = capturedInit!.headers as Record<string, string>;
+    expect(headers["Authorization"]).toBe("Bearer jwt-abc");
+
+    // Body must NOT contain serverId or callbackToken
+    const body = JSON.parse(capturedInit!.body as string) as Record<string, unknown>;
+    expect(body).not.toHaveProperty("serverId");
+    expect(body).not.toHaveProperty("callbackToken");
+    expect(body).toHaveProperty("spaces");
+  });
+
+  it("clears credentials and enters degraded mode on 401 reconcile response", async () => {
+    const credential = { serverId: "srv-1", token: "jwt-abc" };
+    tryRegisterWithServerMock.mockResolvedValueOnce({
+      status: "registered",
+      state: credential,
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({ ok: false, status: 401 }) as Response),
+    );
+
+    const plugin = (await import("./index.js")).default as {
+      registerFull: (api: unknown) => Promise<void>;
+    };
+    const api = createFakeApi();
+    await plugin.registerFull(api);
+
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(clearCredentialsMock).toHaveBeenCalled();
   });
 });

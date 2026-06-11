@@ -62,10 +62,6 @@ async function seedRooms() {
   console.log(`[seed-dev-rooms] Found ${spaces.length} spaces`);
 
   const roomMap = {
-    TestSpace: [
-      { roomPath: "/Maine/", targetType: "directory" },
-      { roomPath: "/CostaRica/", targetType: "directory" },
-    ],
     Vacations: [
       { roomPath: "/Maine/", targetType: "directory" },
       { roomPath: "/CostaRica/", targetType: "directory" },

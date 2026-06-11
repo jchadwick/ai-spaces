@@ -43,6 +43,52 @@ export function scanWorkspace(
   if (!fs.existsSync(workspaceDir)) return results;
 
   function scan(dir: string, relativePath: string) {
+    // Check the root directory itself for .space/spaces.json (root-level spaces)
+    if (relativePath === "") {
+      const rootConfigPath = path.join(dir, ".space", "spaces.json");
+      if (fs.existsSync(rootConfigPath)) {
+        try {
+          const raw = JSON.parse(fs.readFileSync(rootConfigPath, "utf-8"));
+          const parsed = SpaceConfigSchema.safeParse(raw);
+          if (parsed.success) {
+            let spaceId = parsed.data.id;
+            if (!spaceId) {
+              spaceId = computeSpaceId("", path.basename(dir));
+              try {
+                const backfilled = { ...raw, id: spaceId };
+                fs.writeFileSync(rootConfigPath, JSON.stringify(backfilled, null, 2));
+              } catch (writeErr) {
+                console.warn(
+                  `[scanWorkspace] Failed to backfill id in ${rootConfigPath}:`,
+                  writeErr,
+                );
+              }
+            }
+            results.push({
+              id: spaceId,
+              agentId: agentName,
+              agentType: agentName === "main" ? "main" : "agent",
+              path: "",
+              configPath: rootConfigPath,
+              config: parsed.data,
+            });
+          } else {
+            console.warn(
+              `[scanWorkspace] Schema validation failed for ${rootConfigPath}:`,
+              parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join(", "),
+            );
+          }
+        } catch (err) {
+          const code = (err as NodeJS.ErrnoException).code;
+          if (code === "EACCES" || code === "EPERM") {
+            console.warn(`[scanWorkspace] Permission denied reading config: ${rootConfigPath}`);
+          } else {
+            console.error(`[scanWorkspace] Failed to load space config: ${rootConfigPath}`, err);
+          }
+        }
+      }
+    }
+
     let entries: fs.Dirent[];
     try {
       entries = fs.readdirSync(dir, { withFileTypes: true });

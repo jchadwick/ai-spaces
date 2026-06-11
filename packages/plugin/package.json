@@ -17,7 +17,6 @@
     "extensions": [
       "./dist/index.js"
     ],
-    "setupEntry": "./dist/setup-entry.js",
     "channel": {
       "id": "ai-spaces",
       "label": "AI Spaces",

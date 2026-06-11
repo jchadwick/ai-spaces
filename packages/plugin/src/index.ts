@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { defineChannelPluginEntry } from "openclaw/plugin-sdk/core";
+import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
 import { aiSpacesPlugin } from "./channel.js";
 import { cleanOrphanedFiles } from "./cleanup.js";
 import { config, diagnostics as configDiagnostics, configStatus } from "./config.js";
@@ -77,14 +77,23 @@ function safeCliAction<TArgs extends unknown[]>(
   };
 }
 
-export default defineChannelPluginEntry({
+const entry = {
   id: "ai-spaces",
   name: "AI Spaces",
   description: "Share portions of your agent workspace with collaborators",
-  plugin: aiSpacesPlugin,
-  setRuntime,
+  channelPlugin: aiSpacesPlugin,
 
-  async registerFull(api) {
+  register(api: OpenClawPluginApi) {
+    setRuntime(api.runtime);
+    // biome-ignore lint/suspicious/noExplicitAny: SDK type mismatch between createChannelPluginBase and registerChannel
+    api.registerChannel({ plugin: aiSpacesPlugin } as any);
+
+    // Fire-and-forget: gateway requires register() to be synchronous,
+    // but our registration (server pairing, watchers, routes) is async.
+    void entry.registerFull(api);
+  },
+
+  async registerFull(api: OpenClawPluginApi) {
     log.info("Registering proxy plugin");
     log.info({ url: config.AI_SPACES_URL }, "Proxying to server");
 
@@ -484,4 +493,6 @@ export default defineChannelPluginEntry({
       },
     );
   },
-});
+};
+
+export default entry;

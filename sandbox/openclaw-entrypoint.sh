@@ -80,11 +80,6 @@ else
   echo "[entrypoint] Using persisted credentials from SDK state dir"
 fi
 
-# Dev-only: seed default rooms after reconciliation completes.
-echo "[entrypoint] Seeding dev rooms..."
-node /scripts/seed-dev-rooms.mjs &
-echo "[entrypoint] Room seeding started in background"
-
 echo "[entrypoint] Starting gateway on port $GATEWAY_PORT..."
 
 # Auto-restart loop (gateway crashes periodically due to upstream bug)
@@ -93,4 +88,22 @@ while true; do
     openclaw gateway --allow-unconfigured --port "$GATEWAY_PORT"
   echo "[entrypoint] gateway exited (code $?), restarting in 2s..."
   sleep 2
+done &
+
+# Dev-only: seed rooms once after gateway + plugin are up.
+echo "[entrypoint] Waiting for plugin to be ready..."
+for i in $(seq 1 30); do
+  if node -e "
+    const c = require('net').createConnection(3002,'127.0.0.1');
+    c.on('connect', () => { c.destroy(); process.exit(0); });
+    c.on('error', () => process.exit(1));
+  " 2>/dev/null; then
+    echo "[entrypoint] Plugin ready. Seeding dev rooms..."
+    node /scripts/seed-dev-rooms.mjs
+    break
+  fi
+  sleep 2
 done
+
+# Keep the entrypoint alive (gateway loop is backgrounded).
+wait

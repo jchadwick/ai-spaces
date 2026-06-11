@@ -62,22 +62,23 @@ async function seedRooms() {
   console.log(`[seed-dev-rooms] Found ${spaces.length} spaces`);
 
   const roomMap = {
-    Vacations: [
-      { roomPath: "/Maine/", targetType: "directory" },
-      { roomPath: "/CostaRica/", targetType: "directory" },
+    Travel: [
+      { roomPath: "/Vacations/Maine/", targetType: "directory" },
+      { roomPath: "/Vacations/CostaRica/", targetType: "directory" },
     ],
   };
 
   for (const space of spaces) {
-    const rooms = roomMap[space.path];
+    const cfg = typeof space.config === "string" ? JSON.parse(space.config) : space.config;
+    const rooms = roomMap[cfg.name] ?? roomMap[space.path];
     if (!rooms) continue;
     for (const room of rooms) {
       try {
         await promoteRoom(token, space.id, room.roomPath, room.targetType);
-        console.log(`[seed-dev-rooms] Promoted ${room.roomPath} in ${space.path}`);
+        console.log(`[seed-dev-rooms] Promoted ${room.roomPath} in ${cfg.name}`);
       } catch (err) {
         console.log(
-          `[seed-dev-rooms] Room ${room.roomPath} in ${space.path}: ${err instanceof Error ? err.message : String(err)}`,
+          `[seed-dev-rooms] Room ${room.roomPath} in ${cfg.name}: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
     }
